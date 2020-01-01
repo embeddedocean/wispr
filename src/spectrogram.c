@@ -105,102 +105,43 @@
 
 #include "spectrogram.h"
 
-//
-// initialize the spectrogram
-//
-int spectrogram_init(spectrogram_t *psd, uint32_t fs)
-{
-	// use the fixed fft size to avoid runtime memory allocation
-	uint16_t fft_size = PSD_FFT_SIZE;
-	
-	if(fft_size == 128) {
-		psd->fft = &arm_cfft_sR_f32_len128;
-	}
-	else if(fft_size == 256) {
-		psd->fft = &arm_cfft_sR_f32_len256;
-	}
-	else if(fft_size == 512) {
-		psd->fft = &arm_cfft_sR_f32_len512;
-	}
-	else if(fft_size == 1024) {
-		psd->fft = &arm_cfft_sR_f32_len1024;
-	}
-	else if(fft_size == 2048) {
-		psd->fft = &arm_cfft_sR_f32_len2048;
-	}
-	else if(fft_size == 4096) {
-		psd->fft = &arm_cfft_sR_f32_len4096;
-	}
-	else { 
-		printf("spectrogram_init: invalid fft size");
-		return(-1);
-	}
-	
-	/*	
-	// allocate fft window array
-	float32_t psd->window = (float32_t *)malloc(fft_size*sizeof(float32_t));
-	if( psd->window == NULL) {
-		printf("spectrogram_init: error allocating window\n");
-		return(-1);
-	}
-	//gen_hamming_fr16(win, 1, fft_size);
-
-	// allocate complex fft input buffers
-	float32_t psd->buffer = (float32_t *)malloc(2*fft_size*sizeof(float32_t));
-	if(psd->buffer == NULL) {
-		printf("spectrogram_init: error allocating fft output buffer\n");
-		return(-1);
-	}
-
-	psd->magnitude = (float32_t *)malloc(fft_size*sizeof(float32_t));
-	if( psd->magnitude == NULL ) {
-		printf("spectrogram_init: error allocating fft input buffer\n");
-		return(-1);
-	}
-	*/
-
-	// initialize psd structure for return
-	psd->nfft = fft_size;
-	psd->fs = fs;
-	psd->navg = 1;
-	psd->overlap = fft_size / 2;
-
-	printf("spectrogram_init: fft size = %d\n", fft_size);
-
-	return(1);
-}
-
-//
-// clear the spectrogram
-//
-void spectrogram_clear(spectrogram_t *psd)
-{
-
-}
 
 //
 // calculate the spectrogram for the input signal
+// see https://arm-software.github.io/CMSIS_5/DSP/html/group__ComplexFFT.html
 //
-int spectrogram(spectrogram_t *psd, uint8_t *input, uint16_t nsamps, uint16_t overlap)
+int spectrogram_f32(uint8_t *input, float32_t *output, uint16_t nsamps, uint16_t overlap)
 {
 	int k, m, n;
+	uint16_t fft_size = PSD_FFT_SIZE;
 	float32_t mag[PSD_FFT_SIZE]; // real
 	float32_t buf[2*PSD_FFT_SIZE]; // complex
-	uint16_t fft_size = psd->nfft;
+
+	// pre-calculated twiddle factors
+	const arm_cfft_instance_f32 *twid;
+#if PSD_FFT_SIZE == 64
+	twid = &arm_cfft_sR_f32_len64;
+#elif PSD_FFT_SIZE == 128
+	twid = &arm_cfft_sR_f32_len128;
+#elif PSD_FFT_SIZE == 256
+	twid = &arm_cfft_sR_f32_len256;
+#elif PSD_FFT_SIZE == 512
+	twid = &arm_cfft_sR_f32_len512;
+#elif PSD_FFT_SIZE == 1024
+	twid = &arm_cfft_sR_f32_len1024;
+#elif PSD_FFT_SIZE == 2048
+	twid = &arm_cfft_sR_f32_len2048;
+#elif PSD_FFT_SIZE == 4096
+	twid = &arm_cfft_sR_f32_len4096;
+#endif
 
 	// number of spectral estimates in the psd
 	uint16_t navg = ((nsamps - fft_size)/(fft_size - overlap));
 	if(navg < 0) navg = 1;
-	psd->navg = navg;
 
-	psd->overlap = overlap;
 	float32_t norm = 1.0 / (float32_t)fft_size;	
 	uint16_t skip = fft_size - overlap;
 	
-	// define size of frequency bins
-	//float32_t duration = (float32_t)nsamps / psd->fs; // buffer size in seconds
-	psd->dfreq = (float32_t)psd->fs / (float32_t)fft_size;
-
 	// build the spectrogram using overlapping ffts 
 	int istart = 0;  // start index of segment
 	int iend;  // end index of segment
@@ -229,15 +170,15 @@ int spectrogram(spectrogram_t *psd, uint8_t *input, uint16_t nsamps, uint16_t ov
 		}
 
 		/* Process the data through the CFFT/CIFFT module */
-		arm_cfft_f32(psd->fft, buf, 0, 0);
+		arm_cfft_f32(twid, buf, 0, 0);
 
 		/* Calculating the magnitude at each bin */
-		arm_cmplx_mag_f32(buf, mag, psd->nfft);
+		arm_cmplx_mag_f32(buf, mag, fft_size);
 			
 		// sum and save the magnitude of the complex fft output
 		// could take cabf after the sum
 		for(n = 0; n < fft_size; n++) {
-			psd->magnitude[n] += mag[n];
+			output[n] += mag[n];
 		}
 
 		// increment the start index by skip=nsamps-overlap
@@ -246,9 +187,97 @@ int spectrogram(spectrogram_t *psd, uint8_t *input, uint16_t nsamps, uint16_t ov
 	}
 
 	// normalize the average
-	for(n = 0; n < fft_size; n++) psd->magnitude[n] = mag[n] * norm;
+	for(n = 0; n < fft_size; n++) output[n] = output[n] * norm;
 
 	// initialize psd structure for return
 	return(navg);
 }
+
+//
+// calculate the spectrogram for the input signal
+// see https://arm-software.github.io/CMSIS_5/DSP/html/group__ComplexFFT.html
+//
+int spectrogram_q31(uint8_t *input, int32_t *output, uint16_t nsamps, uint16_t overlap)
+{
+	int k, m, n;
+	uint16_t fft_size = PSD_FFT_SIZE;
+	int32_t mag[PSD_FFT_SIZE]; // real
+	int32_t buf[2*PSD_FFT_SIZE]; // complex
+
+	// pre-calculated twiddle factors
+	const arm_cfft_instance_q31 *twid;
+	#if PSD_FFT_SIZE == 64
+	twid = &arm_cfft_sR_q31_len64;
+	#elif PSD_FFT_SIZE == 128
+	twid = &arm_cfft_sR_q31_len128;
+	#elif PSD_FFT_SIZE == 256
+	twid = &arm_cfft_sR_q31_len256;
+	#elif PSD_FFT_SIZE == 512
+	twid = &arm_cfft_sR_q31_len512;
+	#elif PSD_FFT_SIZE == 1024
+	twid = &arm_cfft_sR_q31_len1024;
+	#elif PSD_FFT_SIZE == 2048
+	twid = &arm_cfft_sR_q31_len2048;
+	#elif PSD_FFT_SIZE == 4096
+	twid = &arm_cfft_sR_q31_len4096;
+	#endif
+
+	// number of spectral estimates in the psd
+	uint16_t navg = ((nsamps - fft_size)/(fft_size - overlap));
+	if(navg < 0) navg = 1;
+
+	float32_t norm = 1.0 / (float32_t)fft_size;
+	uint16_t skip = fft_size - overlap;
+	
+	// build the spectrogram using overlapping ffts
+	int istart = 0;  // start index of segment
+	int iend;  // end index of segment
+	
+	// initialize magnitude vector
+	for(m = 0; m < fft_size; m++) mag[m] = 0;
+
+	// average the time bins
+	for(k = 0; k < navg; k++)  {
+
+		iend = istart + fft_size; // end of segment
+
+		// handle buffer at the end of the input signal
+		if(iend > nsamps) {
+			iend = nsamps;
+			// fill buffer with zeros so it is assured to be padded at the end
+			for(m = 0; m < 2*fft_size; m++) buf[m] = 0.0;
+		}
+
+		// load the data window into the real part of complex fft buffer
+		for(n = istart, m = 0; n < iend; n++, m+=2) {
+			// load the 24 bit word into a 32 bit word, preserving the sign bit
+			uint32_t uv = ((uint32_t)input[3*n+0] << 8) | ((uint32_t)input[3*n+1] << 16) | ((uint32_t)input[3*n+2] << 24);
+			buf[m] = ((int32_t)uv >> 8); // real
+			buf[m+1] = 0; // imag
+		}
+
+		/* Process the data through the CFFT/CIFFT module */
+		arm_cfft_q31(twid, buf, 0, 0);
+
+		/* Calculating the magnitude at each bin */
+		arm_cmplx_mag_q31(buf, mag, fft_size);
+		
+		// sum and save the magnitude of the complex fft output
+		// could take cabf after the sum
+		for(n = 0; n < fft_size; n++) {
+			output[n] += mag[n];
+		}
+
+		// increment the start index by skip=nsamps-overlap
+		istart += skip;
+
+	}
+
+	// normalize the average
+	for(n = 0; n < fft_size; n++) output[n] = output[n] * norm;
+
+	// initialize psd structure for return
+	return(navg);
+}
+
 
