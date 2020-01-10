@@ -75,6 +75,25 @@ void rtc_get_datetime( rtc_time_t *dt )
 
 }
 
+void rtc_get_epoch( uint32_t *epoch )
+{
+	uint32_t year = 0;
+	uint32_t month = 0;
+	uint32_t week = 0;
+	uint32_t day = 0;
+	uint32_t hour = 0;
+	uint32_t minute = 0;
+	uint32_t sec = 0;
+	
+	rtc_get_date(RTC, &year, &month, &day, &week);
+	rtc_get_time(RTC, &hour, &minute, &sec);
+	
+	*epoch = time_to_epoch(year-2000, month, day, hour, minute, sec);
+
+	//printf("RTC set to %d/%02d/%02d %02d:%02d:%02d\r\n", year, month, day, hour, minute, sec);
+
+}
+
 
 //---------------------------------------------------------------------------------
 // epoch calculator good for years 0-99 (representing 2000-2099)
@@ -103,14 +122,14 @@ uint32_t rtc_time_to_epoch(rtc_time_t *t)
 	return (((year/4*(365*4+1)+DAYS[year%4][month]+day)*24+hour)*60+minute)*60+sec + RTC_EPOCH_OFFSET;
 }
 
-uint32_t time_to_epoch(uint8_t yr, uint8_t mn, uint8_t dy, uint8_t hr, uint8_t mi, uint8_t se)
+uint32_t time_to_epoch(uint32_t yr, uint32_t mn, uint32_t dy, uint32_t hr, uint32_t mi, uint32_t se)
 {
-	uint32_t sec = (uint32_t)se;    // 0-59
-	uint32_t minute = (uint32_t)mi;    // 0-59
-	uint32_t hour   = (uint32_t)hr;    // 0-23
-	uint32_t day    = (uint32_t)dy-1;  // 0-30
-	uint32_t month  = (uint32_t)mn-1;  // 0-11
-	uint32_t year   = (uint32_t)yr;    // 0-99
+	uint32_t sec = se;    // 0-59
+	uint32_t minute = mi;    // 0-59
+	uint32_t hour   = hr;    // 0-23
+	uint32_t day    = dy-1;  // 0-30
+	uint32_t month  = mn-1;  // 0-11
+	uint32_t year   = yr;    // 0-99
 	return (((year/4*(365*4+1)+DAYS[year%4][month]+day)*24+hour)*60+minute)*60+sec + RTC_EPOCH_OFFSET;
 }
 

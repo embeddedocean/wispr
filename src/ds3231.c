@@ -60,7 +60,7 @@ static enum
 	/*
 	* Miscellaneous
 	*/
-	TIMEMEOUT = 1000,	// Passes through a loop
+	TIMEMEOUT = 1000	// Passes through a loop
 };
 
 /*

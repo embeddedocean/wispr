@@ -62,6 +62,12 @@
 // From module: Delay routines
 #include <delay.h>
 
+// From module: FatFS file system
+#include <diskio.h>
+#include <ff.h>
+#include <ffconf.h>
+#include <integer.h>
+
 // From module: GPIO - General purpose Input/Output
 #include <gpio.h>
 
@@ -99,9 +105,6 @@
 // From module: RTC - Real Time Clock
 #include <rtc.h>
 
-// From module: SD/MMC Memory Control Access - Enable
-#include <sd_mmc_mem.h>
-
 // From module: SD/MMC stack on Multimedia Card interface
 #include <sd_mmc.h>
 
@@ -114,6 +117,9 @@
 
 // From module: Standard serial I/O (stdio) - SAM implementation
 #include <stdio_serial.h>
+
+// From module: Supported ports of FatFS
+#include <diskio.h>
 
 // From module: System Clock Control - SAM4S implementation
 #include <sysclk.h>

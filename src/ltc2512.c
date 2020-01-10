@@ -50,7 +50,7 @@ uint32_t ssc_adc_date2 = 0;
 uint8_t ltc2512_settings = 0;
 uint32_t ltc2512_down_sampling_factor = 4;
 
-wispr_header_t wispr;
+wispr_data_header_t wispr;
 
 //
 // initialize ltc2512 hardware
@@ -63,6 +63,13 @@ int ltc2512_init(uint32_t *fs, uint8_t df, uint8_t gain)
 	    return(-1);
     }
     
+	// power up and initialize adc
+	ioport_set_pin_level(PIN_ENABLE_ADC_PWR, 1);
+	delay_ms(100);
+
+	// turn on pre-amp
+	ioport_set_pin_level(PIN_PREAMP_SHDN, 1);
+
 	// select decimation factor using gpio
 	if( df == LTC2512_DF4 ) {
 		ioport_set_pin_level(PIN_ADC_SEL0, 0);
@@ -83,11 +90,11 @@ int ltc2512_init(uint32_t *fs, uint8_t df, uint8_t gain)
 
 	ltc2512_down_sampling_factor = df;
 	
-	// power up and initialize adc
-	ioport_set_pin_level(PIN_ENABLE_ADC_PWR, 1);
-	ioport_set_pin_level(PIN_ADC_SYNC, 1);
-	ioport_set_pin_level(PIN_ADC_SYNC, 0);
-	delay_ms(100);
+	// set preamp gain
+	ioport_set_pin_level(PIN_PREAMP_G0, (gain & 0x01));
+	ioport_set_pin_level(PIN_PREAMP_G1, (gain & 0x02));
+	//printf("pre-amp gain = 0x%d%d \n\r", (gain & 0x02), (gain & 0x01));
+	
 	
     /* Initialize the local variable. */
     clock_opt_t rx_clk_option;
@@ -142,23 +149,11 @@ int ltc2512_init(uint32_t *fs, uint8_t df, uint8_t gain)
     /* TESTING ONLY - Enable the loop mode. */
     //ssc_set_loop_mode(SSC);
 	
-	int ret = 0;
-	
-	ret = ltc2512_config_mclk(fs);
-
-	// power up and initialize the adc board
-	ioport_set_pin_level(PIN_ENABLE_ADC_PWR, 1);
+	ioport_set_pin_level(PIN_ADC_SYNC, 1);
 	ioport_set_pin_level(PIN_ADC_SYNC, 0);
-	delay_ms(100);
-
-	// turn on pre-amp 
-	ioport_set_pin_level(PIN_PREAMP_SHDN, 1);
-
-	// set preamp gain
-	ioport_set_pin_level(PIN_PREAMP_G0, (gain & 0x01));
-	ioport_set_pin_level(PIN_PREAMP_G1, (gain & 0x02));
-    //printf("pre-amp gain = 0x%d%d \n\r", (gain & 0x02), (gain & 0x01));
 	
+	int ret = ltc2512_config_mclk(fs);
+
 	// Initialize data header structure
 	wispr.version[0] = WISPR_VERSION;
 	wispr.version[1] = 0;
@@ -255,6 +250,17 @@ void ltc2512_stop_conversion(void)
 {
 	/* Disable TC0 Channel 0. */
 	tc_stop(TC0, 0);
+}
+
+void ltc2512_shutdown(void)
+{
+	ltc2512_stop_conversion();
+	
+	// turn off pre-amp
+	ioport_set_pin_level(PIN_PREAMP_SHDN, 0);
+
+	// power down adc
+	ioport_set_pin_level(PIN_ENABLE_ADC_PWR, 0);
 }
 
 //
@@ -378,11 +384,11 @@ void SSC_Handler(void)
 			fprintf(stdout, "SSC_Handler: confused\r\n");
 		}
 		
-//		fprintf(stdout, "pdc_current_buffer = %d, ", g_pdc_current_buffer);
-//		fprintf(stdout, "rx_cnt=%ld, rx_ptr=%ld, ", 
-//			pdc_read_rx_counter(g_p_ssc_pdc), pdc_read_rx_ptr(g_p_ssc_pdc));
-//		fprintf(stdout, "rx_next_cnt=%ld, rx_next_ptr=%ld \n\r", 
-//			pdc_read_rx_next_counter(g_p_ssc_pdc), pdc_read_rx_next_ptr(g_p_ssc_pdc));
+		//fprintf(stdout, "pdc_current_buffer = %d, ", g_pdc_current_buffer);
+		//fprintf(stdout, "rx_cnt=%ld, rx_ptr=%ld, ", 
+		//	pdc_read_rx_counter(g_p_ssc_pdc), pdc_read_rx_ptr(g_p_ssc_pdc));
+		//fprintf(stdout, "rx_next_cnt=%ld, rx_next_ptr=%ld \n\r", 
+		//	pdc_read_rx_next_counter(g_p_ssc_pdc), pdc_read_rx_next_ptr(g_p_ssc_pdc));
 
 	}
 
@@ -423,7 +429,7 @@ void ltc2512_update_header(uint8_t *hdr, uint8_t chksum)
 	wispr.usec = usec;
 	wispr.data_chksum = chksum; // checksum for data
 
-	wispr_update_header(hdr, &wispr);
+	wispr_serialize_data_header(&wispr, hdr);
 
 }
 
@@ -468,7 +474,7 @@ uint16_t ltc2512_read_dma(uint8_t *hdr, uint8_t *data)
 		}
 	}
 
-	data = ssc_adc_buffer;
+	//data = ssc_adc_buffer;
 	
 	// indicate that the dma buffer has been read
 	ssc_adc_buffer = NULL;
@@ -479,6 +485,81 @@ uint16_t ltc2512_read_dma(uint8_t *hdr, uint8_t *data)
 	// return the buffer pointer
 	return(LTC2512_NUM_SAMPLES);
 }
+
+uint16_t ltc2512_read_dma_int24(uint8_t *hdr, uint8_t *data)
+{
+	// no buffer ready or buffer has already been read
+	if(ssc_adc_buffer == NULL) return(0);
+	
+	// save 32 bit data word as 24 bit word
+	uint8_t *obuf = data;  // output buffer
+	uint8_t *ibuf = ssc_adc_buffer;  // finished dma buffer
+	uint8_t chksum = 0;
+	uint32_t nbytes = LTC2512_NUM_SAMPLES * 4;
+	uint32_t m = 0;
+	for(uint32_t n = 0; n < nbytes; n += 4) {
+		obuf[m++] = ibuf[n]; 
+		obuf[m++] = ibuf[n+1];
+		obuf[m++] = ibuf[n+2];
+		chksum = ibuf[n] + ibuf[n+1] + ibuf[n+2];
+		//for (uint32_t k = 0; k < LTC2512_BYTES_PER_SAMPLE; k++) {
+		//	obuf[m++] = ibuf[n+k];
+		//	chksum += ibuf[n+k];
+		//}
+	}
+
+	//data = ssc_adc_buffer;
+	
+	// indicate that the dma buffer has been read
+	ssc_adc_buffer = NULL;
+	
+	// update the data header info
+	ltc2512_update_header(hdr, chksum);
+	
+	// return the buffer pointer
+	return(LTC2512_NUM_SAMPLES);
+}
+
+uint16_t ltc2512_read_dma_int16(uint8_t *hdr, uint8_t *data)
+{
+	// no buffer ready or buffer has already been read
+	if(ssc_adc_buffer == NULL) return(0);
+	
+	// save 32 bit data word as 24 bit word
+	uint8_t *obuf = data;  // output buffer
+	uint8_t *ibuf = ssc_adc_buffer;  // finished dma buffer
+	uint8_t chksum = 0;
+	uint32_t nbytes = LTC2512_NUM_SAMPLES * 4;
+	uint32_t m = 0;
+	for(uint32_t n = 0; n < nbytes; n += 4) {
+		obuf[m++] = ibuf[n+1];
+		obuf[m++] = ibuf[n+2];
+		chksum = ibuf[n+1] + ibuf[n+2];
+	}
+
+	//??? data = ssc_adc_buffer;
+	
+	// indicate that the dma buffer has been read
+	ssc_adc_buffer = NULL;
+	
+	// update the data header info
+	ltc2512_update_header(hdr, chksum);
+	
+	// return the buffer pointer
+	return(LTC2512_NUM_SAMPLES);
+}
+
+
+
+/*
+// example of how to copy 24 bit data into a 32 bit signed int
+uint32_t *buf = (uint32_t *)adc_buffer_data;
+for (m = 0; m < LTC2512_NUM_SAMPLES; m++) {
+	// load the 24 bit word into a 32 bit word, preserving the sign bit
+	uint32_t uv = ((uint32_t)adc_buffer_data[3*m+0] << 8) | ((uint32_t)adc_buffer_data[3*m+1] << 16) | ((uint32_t)adc_buffer_data[3*m+2] << 24);
+	int32_t v = (int32_t)uv >> 8;
+}
+*/
 
 
 /**
@@ -528,7 +609,8 @@ uint16_t ltc2512_init_dma()
 
 	//ioport_set_pin_dir(SSC_ADC_BUF_PIN, IOPORT_DIR_OUTPUT);
 	//ioport_set_pin_level(SSC_ADC_BUF_PIN, 0);
-	return(ssc_adc_nsamps);
+	//return(ssc_adc_nsamps);
+	return(pdc_active_buffer_number);
 }
 
 /**
@@ -536,6 +618,10 @@ uint16_t ltc2512_init_dma()
  */
 void ltc2512_start_dma(void) 
 {
+	pdc_active_buffer_number = 1;
+	ssc_adc_buffer = NULL;  // no buffer ready
+	ssc_adc_nsamps = LTC2512_NUM_SAMPLES;
+
 	// enable pdc receiver channel requests
 	pdc_enable_transfer(ssc_pdc, PERIPH_PTCR_RXTEN);
 
@@ -565,9 +651,8 @@ void ltc2512_stop_dma(void)
 }
 
 
-/**
- * \brief DMA driver configuration
- */
+/*  Experimental 
+
 uint16_t ltc2512_init_dma2()
 {
 	//if( nsamps > LTC2512_MAX_DMA_BUFFER_NSAMPS ) {
@@ -575,10 +660,10 @@ uint16_t ltc2512_init_dma2()
 	//	return(-1);
 	//}
 	
-	/* Get pointer to UART PDC register base */
+	// Get pointer to UART PDC register base
 	ssc_pdc = ssc_get_pdc_base(SSC);
 
-	/* Initialize PDC data packets for transfer */
+	// Initialize PDC data packets for transfer
 	pdc_ssc_packet1.ul_addr = (uint32_t)&ssc_adc_dma_buffer1;
 	pdc_ssc_packet1.ul_size = (uint32_t)(LTC2512_NUM_SAMPLES * LTC2512_BYTES_PER_SAMPLE);
 	pdc_ssc_packet2.ul_addr = (uint32_t)&ssc_adc_dma_buffer2;
@@ -588,7 +673,7 @@ uint16_t ltc2512_init_dma2()
 	ssc_adc_buffer = NULL;  // no buffer ready
 	ssc_adc_nsamps = LTC2512_NUM_SAMPLES;
 	
-	/* Configure PDC for data receive */
+	// Configure PDC for data receive
 	pdc_rx_init(ssc_pdc, &pdc_ssc_packet1, &pdc_ssc_packet2);
 
 	printf("ltc2512_adc_nsamps %u \n\r", ssc_adc_nsamps);
@@ -598,16 +683,16 @@ uint16_t ltc2512_init_dma2()
 //	fprintf(stdout, "rx_next_cnt=%ld, rx_next_ptr=%lx \n\r", 
 //		pdc_read_rx_next_counter(ssc_pdc), pdc_read_rx_next_ptr(ssc_pdc));
 
-	/* Configure the RX End of Reception interrupt. */
+	// Configure the RX End of Reception interrupt.
 	ssc_enable_interrupt(SSC, SSC_IER_ENDRX);
 
-	/* Enable SSC interrupt line from the core */
+	// Enable SSC interrupt line from the core
 	NVIC_DisableIRQ(SSC_IRQn);
 	NVIC_ClearPendingIRQ(SSC_IRQn);
 	NVIC_SetPriority(SSC_IRQn, SSC_ADC_IRQ_PRIO);
 	NVIC_EnableIRQ(SSC_IRQn);
 
-	/* Enable PDC receive transfers */
+	// Enable PDC receive transfers
 	pdc_enable_transfer(ssc_pdc, PERIPH_PTCR_RXTEN);
 
 	//ioport_set_pin_dir(SSC_ADC_BUF_PIN, IOPORT_DIR_OUTPUT);
@@ -631,13 +716,13 @@ int ltc2512_init2(uint32_t *fs, uint32_t df)
 	ioport_set_pin_level(PIN_ADC_SYNC, 1);
 	delay_ms(100);
 
-	/* Initialize the local variable. */
+	// Initialize the local variable.
 	clock_opt_t rx_clk_option;
 	data_frame_opt_t rx_data_frame_option;
 	memset((uint8_t *)&rx_clk_option, 0, sizeof(clock_opt_t));
 	memset((uint8_t *)&rx_data_frame_option, 0, sizeof(data_frame_opt_t));
 
-	/* Initialize the SSC module */
+	// Initialize the SSC module
 	pmc_enable_periph_clk(ID_SSC);
 	ssc_reset(SSC);
 
@@ -651,7 +736,7 @@ int ltc2512_init2(uint32_t *fs, uint32_t df)
 
 	SSC->SSC_CMR = SSC_CMR_DIV(rsck_div);
 	
-	/* Receiver clock mode configuration. */
+	// Receiver clock mode configuration.
 	rx_clk_option.ul_cks = SSC_RCMR_CKS_MCK;  // select divided clock source
 	rx_clk_option.ul_cko = SSC_RCMR_CKO_TRANSFER; // Receive Clock only during data transfers, RK pin is an output
 	//rx_clk_option.ul_cko = SSC_RCMR_CKO_CONTINUOUS; // Receive Clock only during data transfers, RK pin is an output
@@ -664,20 +749,19 @@ int ltc2512_init2(uint32_t *fs, uint32_t df)
 	rx_clk_option.ul_sttdly = 1; // num clock cycles delay between start event and reception
 	rx_clk_option.ul_period = 0; //ul_rfck_div;  // length of frame in clock cycles
 	
-	/* Receiver frame mode configuration. */
+	// Receiver frame mode configuration. 
 	rx_data_frame_option.ul_datlen = 7; //LTC2512_BITS_PER_SAMPLE - 1; // number of bits per data word
 	rx_data_frame_option.ul_msbf = SSC_RFMR_MSBF;  // MSB
 	rx_data_frame_option.ul_datnb = 0;  //  number of data words per frame, should be 0 to 15. 0 = 1 word
 	rx_data_frame_option.ul_fsos = SSC_RFMR_FSOS_NONE; // Frame Sync. is an input
 	rx_data_frame_option.ul_fsedge = SSC_RFMR_FSEDGE_NEGATIVE; // Frame Sync. edge detection
 	
-	/* Configure the SSC receiver. */
+	// Configure the SSC receiver.
 	ssc_set_receiver(SSC, &rx_clk_option, &rx_data_frame_option);
 
 	//ssc_enable_tx(SSC);
 	ssc_enable_rx(SSC);
 
-	/* TESTING ONLY - Enable the loop mode. */
 	//ssc_set_loop_mode(SSC);
 	
 	int ret = 0;
@@ -687,3 +771,4 @@ int ltc2512_init2(uint32_t *fs, uint32_t df)
 	return(ret);
 
 }
+*/

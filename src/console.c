@@ -69,7 +69,10 @@ int console_prompt_int(const char *prompt, int default_value, int timeout)
 	int n = 0;
 	int go = 1;
 	int count = 0;
+	
+	if( timeout <= 0 ) timeout = 60; // always have some timeout
 	int timeout_ms = timeout*1000;
+
 	fprintf(stdout, "\r\n%s [%d]: ", prompt, default_value);
 
 	while( go ) {
@@ -84,27 +87,42 @@ int console_prompt_int(const char *prompt, int default_value, int timeout)
 			}
 			if(c==8 && n>0) n--; // backspace
 			n++;
-// this doesn't work
-//		enum status_code status = uart_read_message(CONSOLE_UART, str, 64);
-//		if( status == STATUS_OK ) {
-//			fprintf(stdout, "%s", str);
-//			go = 0;
 		} else {
 			delay_ms(1);
 			count++;
 		}
+
+		// restart the wdt counter every second
+		if( count >= 1000 ) wdt_restart(WDT);
+
+		// timeout
 		if((timeout > 0) && (count >= timeout_ms)) go = 0;
+
 	}
 	
 	int value = default_value;
-	if(n > 1 && count < timeout_ms) value = atoi(str);
+	if((n > 1) && (count < timeout_ms) ) value = atoi(str);
 	
-	//fprintf(stdout, "\r\n %d chars, %s, value = %d \r\n", n, str, value);
-	fprintf(stdout, "\r\n");
+	//fprintf(stdout, "\r\n %d chars, %s, value = %d count = %d, %d \r\n", n, str, value, count, timeout);
+	//fprintf(stdout, "\r\n");
 
 	return(value);
 }
 
+uint32_t console_prompt_uint32(const char *prompt, uint32_t default_value, int timeout)
+{
+	return((uint32_t)console_prompt_int(prompt, (int)default_value, timeout));
+}
+
+uint16_t console_prompt_uint16(const char *prompt, uint16_t default_value, int timeout)
+{
+	return((uint16_t)console_prompt_int(prompt, (int)default_value, timeout));
+}
+
+uint8_t console_prompt_uint8(const char *prompt, uint8_t default_value, int timeout)
+{
+	return((uint8_t)console_prompt_int(prompt, (int)default_value, timeout));
+}
 
 int read_console_input(void)
 {

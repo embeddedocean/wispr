@@ -325,6 +325,7 @@ void hsmci_init(void)
 
 	// Enable the HSMCI and the Power Saving
 	HSMCI->HSMCI_CR = HSMCI_CR_MCIEN | HSMCI_CR_PWSEN;
+	
 }
 
 uint8_t hsmci_get_bus_width(uint8_t slot)

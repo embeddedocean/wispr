@@ -74,7 +74,12 @@ void board_init(void)
 
   /* Output header string  */
   fprintf(stdout, "\r\n-- %s --\r\n", BOARD_NAME );
-  fprintf(stdout, "-- Compiled: "__DATE__ " "__TIME__ " --\r\n\r\n");
+  fprintf(stdout, "-- Compiled: "__DATE__ " "__TIME__ " --\r\n");
+
+  uint32_t cpu_sclk = sysclk_get_cpu_hz();
+  fprintf(stdout, "-- CPU clock: %lu MHz\n\r", cpu_sclk/1000000);
+  //printf("-- Peripheral bus clock: %lu MHz\n\r",  sysclk_get_peripheral_bus_hz(TC0)/1000000);
+  fprintf(stdout, "\r\n" );
 
   //display_reset_reason();
 

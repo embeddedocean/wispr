@@ -20,8 +20,9 @@ typedef struct {
 
 extern void rtc_init( rtc_time_t *t );
 extern uint32_t rtc_time_to_epoch(rtc_time_t *t);
-extern uint32_t time_to_epoch(uint8_t yr, uint8_t mn, uint8_t dy, uint8_t hr, uint8_t mi, uint8_t se);
+extern uint32_t time_to_epoch(uint32_t yr, uint32_t mn, uint32_t dy, uint32_t hr, uint32_t mi, uint32_t se);
 extern void epoch_to_rtc_time(rtc_time_t *t, uint32_t epoch);
 extern void rtc_get_datetime( rtc_time_t *dt );
+extern void rtc_get_epoch( uint32_t *epoch );
 
 #endif /* DATE_TIME_H_ */

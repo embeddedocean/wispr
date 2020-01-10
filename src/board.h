@@ -65,6 +65,10 @@ extern "C" {
 
 /*
 * The symbol BOARD can be defined here or passed as a toolchain compiler symbol 
+* This is necessary because ASF assumes that "board.h" exists and points to the board specific settings 
+* This board.h file replaces the usual board.h file in ../ASF/common/boards directory. 
+* So the project generated files in ../ASF/common/boards have been removed. 
+* This is a little out of the ordinary of Studio so be aware. 
 */
 #define BOARD		WISPR_V2_0
 #define EXT_BOARD	ADC_LTC2512_V1_0

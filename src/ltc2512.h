@@ -61,7 +61,12 @@ extern int ltc2512_config_mclk(uint32_t *fs);
 
 extern void ltc2512_start_conversion(void);
 extern void ltc2512_stop_conversion(void);
+extern void ltc2512_shutdown(void);
+
 extern uint16_t ltc2512_read_dma(uint8_t *hdr, uint8_t *data);
+extern uint16_t ltc2512_read_dma_int24(uint8_t *hdr, uint8_t *data);
+extern uint16_t ltc2512_read_dma_int16(uint8_t *hdr, uint8_t *data);
+
 extern uint8_t *ltc2512_get_dma_buffer(void);
 extern uint16_t ltc2512_init_dma(void);
 extern void ltc2512_start_dma(void);
