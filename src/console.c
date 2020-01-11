@@ -104,7 +104,7 @@ int console_prompt_int(const char *prompt, int default_value, int timeout)
 	if((n > 1) && (count < timeout_ms) ) value = atoi(str);
 	
 	//fprintf(stdout, "\r\n %d chars, %s, value = %d count = %d, %d \r\n", n, str, value, count, timeout);
-	//fprintf(stdout, "\r\n");
+	fprintf(stdout, "\r\n");
 
 	return(value);
 }

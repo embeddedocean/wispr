@@ -111,6 +111,9 @@
 // From module: SSC - Synchronous Serial Controller
 #include <ssc.h>
 
+// From module: SUPC - Supply Controller
+#include <supc.h>
+
 // From module: Sleep manager - SAM implementation
 #include <sam/sleepmgr.h>
 #include <sleepmgr.h>

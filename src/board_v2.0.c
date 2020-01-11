@@ -57,6 +57,10 @@ void board_init(void)
   pmc_enable_periph_clk(ID_PIOA);
   pmc_enable_periph_clk(ID_PIOB);
 
+  /* Configure all PIOs as inputs to save power */
+  //pio_set_input(PIOA, 0xFFFFFFFF, PIO_PULLUP);
+  //pio_set_input(PIOB, 0xFFFFFFFF, PIO_PULLUP);
+
   // Initialize the user gpio pins
   board_gpio_init();
   
@@ -86,6 +90,13 @@ void board_init(void)
   // Initialize the WDT
   board_wdt_init(0);
 
+}
+
+static void rtc_int_wakeup_handler(uint32_t ul_id, uint32_t ul_mask)
+{
+	if (ID_PIOA == ul_id && PIO_PA2 == ul_mask) {
+		// 
+	}
 }
 
 void board_gpio_init(void)
@@ -146,6 +157,23 @@ void board_gpio_init(void)
   ioport_set_pin_dir(PIN_PREAMP_G1, IOPORT_DIR_OUTPUT);
   ioport_set_pin_level(PIN_PREAMP_G1, 0);
 
+  // setup RTC_INT_PIN used for wakeup on PA2 (WKUP2)
+  ioport_set_pin_dir(PIN_RTC_INT, IOPORT_DIR_INPUT);
+  ioport_set_pin_mode(PIN_RTC_INT, IOPORT_MODE_PULLUP);
+	
+  // Initialize PIO interrupt handler for PA2 (WKUP2) with falling edge or low detection
+  //pio_handler_set(PIOA, ID_PIOA, PIO_PA2, (PIO_PULLUP | PIO_DEBOUNCE | PIO_IT_LOW_LEVEL), rtc_int_wakeup_handler);
+  pio_handler_set(PIOA, ID_PIOA, PIO_PA2, (PIO_PULLUP | PIO_DEBOUNCE | PIO_IT_FALL_EDGE), rtc_int_wakeup_handler);
+
+  // Enable PIOA controller IRQs
+  NVIC_EnableIRQ((IRQn_Type)ID_PIOA);
+
+  // Enable PIOA line interrupts
+  pio_enable_interrupt(PIOA, PIO_PA2);
+
+  // enable wakeup input on WKUP2 (PA2) with active low  
+  supc_set_wakeup_inputs(SUPC, SUPC_WUIR_WKUPEN2_ENABLE, SUPC_WUIR_WKUPT2_LOW);
+  
 }
 
 // 

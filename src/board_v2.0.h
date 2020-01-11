@@ -108,7 +108,10 @@ extern void display_reset_reason(void);
 #define PIN_PREAMP_G1 PIN_PB5
 #define PIN_PREAMP_SHDN PIN_PA22
 
-#define PIN_RTC_INT PIN_PA2
+//#define PIN_RTC_INT PIN_PA2
+
+#define PIN_RTC_INT        (PIO_PA2_IDX)
+#define PIN_RTC_INT_FLAGS  (PIO_PERIPH_A | PIO_DEFAULT)
 
 // LED definitions
 //#define LED1_PIN      PIN_PB10 //PIN_PA7 //PIN_PA22

@@ -216,17 +216,12 @@ int ltc2512_config_mclk(uint32_t *fs)
 		mclk = sck / 2 / rc;
 		if( mclk <= target_mclk ) break;		
 	}
-	//rc =  1 + sck / 2 / mclk;
-	//if(rc < 2) rc = 2;
-	//mclk = sck / 2 / rc; // actual mclk
-	//mclk = 1600000;
-	//rc =  1 + sck / 2 / mclk;
-	//if(rc < 2) rc = 2;
 	mclk = sck / 2 / rc; // actual mclk
 	ra = (100 - dutycycle) * rc / 100;
 	rb = ra;
 	
 	//printf("TC0 configuration: sysclk = %lu, mclk = %lu, ra=%lu, rb=%lu, rc=%lu\n\r", sck, mclk, ra, rb, rc);
+	printf("ltc2512_config_mclk: mclk = %lu, sck = %lu\n\r", mclk, sck);
 
 	tc_write_rc(TC0, 0, rc);
 	tc_write_ra(TC0, 0, ra);

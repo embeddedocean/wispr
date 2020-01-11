@@ -27,6 +27,8 @@ COMPILER_WORD_ALIGNED uint8_t adc_buffer[ADC_BUFFER_SIZE];
 uint8_t *adc_buffer_header = adc_buffer;  // header is at start of buffer
 uint8_t *adc_buffer_data = &adc_buffer[ADC_HEADER_SIZE]; // data follows header
 
+#define TEST_CARD_SWAP
+
 wispr_config_t wispr_config;
 
 // active sd card pointer
@@ -35,6 +37,8 @@ uint8_t active_sd_card = 0;
 uint32_t sd_card_nblocks = 1024; // used for testing
 
 ds3231_datetime  datetime;
+
+int measure_power = 0;
 
 // local function prototypes
 int swap_sd_cards(void);
@@ -65,8 +69,6 @@ int main (void)
 	
 	// Initialize the internal RTC using the external RTC time
 	rtc_init((rtc_time_t *)&datetime);
-	printf("\r\nInternal RTC set to %02d/%02d/%02d %02d:%02d:%02d\r\n",
-	datetime.year, datetime.month, datetime.day, datetime.hour, datetime.minute, datetime.second);
 
 	// setup INA260
 	uint32_t volts; // mVolts
@@ -82,13 +84,17 @@ int main (void)
 	gpio = 0x0;
 	pcf8574_write(gpio);
 
-	/* Initialize SD MMC stack */
-	sd_mmc_init();
+#ifdef TEST_CARD_SWAP
+	// Prompt for number of blocks to write. This is useful for testing
+	sd_card_nblocks = 4800;
+	sd_card_nblocks = (uint32_t)console_prompt_int("Override number of block to write on SD cards", (int)sd_card_nblocks, 10);
+#endif
 
 	// Test all sd card
 	// Open, reset and display SD 2
-	if(sd_card_open(2, "card2", 1) == SD_MMC_OK) {
+	if( sd_card_open(2, "card2", 1) ) {
 		printf("\n\rSD Card 2\n\r");
+		if(sd_card_nblocks) sd_card_set_number_of_blocks(2, sd_card_nblocks);
 		sd_card_print_info(2);
 	} else {
 		printf("SD Card 2 Failed\n\r");
@@ -96,9 +102,10 @@ int main (void)
 	sd_card_close(2);
 
 	// Open, reset and display SD 1 and leave it active to start writing
-	if(sd_card_open(1, "card1", 1) == SD_MMC_OK) {
+	if( sd_card_open(1, "card1", 1) ) {
 		active_sd_card = 1;
 		printf("\n\rSD Card 1\n\r");
+		if(sd_card_nblocks) sd_card_set_number_of_blocks(1, sd_card_nblocks);
 		sd_card_print_info(1);
 	} else {
 		printf("SD Card 1 Failed\n\r");
@@ -106,19 +113,22 @@ int main (void)
 	printf("\n\r");
 	
 	// Read current configuration from sd card
-	if( sd_card_read_config(active_sd_card, &wispr_config) != SD_MMC_OK ) {
+	if( sd_card_read_config(active_sd_card, &wispr_config) == 0 ) {
 		set_default_config(&wispr_config);
 	}
 	
 	// Display configuration prompts
 	wispr_print_config(&wispr_config);
-	
+
 	// Prompt for new configuration
 	if( console_prompt_int("Set new configuration?", 0, 10) ) {
 		prompt_config(&wispr_config, 60);
 		// Display configuration prompts
 		wispr_print_config(&wispr_config);
 	}
+
+	printf("\r\nInternal RTC set to %02d/%02d/%02d %02d:%02d:%02d\r\n",
+	datetime.year, datetime.month, datetime.day, datetime.hour, datetime.minute, datetime.second);
 
 	// initialize ADC - returns the closest sampling rate to the desired rate
 	//uint32_t adc_sampling_rate = 50000;
@@ -154,7 +164,7 @@ int main (void)
 	// Initialize spectrum 
 	uint16_t nfbins = 128;
 	uint16_t overlap = nfbins/2;
-	float32_t adc_spectrum_f32[128];	
+	float32_t adc_spectrum_f32[128];
 	spectrum_init_f32(nfbins, HAMMING_WINDOW);
 	//q31_t adc_spectrum_q31[128];
 	//spectrum_init_q31(nfbins, HAMMING_WINDOW);
@@ -174,8 +184,8 @@ int main (void)
 				swap_sd_cards(); // toggle between the available sd cards
 			}
 
-			if( sd_card_write(active_sd_card, adc_buffer, blocks_per_buffer) != SD_MMC_OK ) {
-				printf("sd_card_write_raw: failed\n\r");
+			if( sd_card_write(active_sd_card, adc_buffer, blocks_per_buffer) == 0 ) {
+				printf("sd_card_write: failed\n\r");
 			}
 		
 			//spectrum_q31(adc_buffer_data, adc_spectrum_q31, nsamps, overlap);
@@ -183,18 +193,14 @@ int main (void)
 			
 		}
 		
-		//ina260_read_power(&amps, &volts);
-		//printf("ina260: mA = %lu, mV = %lu\r\n", amps, volts);
+		if( measure_power ) {
+			ina260_read_power(&amps, &volts);
+			printf("ina260: mA = %lu, mV = %lu\r\n", amps, volts);
+		}
 
 		// sleep between dma buffers, the next dma interrupt will wake from sleep
 		pmc_sleep(SAM_PM_SMODE_SLEEP_WFI);
-		
-		//ina260_read_power(&amps, &volts);
-		//printf("ina260: mA = %lu, mV = %lu\r\n", amps, volts);
-
-		// sleep between dma buffers, the next dma interrupt will wake from sleep
-		//pmc_sleep(SAM_PM_SMODE_SLEEP_WFI);
-		
+			
 	}
 
 	ltc2512_stop_conversion();
@@ -211,24 +217,18 @@ int main (void)
 // 
 int swap_sd_cards()
 {
-	if(active_sd_card == 1 ) {
+	if( active_sd_card == 1 ) {
 		sd_card_close(1);
-		if(sd_card_open(2, "card2", 0) == SD_MMC_OK) {
-			active_sd_card = 2;
-		} else {
-			printf("SD Card2 Failed\n\r");
-		}
+		active_sd_card = sd_card_open(2, "card2", 0);
 	} 
-	else if(active_sd_card == 2 ) {
+	else if( active_sd_card == 2 ) {
 		sd_card_close(2);
-		if( sd_card_open(1, "card1", 0) == SD_MMC_OK ) {
-			active_sd_card = 1;
-		} else {
-			printf("SD Card1 Failed\n\r");
-		}
+		active_sd_card = sd_card_open(1, "card1", 0);
 	} else {
 		printf("SD Card Swap Failed\n\r");
 	}
+
+#ifdef TEST_CARD_SWAP
 
 	// grow the card size - used for testing	
 	uint32_t nblocks = sd_card_get_number_of_blocks(active_sd_card);
@@ -240,10 +240,12 @@ int swap_sd_cards()
 	printf("%02d/%02d/%02d %02d:%02d:%02d\r\n",
 		time.year, time.month, time.day, time.hour, time.minute, time.second);
 
+	sd_card_print_info(active_sd_card);
+
+#endif
+
 	// update the save config
 	sd_card_write_config(active_sd_card, &wispr_config);
-
-	sd_card_print_info(active_sd_card);
 
 	return(active_sd_card);		
 }
@@ -257,7 +259,7 @@ void prompt_config(wispr_config_t *hdr, int timeout)
 	hdr->bytes_per_sample = console_prompt_uint32("Enter sample size in bytes", hdr->bytes_per_sample, timeout);	
 	hdr->sampling_rate = console_prompt_uint32("Enter sampling rate in Hz", hdr->sampling_rate, timeout);
 	hdr->preamp_settings[0] = console_prompt_uint8("Enter preamp gain", hdr->preamp_settings[0], timeout);
-	hdr->adc_settings[0] = console_prompt_uint8("Enter adc decimation factor", hdr->adc_settings[0], timeout);
+	hdr->adc_settings[0] = console_prompt_uint8("Enter adc decimation factor (4, 8, 16, or 32)", hdr->adc_settings[0], timeout);
 
 	hdr->blocks_per_record = ADC_BLOCKS_PER_BUFFER;
 	hdr->samples_per_record = (ADC_BUFFER_SIZE - ADC_HEADER_SIZE) / (uint16_t)hdr->bytes_per_sample;
@@ -274,6 +276,7 @@ void prompt_config(wispr_config_t *hdr, int timeout)
 			datetime.minute = (uint8_t)console_prompt_int("Enter minute", (int)datetime.minute, timeout);
 			datetime.second = (uint8_t)console_prompt_int("Enter second", (int)datetime.second, timeout);
 			// set the external RTC using
+			rtc_init((rtc_time_t *)&datetime);
 			if( ds3231_set_datetime(&datetime) == TWI_SUCCESS) break;
 		}
 		ds3231_get_datetime(&datetime);  // read back time
@@ -289,10 +292,6 @@ void prompt_config(wispr_config_t *hdr, int timeout)
 	hdr->minute = datetime.minute;
 	hdr->second = datetime.second;
 	
-	// Prompt for number of blocks to write. This is useful for testing
-	sd_card_nblocks = sd_card_get_number_of_blocks(active_sd_card);
-	sd_card_nblocks = (uint32_t)console_prompt_int("Enter number of block to write on SD cards", (int)sd_card_nblocks, timeout);
-	sd_card_set_number_of_blocks(active_sd_card, sd_card_nblocks);	
 }
 
 void set_default_config(wispr_config_t *hdr)
