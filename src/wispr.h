@@ -8,6 +8,8 @@
 #ifndef WISPR_H_
 #define WISPR_H_
 
+#include "epoch.h"
+
 #define WISPR_VERSION 2
 #define WISPR_SUBVERSION 0
 
@@ -24,6 +26,9 @@
 
 #define ADC_NUM_SAMPLES ((ADC_BUFFER_SIZE - ADC_HEADER_SIZE) / ADC_SAMPLE_SIZE)
 
+#define ADC_DEFAULT_WINDOW 10
+#define ADC_DEFAULT_INTERVAL 30
+
 // States
 #define READING_ADC 0x01
 #define WRITING_SD1 0x02
@@ -33,6 +38,11 @@
 #define BOOTING 0x40
 #define SHUTTING_DOWN 0x80
 
+// Modes
+#define WISPR_WAVEFORM 0x01
+#define WISPR_SPECTRUM 0x02
+#define WISPR_FILTERED 0x04
+
 //
 // Data header object written to the front of each data buffer
 //
@@ -40,21 +50,16 @@ typedef struct
 {
 	char      name[5];
 	uint8_t   version[2];
-	uint8_t   size;
-	uint8_t   settings[2];
-	uint8_t   bytes_per_sample;
-	uint16_t  num_samples;
-	uint32_t  sampling_rate;
-	uint8_t   year;
-	uint8_t   month;
-	uint8_t   day;
-	uint8_t   hour;
-	uint8_t   minute;
-	uint8_t   second;
+	uint8_t   settings[4];
+	uint8_t   sample_size; // number of bytes per sample
+	uint16_t  blocks_size; // number of bytes in an adc record block
+	uint16_t  samples_per_block;  // number of samples in a block
+	uint32_t  sampling_rate; // samples per second
+	uint32_t  second;
 	uint32_t  usec;
 	uint8_t   header_chksum;
 	uint8_t   data_chksum;
-	uint8_t   pad;
+	//uint8_t   year,month,day,hour,minute,second;
 } wispr_data_header_t;
 
 //
@@ -63,32 +68,29 @@ typedef struct
 typedef struct {
 	char     name[6];
 	uint8_t  version[2];
-	uint8_t  size;  // size in bytes of this record
-	uint8_t  year;
-	uint8_t  month;
-	uint8_t  day;
-	uint8_t  hour;
-	uint8_t  minute;
-	uint8_t  second;
-	// adc config
-	uint8_t  blocks_per_record;
-	uint16_t samples_per_record;
-	uint8_t  bytes_per_sample;
-	uint32_t sampling_rate;
-	uint8_t  adc_settings[2];
-	uint8_t  preamp_settings[2];
-	// other configs
-	// ...
+	uint8_t  state;
+	uint8_t  mode;
+	uint32_t epoch;
+	uint8_t  settings[8]; // various system and adc settings
+	uint16_t samples_per_block; // number of samples in a block
+	uint16_t block_size;  // number of bytes in an adc record block
+	uint8_t  sample_size; // number of bytes per sample
+	uint32_t sampling_rate; // samples per second
+	uint16_t window; // time in seconds of the adc recors block
+	uint16_t interval; // time in seconds between adc records (must be >= window)
+	uint8_t active_sd_card;
 } wispr_config_t;
-
 
 int wispr_parse_data_header(uint8_t *buf, wispr_data_header_t *hdr);
 int wispr_serialize_data_header(wispr_data_header_t *hdr, uint8_t *buf);
 void wispr_print_data_header(wispr_data_header_t *header);
 
-int wispr_parse_config(uint8_t *buf, wispr_config_t *hdr);
-int wispr_serialize_config(wispr_config_t *hdr, uint8_t *buf);
+int wispr_write_config(wispr_config_t *hdr);
+int wispr_read_config(wispr_config_t *hdr);
+
 void wispr_print_config(wispr_config_t *hdr);
 
+int wispr_parse_config(uint8_t *buf, wispr_config_t *hdr);
+int wispr_serialize_config(wispr_config_t *hdr, uint8_t *buf);
 
 #endif /* WISPR_H_ */

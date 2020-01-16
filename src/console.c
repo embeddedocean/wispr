@@ -62,10 +62,10 @@ int console_gets(char *str)
 	return(n);
 }
 
-int console_prompt_int(const char *prompt, int default_value, int timeout)
+static int console_input(char *str, int size, int timeout)
 {
 	uint8_t c;
-	char str[64];
+	//char str[64];
 	int n = 0;
 	int go = 1;
 	int count = 0;
@@ -73,20 +73,18 @@ int console_prompt_int(const char *prompt, int default_value, int timeout)
 	if( timeout <= 0 ) timeout = 60; // always have some timeout
 	int timeout_ms = timeout*1000;
 
-	fprintf(stdout, "\r\n%s [%d]: ", prompt, default_value);
-
-	while( go ) {
+	while( go > 0 ) {
 		if(uart_is_rx_ready(CONSOLE_UART)) {
 			uart_read(CONSOLE_UART, &c);
 			if(c == 13) { // newline
-				str[n] = 0;
+				str[n++] = 0;
 				go = 0;
 			} else {
 				uart_write(CONSOLE_UART, c);  // echo
-				str[n] = (char)c;
+				str[n++] = (char)c;
 			}
 			if(c==8 && n>0) n--; // backspace
-			n++;
+			if(n >= size) go = 0;
 		} else {
 			delay_ms(1);
 			count++;
@@ -96,16 +94,36 @@ int console_prompt_int(const char *prompt, int default_value, int timeout)
 		if( count >= 1000 ) wdt_restart(WDT);
 
 		// timeout
-		if((timeout > 0) && (count >= timeout_ms)) go = 0;
+		if((timeout > 0) && (count >= timeout_ms)) {
+			n = 1;
+			go = 0;
+		}
 
-	}
-	
+	}	
+	return(n);
+}
+
+int console_prompt_int(const char *prompt, int default_value, int timeout)
+{
+	char str[32];
+	fprintf(stdout, "\r\n%s [%d]: ", prompt, default_value);
+	int n = console_input(str, 32, timeout);
 	int value = default_value;
-	if((n > 1) && (count < timeout_ms) ) value = atoi(str);
-	
+	if(n > 1) value = atoi(str);
 	//fprintf(stdout, "\r\n %d chars, %s, value = %d count = %d, %d \r\n", n, str, value, count, timeout);
 	fprintf(stdout, "\r\n");
+	return(value);
+}
 
+float console_prompt_f32(const char *prompt, float default_value, int timeout)
+{
+	char str[64];
+	fprintf(stdout, "\r\n%s [%f]: ", prompt, default_value);
+	int n = console_input(str, 64, timeout);
+	float value = default_value;
+	if(n > 1) value = atoff(str);
+	//fprintf(stdout, "\r\n %d chars, %s, value = %d count = %d, %d \r\n", n, str, value, count, timeout);
+	fprintf(stdout, "\r\n");
 	return(value);
 }
 

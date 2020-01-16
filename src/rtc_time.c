@@ -45,6 +45,8 @@ void rtc_init( rtc_time_t *dt )
 	rtc_set_hour_mode(RTC, 0);
 	rtc_set_time(RTC, hour, minute, sec);
 	rtc_set_date(RTC, year, month, day, week);
+
+	//printf("Internal RTC set to %02d/%02d/%02d %02d:%02d:%02d\r\n", year, month, day, hour, minute, sec);
 	
 	// read time back to verify
 	rtc_get_datetime(dt);
@@ -94,77 +96,4 @@ void rtc_get_epoch( uint32_t *epoch )
 
 }
 
-
-//---------------------------------------------------------------------------------
-// epoch calculator good for years 0-99 (representing 2000-2099)
-// Found this on stackexchange
-
-// offset is January 1, 2000 12:00:00 AM
-#define RTC_EPOCH_OFFSET 946684800
-
-static uint32_t DAYS[4][12] =
-{
-	{   0,  31,  60,  91, 121, 152, 182, 213, 244, 274, 305, 335},
-	{ 366, 397, 425, 456, 486, 517, 547, 578, 609, 639, 670, 700},
-	{ 731, 762, 790, 821, 851, 882, 912, 943, 974,1004,1035,1065},
-	{1096,1127,1155,1186,1216,1247,1277,1308,1339,1369,1400,1430},
-};
-
-
-uint32_t rtc_time_to_epoch(rtc_time_t *t)
-{
-	uint32_t sec = (uint32_t)t->second;  // 0-59
-	uint32_t minute = (uint32_t)t->minute;  // 0-59
-	uint32_t hour   = (uint32_t)t->hour;    // 0-23
-	uint32_t day    = (uint32_t)t->day-1;   // 0-30
-	uint32_t month  = (uint32_t)t->month-1; // 0-11
-	uint32_t year   = (uint32_t)t->year;    // 0-99
-	return (((year/4*(365*4+1)+DAYS[year%4][month]+day)*24+hour)*60+minute)*60+sec + RTC_EPOCH_OFFSET;
-}
-
-uint32_t time_to_epoch(uint32_t yr, uint32_t mn, uint32_t dy, uint32_t hr, uint32_t mi, uint32_t se)
-{
-	uint32_t sec = se;    // 0-59
-	uint32_t minute = mi;    // 0-59
-	uint32_t hour   = hr;    // 0-23
-	uint32_t day    = dy-1;  // 0-30
-	uint32_t month  = mn-1;  // 0-11
-	uint32_t year   = yr;    // 0-99
-	return (((year/4*(365*4+1)+DAYS[year%4][month]+day)*24+hour)*60+minute)*60+sec + RTC_EPOCH_OFFSET;
-}
-
-
-void epoch_to_rtc_time(rtc_time_t *t, uint32_t epoch)
-{
-	epoch = epoch - RTC_EPOCH_OFFSET;
-	
-	t->second = (uint8_t)(epoch%60); 
-	epoch /= 60;
-	t->minute = (uint8_t)(epoch%60); 
-	epoch /= 60;
-	t->hour   = (uint8_t)(epoch%24); 
-	epoch /= 24;
-
-	uint32_t years = epoch/(365*4+1)*4;
-	epoch %= 365*4+1;
-
-	uint32_t year;
-	for (year=3; year>0; year--)
-	{
-		if (epoch >= DAYS[year][0])
-		break;
-	}
-
-	uint8_t month;
-	for (month=11; month>0; month--)
-	{
-		if (epoch >= DAYS[year][month])
-		break;
-	}
-
-	t->century  = 20; // always 20th century
-	t->year  = (uint8_t)(years + year);
-	t->month = (uint8_t)(month + 1);
-	t->day   = (uint8_t)(epoch-DAYS[year][month] + 1);
-}
 

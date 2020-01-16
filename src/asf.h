@@ -68,6 +68,9 @@
 #include <ffconf.h>
 #include <integer.h>
 
+// From module: GPBR - General Purpose Backup Register
+#include <gpbr.h>
+
 // From module: GPIO - General purpose Input/Output
 #include <gpio.h>
 

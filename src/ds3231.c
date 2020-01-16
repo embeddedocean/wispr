@@ -333,7 +333,7 @@ uint32_t ds3231_init(void)
 	 * set the control and status registers to values indicated as power on reset in the datasheet
 	 * do this even if the time is considered valid
 	 */
-	controlreg.a1ie		= 0;		// alarm 1 enabled
+	controlreg.a1ie		= 1;		// alarm 1 enabled
 	controlreg.a2ie		= 0;		// alarm 2 disabled
 	controlreg.intcn	= 0;		// generate interrupt on alarm match
 	controlreg.rs		= 0;		// square wave frequency 1Hz
@@ -754,11 +754,11 @@ uint32_t ds3231_set_alarm( ds3231_datetime *dt )
 	/*
 	 * Read the Control register
 	 */
-//	if ((status = ds3231_read_register(CONTROL_REGISTER, &controlreg)) != TWI_SUCCESS)
-//	{
-//		printf("ds3231_set_alarm(): reading control register failed with status 0x%02x\r\n", status);
-//		return status;
-//	}
+	if ((status = ds3231_read_register(CONTROL_REGISTER, (uint8_t *)&controlreg)) != TWI_SUCCESS)
+	{
+		printf("ds3231_set_alarm(): reading control register failed with status 0x%02x\r\n", status);
+		return status;
+	}
 	
 	/*
 	 * Write the Control register
@@ -777,7 +777,7 @@ uint32_t ds3231_set_alarm( ds3231_datetime *dt )
 		 
 	if ((status = ds3231_write_register(CONTROL_REGISTER, (uint8_t *)&controlreg)) != TWI_SUCCESS)
 	{
-		printf("ds3231_configure(): ds3231_write_register(control_register) failed with status 0x%02x\r\n", status);
+		printf("ds3231_set_alarm(): ds3231_write_register(control_register) failed with status 0x%02x\r\n", status);
 		return status;
 	}
 		 
@@ -785,9 +785,9 @@ uint32_t ds3231_set_alarm( ds3231_datetime *dt )
 	statusreg.a1f		= 0;	// alarm 1 time match is an output
 	statusreg.a2f		= 0;	// alarm 2 time match is an output
 	statusreg.bsy		= 0;	// busy flag is an output
-	statusreg.en32khz	= 1;		// 32khz output pin disabled
-	statusreg.mbz		= 0;			// must be zero
-	statusreg.osf		= 0;		// clear oscillator stop flag
+	statusreg.en32khz	= 1;	// 32khz output pin disabled
+	statusreg.mbz		= 0;	// must be zero
+	statusreg.osf		= 0;	// clear oscillator stop flag
 		 
 	if ((status = ds3231_write_register(STATUS_REGISTER, (uint8_t *)&statusreg)) != TWI_SUCCESS)
 	{

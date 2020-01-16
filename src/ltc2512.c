@@ -84,7 +84,7 @@ int ltc2512_init(uint32_t *fs, uint8_t df, uint8_t gain)
 		ioport_set_pin_level(PIN_ADC_SEL0, 1);
 		ioport_set_pin_level(PIN_ADC_SEL1, 1);
 	} else {
-		fprintf(stdout, "init_ltc2512: invalid DF\n\r");
+		fprintf(stdout, "ltc2512_init: invalid DF\n\r");
 		return(-1);
 	}
 
@@ -107,13 +107,13 @@ int ltc2512_init(uint32_t *fs, uint8_t df, uint8_t gain)
     ssc_reset(SSC);
 
 	// set serial clock rate
-	uint32_t sclk = sysclk_get_peripheral_bus_hz(TC0);
+	uint32_t sclk = board_get_cpu_clock_hz(); // sysclk_get_peripheral_bus_hz(TC0);
     uint32_t rsck = LTC2512_SSC_RSCK;  // bit clock freq is fixed to the max reliable rate found by testing
     //uint32_t rsck = df * (*fs) * 40;  // bit clock freq 
     uint32_t rsck_div = sclk / (2 * rsck);
     rsck = sclk / rsck_div /2;
 
-    //printf("sclk = %lu, rsck = %lu, rsck_div = %lu \n\r", sclk, rsck, rsck_div);
+    printf("ltc2512: serial clock = %lu\n\r", rsck);
 
     SSC->SSC_CMR = SSC_CMR_DIV(rsck_div);
     
@@ -155,13 +155,13 @@ int ltc2512_init(uint32_t *fs, uint8_t df, uint8_t gain)
 	int ret = ltc2512_config_mclk(fs);
 
 	// Initialize data header structure
-	wispr.version[0] = WISPR_VERSION;
-	wispr.version[1] = 0;
-	wispr.size = LTC2512_HEADER_NBYTES;
-	wispr.settings[0] = (uint8_t)df;
-	wispr.settings[1] = (uint8_t)gain;
-	wispr.bytes_per_sample = LTC2512_BYTES_PER_SAMPLE;
-	wispr.num_samples = LTC2512_NUM_SAMPLES;
+	//wispr.version[0] = WISPR_VERSION;
+	//wispr.version[1] = 0;
+	//wispr.block_size = LTC2512_HEADER_NBYTES;
+	//wispr.settings[0] = (uint8_t)df;
+	//wispr.settings[1] = (uint8_t)gain;
+	//wispr.sample_size = LTC2512_BYTES_PER_SAMPLE;
+	//wispr.samples_per_block = LTC2512_NUM_SAMPLES;
 		
 	return(ret);
 
@@ -209,7 +209,8 @@ int ltc2512_config_mclk(uint32_t *fs)
 	);
 	
 	/* Configure waveform frequency and duty cycle. */
-	sck = sysclk_get_peripheral_bus_hz(TC0);
+	//sck = sysclk_get_peripheral_bus_hz(TC0);
+	sck = board_get_cpu_clock_hz();
 	uint32_t target_mclk = (*fs) * ltc2512_down_sampling_factor;
 	uint32_t max_rc =  sck / 2 / LTC2512_MIN_MCLK;
 	for (rc = 2; rc < max_rc; rc++) {
@@ -221,7 +222,7 @@ int ltc2512_config_mclk(uint32_t *fs)
 	rb = ra;
 	
 	//printf("TC0 configuration: sysclk = %lu, mclk = %lu, ra=%lu, rb=%lu, rc=%lu\n\r", sck, mclk, ra, rb, rc);
-	printf("ltc2512_config_mclk: mclk = %lu, sck = %lu\n\r", mclk, sck);
+	printf("ltc2512: conversion clock = %lu\n\r", mclk);
 
 	tc_write_rc(TC0, 0, rc);
 	tc_write_ra(TC0, 0, ra);
@@ -389,7 +390,7 @@ void SSC_Handler(void)
 
 	// RXBUFF flag is set when both PERIPH_RCR and the PDC Receive Next Counter register (PERIPH_RNCR) reach zero.
 	if ((status & SSC_SR_RXBUFF) == SSC_SR_RXBUFF) {
-		fprintf(stdout, "SSC_Handler: buffer overflow\r\n");
+		printf("SSC_Handler: buffer overflow\r\n");
 		// buffer overflow
 	}
 
@@ -408,19 +409,22 @@ static inline uint8_t checksum(uint8_t *data, uint32_t len)
 void ltc2512_update_header(uint8_t *hdr, uint8_t chksum)
 {
 	// update the data header info
-	uint8_t year, month,day,hour,minute,sec;
+	uint8_t year,month,day,hour,minute,sec;
 	uint32_t usec = 0;
 
 	ltc2512_get_time(&hour, &minute, &sec, &usec);
 	ltc2512_get_date(NULL, &year, &month, &day, NULL);
 
 	wispr.sampling_rate = ssc_adc_sampling_freq;
-	wispr.year = year;
-	wispr.month = month;
-	wispr.day = day;
-	wispr.hour = hour;
-	wispr.minute = minute;
-	wispr.second = sec;
+	
+	//wispr.year = year;
+	//wispr.month = month;
+	//wispr.day = day;
+	//wispr.hour = hour;
+	//wispr.minute = minute;
+	//wispr.second = sec;
+	
+	wispr.second = time_to_epoch(year, month, day, hour, minute, sec);
 	wispr.usec = usec;
 	wispr.data_chksum = chksum; // checksum for data
 

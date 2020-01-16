@@ -48,60 +48,138 @@
 
 #include <asf.h>
 
-void board_init(void)
+/** Current MCK in Hz */
+uint32_t board_current_cpu_hz;
+uint32_t board_current_main_hz;
+
+/** PLL settings for each cpu freq in above list*/
+uint32_t board_pll_clock_list[][4] = {
+	/* MCK, MUL, DIV, PRES */
+	{24000000, 7, 1, PMC_MCKR_PRES_CLK_4}, 	 /* MCK = 12000000 * (7+1) / 1 / 4 = 24 MHz */
+	{32000000, 7, 1, PMC_MCKR_PRES_CLK_3},	 /* MCK = 12000000 * (7+1) / 1 / 3 = 32 MHz */
+	{48000000, 7, 1, PMC_MCKR_PRES_CLK_2}, 	 /* MCK = 12000000 * (7+1) / 1 / 2 = 48 MHz */
+	{64000000, 31, 3, PMC_MCKR_PRES_CLK_2},  /* MCK = 12000000 * (4+1) / 2 / 2 = 60 MHz */
+	{84000000, 13, 1, PMC_MCKR_PRES_CLK_2},  /* MCK = 12000000 * (15+1) / 1 / 2 = 96 MHz */
+	{96000000, 15, 1, PMC_MCKR_PRES_CLK_2},  /* MCK = 12000000 * (15+1) / 1 / 2 = 96 MHz */
+	{100000000, 24, 1, PMC_MCKR_PRES_CLK_3}, /* MCK = 12000000 * (24+1) / 1 / 3 = 100 MHz */
+	{120000000, 19, 1, PMC_MCKR_PRES_CLK_2}  /* MCK = 12000000 * (19+1) / 1 / 2 = 120 MHz */
+
+};
+
+char reset_message[96];
+
+int board_init(void)
 {
-	
-  pmc_disable_all_periph_clk();
-  pmc_disable_udpck();
+  // initialize PLL and main clock with the settings in confog_clock.h 
+  sysclk_init();
+  board_current_cpu_hz = sysclk_get_cpu_hz(); // uses hardwired values
+  board_current_main_hz = sysclk_get_main_hz(); // uses hardwired values
 
-  pmc_enable_periph_clk(ID_PIOA);
-  pmc_enable_periph_clk(ID_PIOB);
+  //board_init_clocks(mck);
+  // need to figure out how to get sysclk_get_cpu_hz() to return a variable value
+  // now it relies on constants in conf_clock.h
+  	
+  // Use the RTC 32kHz output as the 32kHz xtal input
+  //pmc_switch_sclk_to_32kxtal(PMC_OSC_XTAL);  // enable external 32.768kHz crystal
+  pmc_switch_sclk_to_32kxtal(PMC_OSC_BYPASS);  // enable external 32.768kHz clock - such as the DS3231 32khz output
+  while (!pmc_osc_is_ready_32kxtal()) { }
 
-  /* Configure all PIOs as inputs to save power */
-  //pio_set_input(PIOA, 0xFFFFFFFF, PIO_PULLUP);
-  //pio_set_input(PIOB, 0xFFFFFFFF, PIO_PULLUP);
+  ioport_init();
+
+  // Configure all PIOs as inputs to save power
+//  pio_set_input(PIOA, 0xFFFFFFFF, PIO_PULLUP);
+//  pio_set_input(PIOB, 0xFFFFFFFF, PIO_PULLUP);
+
+  // Initialize the console uart first so printf works
+  board_console_uart_init();  
 
   // Initialize the user gpio pins
   board_gpio_init();
   
-  // Initialize the console uart
-  board_console_uart_init();
-  
-  // Use the RTC 32kHz output as the 32kHz xtal input
-  int count = 100;
-  //pmc_switch_sclk_to_32kxtal(PMC_OSC_XTAL);  // enable external 32.768kHz crystal
-  pmc_switch_sclk_to_32kxtal(PMC_OSC_BYPASS);  // enable external 32.768kHz clock - such as the DS3231 32khz output
-  while (count--) {
-    if(pmc_osc_is_ready_32kxtal()) break;  // wait until oscillator is ready
-  }
-  if(count == 0) printf("RTC 32KHz Clock not ready\r\n");
-
   /* Output header string  */
   fprintf(stdout, "\r\n-- %s --\r\n", BOARD_NAME );
   fprintf(stdout, "-- Compiled: "__DATE__ " "__TIME__ " --\r\n");
 
-  uint32_t cpu_sclk = sysclk_get_cpu_hz();
-  fprintf(stdout, "-- CPU clock: %lu MHz\n\r", cpu_sclk/1000000);
-  //printf("-- Peripheral bus clock: %lu MHz\n\r",  sysclk_get_peripheral_bus_hz(TC0)/1000000);
-  fprintf(stdout, "\r\n" );
+  fprintf(stdout, "-- CPU clock: %lu MHz\n\r", board_current_cpu_hz/1000000);
+  fprintf(stdout, "-- Main clock: %lu MHz\n\r", board_current_main_hz/1000000);
+  //printf("-- Peripheral bus clock: %lu Hz\n\r",  sysclk_get_peripheral_hz()); //sysclk_get_peripheral_bus_hz(TC0)/1000000);
 
-  //display_reset_reason();
+  // get the reset reasons
+  uint8_t reset_type = 0;
+  uint8_t nrst, user_reset;
+  board_reset_reason(&reset_type, &nrst, &user_reset);
+  fprintf(stdout, "-- %s\r\n", reset_message );
+  fprintf(stdout, "\r\n" );
 
   // Initialize the WDT
   board_wdt_init(0);
+
+  return(reset_type);
+}
+
+// not finished 
+uint32_t board_get_cpu_clock_hz(void)
+{
+	//= board_current_main_hz / ((pll_pre == SYSCLK_PRES_3) ? 3 : (1 << (pll_pre >> PMC_MCKR_PRES_Pos)));
+	return(board_current_cpu_hz);
+}
+
+uint32_t board_get_main_clock_hz(void)
+{
+	return(board_current_main_hz);
+}
+
+void board_set_clock(enum board_cpu_freq_hz mck)
+{
+	// this replaces sysclk_init with direct pmc function call to simplify the clock init
+	// - overrides settings in conf_clock.h
+	// Fpll = Fclk * pll_mul / pll_div
+	// Fmck = Fxtal * Fppl / pll_pre
+	// Fxtal = 12M
+	board_current_cpu_hz = board_pll_clock_list[mck][0];
+	uint32_t pll_mul = board_pll_clock_list[mck][1];
+	uint32_t pll_div = board_pll_clock_list[mck][2];
+	uint32_t pll_pre = board_pll_clock_list[mck][3];
+
+	board_current_main_hz = BOARD_FREQ_MAINCK_BYPASS * (pll_mul+1) / pll_div;
+
+	pmc_set_writeprotect(0);
+
+	struct pll_config pllcfg;
+	pll_enable_source(PLL_SRC_MAINCK_BYPASS);
+	pll_config_init(&pllcfg, PLL_SRC_MAINCK_BYPASS, pll_div, pll_mul+1);
+	pll_enable(&pllcfg, 0);
+	pll_wait_for_lock(0);
+	pmc_switch_mck_to_pllack(pll_pre);
+
+	//pll_enable_source(OSC_MAINCK_BYPASS);
+//	pmc_switch_mainck_to_xtal(PMC_OSC_BYPASS, pmc_us_to_moscxtst(BOARD_OSC_STARTUP_US, OSC_SLCK_32K_RC_HZ));
+//	while (!pmc_osc_is_ready_mainck()) {}
+	
+	// enable PLLA (need to use pll_mul-1)
+//	pmc_enable_pllack(pll_mul, PLL_COUNT, pll_div);
+
+	// Switch master clock source selection to PLLA clock
+//	pmc_switch_mck_to_pllack(pll_pre);
+
+	/* Disable unused clock to save power */
+//	pmc_osc_disable_fastrc();
+//	pmc_disable_all_periph_clk();
+//	pmc_disable_udpck();
+
+	// enable/disable peripheral clocks as they are needed
 
 }
 
 static void rtc_int_wakeup_handler(uint32_t ul_id, uint32_t ul_mask)
 {
 	if (ID_PIOA == ul_id && PIO_PA2 == ul_mask) {
-		// 
+		//printf("RTC Interrupt Handler\r\n" ); 
 	}
 }
 
 void board_gpio_init(void)
 {
-  ioport_init();
 
   //Set PB10 and PB11 as GPIO, not USB pins
   REG_CCFG_SYSIO |= CCFG_SYSIO_SYSIO10;
@@ -172,7 +250,7 @@ void board_gpio_init(void)
   pio_enable_interrupt(PIOA, PIO_PA2);
 
   // enable wakeup input on WKUP2 (PA2) with active low  
-  supc_set_wakeup_inputs(SUPC, SUPC_WUIR_WKUPEN2_ENABLE, SUPC_WUIR_WKUPT2_LOW);
+  //supc_set_wakeup_inputs(SUPC, SUPC_WUIR_WKUPEN2_ENABLE, SUPC_WUIR_WKUPT2_LOW);
   
 }
 
@@ -187,17 +265,19 @@ uint32_t board_uart_init(int port, uint32_t baud)
 	}
 
 	sam_uart_opt_t uart_opts;
-	uart_opts.ul_mck = sysclk_get_peripheral_hz();
+	//uart_opts.ul_mck = sysclk_get_peripheral_hz(); // relies on conf_clock.h;
+	uart_opts.ul_mck = board_get_cpu_clock_hz(); // use variable rate in case it has changed
 	uart_opts.ul_baudrate = baud;
 	uart_opts.ul_mode = UART_MR_PAR_NO | UART_MR_CHMODE_NORMAL;
 
-	/* Configure console UART. */
+	/* Configure UART. */
 	if(port == 0) { 
-		sysclk_enable_peripheral_clock(ID_UART0);
+		//pmc_disable_periph_clk(ID_UART0);
+		pmc_enable_periph_clk(ID_UART0);
 		pio_configure_pin_group(PINS_UART0_PIO, PINS_UART0, PINS_UART0_FLAGS);
 		uart_init(UART0, &uart_opts);
 	} else if(port == 1) {
-		sysclk_enable_peripheral_clock(ID_UART1);
+		pmc_enable_periph_clk(ID_UART1);
 		pio_configure_pin_group(PINS_UART1_PIO, PINS_UART1, PINS_UART1_FLAGS);
 		uart_init(UART1, &uart_opts);
 	} else {
@@ -207,6 +287,9 @@ uint32_t board_uart_init(int port, uint32_t baud)
 	return(stat);
 }
 
+//
+// console is where printf goes (using usart_serial_putchar and usart_serial_getchar)
+//
 uint32_t board_console_uart_init(void)
 {
   uint32_t stat = 1;
@@ -218,12 +301,10 @@ uint32_t board_console_uart_init(void)
 
   /* Configure console UART. */
   if(BOARD_CONSOLE_UART == UART0) {
-    sysclk_enable_peripheral_clock(ID_UART0);
-    pio_configure_pin_group(PINS_UART0_PIO, PINS_UART0, PINS_UART0_FLAGS);
+	board_uart_init(0, BOARD_CONSOLE_UART_BAUDRATE);
     stdio_serial_init(UART0, &uart_serial_options);
   } else if(BOARD_CONSOLE_UART == UART1) {
-    sysclk_enable_peripheral_clock(ID_UART1);
-    pio_configure_pin_group(PINS_UART1_PIO, PINS_UART1, PINS_UART1_FLAGS);
+	board_uart_init(1, BOARD_CONSOLE_UART_BAUDRATE);
     stdio_serial_init(UART1, &uart_serial_options);
   } else {
     stat = -1;
@@ -257,58 +338,66 @@ uint32_t board_wdt_init(uint32_t wdt_msec)
 /**
  * \brief Display the reset reason(s).
  */
- void display_reset_reason(void)
- {
-	char msg[80];
+ void board_reset_reason(uint8_t *reason, uint8_t *nrst, uint8_t *user)
+{
+	char *msg = &reset_message[0];
 	
-	strcpy(&msg[0], "\r\nReset info : ");
-	
-	//! [reset_get_status]
+	// get reset status
 	uint32_t info = rstc_get_status(RSTC);
-	//! [reset_get_status]
-	
-	/* Decode the reset reason. */
+		
+	// Decode the reset reason.
 	switch (info & RSTC_SR_RSTTYP_Msk) {	
+	
 	case RSTC_GENERAL_RESET:
 		strcat(&msg[0], "General Reset,");
+		*reason = BOARD_GENERAL_RESET;
 	break;
 	
 	case RSTC_BACKUP_RESET:
+		*reason = BOARD_BACKUP_RESET;
 		strcat(&msg[0], "Backup Reset,");
 	break;
 	
 	case RSTC_WATCHDOG_RESET:
+		*reason = BOARD_WATCHDOG_RESET;
 		strcat(&msg[0], "Watchdog Reset,");
 	break;
 	
 	case RSTC_SOFTWARE_RESET:
+		*reason = BOARD_SOFTWARE_RESET;
 		strcat(&msg[0], "Software Reset,");
 	break;
 	
 	case RSTC_USER_RESET:
+		*reason = BOARD_USER_RESET;
 		strcat(&msg[0], "User Reset,");
 	break;
 	
 	default:
-		strcat(&msg[0], "Invalid reset reason!,");
+		*reason = BOARD_UNKNOWN_RESET;
+		strcat(&msg[0], "Invalid reset reason,");
 	}
 	
 	/* NRST level. */
 	if (info & RSTC_SR_NRSTL) {
-		strcat(&msg[0], " NRST=1,");
+		*nrst = 1;
+		strcat(&msg[0], " NRST=1,");		
 	}
 	else {
+		*nrst = 1;
 		strcat(&msg[0], " NRST=0,");
 	}
 
 	/* User reset status. */
 	if (info & RSTC_SR_URSTS) {
-		strcat(&msg[0], " User Reset=1\r");
+		*user = 1;
+		strcat(&msg[0], " User Reset=1");
 	}
 	else {
-		strcat(&msg[0], " User Reset=0\r");
+		*user = 0;
+		strcat(&msg[0], " User Reset=0");
 	}
 
-	puts(&msg[0]);
+	//return( &msg[0] ); 
  }
  

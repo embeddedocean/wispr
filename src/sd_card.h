@@ -28,19 +28,21 @@
 #define SD_CARD_ENABLED  0x02
 #define SD_CARD_SELECTED 0x04
 #define SD_CARD_FULL     0x08
+#define SD_CARD_ACTIVE   0x10
 
-typedef struct {	
-	char     type[5];      // fixed identifier
-	uint8_t  size;         // size in bytes of the header record
-	uint8_t  version;      // version number
-	char     name[8];      // user set identifier
-	uint32_t start_block;  // addr of start block
-	uint32_t end_block;    // addr of end block
-	uint32_t last_block;   // addr of last block written
-	rtc_time_t modtime;    // time last modified
-} sd_card_header_t;
+//typedef struct {	
+//	char     type[5];      // fixed identifier
+//	uint8_t  size;         // size in bytes of the header record
+//	uint8_t  version;      // version number
+//	char     name[8];      // user set identifier
+//	uint32_t start_block;  // addr of start block
+//	uint32_t end_block;    // addr of end block
+//	uint32_t last_block;   // addr of last block written
+//	rtc_time_t modtime;    // time last modified
+//} sd_card_header_t;
 
 typedef struct {
+	char    name[8];      // user set identifier
 	uint8_t number;
 	uint8_t state;
 	uint8_t type;
@@ -50,7 +52,6 @@ typedef struct {
 	uint32_t end_block;    // addr of end block
 	uint32_t write_addr;   // addr of current write block
 	uint32_t read_addr;    // addr of current read block
-	char     name[8];      // user set identifier
 	uint32_t epoch;        // time last header was written
 } sd_card_t;
 
@@ -58,7 +59,8 @@ extern int sd_card_select(uint8_t card_num);
 extern int sd_card_enable(uint8_t card_num);
 extern int sd_card_disable(uint8_t card_num);
 
-extern int sd_card_open(uint8_t card_num, char *name, uint8_t reset_card);
+extern int sd_card_init(uint8_t card_num, char *name, uint8_t reset_card);
+extern int sd_card_open(uint8_t card_num);
 extern void sd_card_close(uint8_t card_num);
 extern void sd_card_print_info(uint8_t card_num);
 

@@ -1,4 +1,8 @@
 /**
+ * sd_card.c: sd card utility functions
+ * 
+ * There is no filesystem on the card, reads and writes access the card memory directly.
+ * ...
  *
  */
 
@@ -26,12 +30,12 @@ int sd_card_select(uint8_t card_num)
 {
 	if(card_num == 2) { // select card 2
 		ioport_set_pin_level(PIN_SELECT_SD, SELECT_SD2);
-		sd_card_instance[1].state |= SD_CARD_SELECTED ;
-		sd_card_instance[0].state &= ~SD_CARD_SELECTED ;
+		sd_card_instance[1].state |= SD_CARD_SELECTED;
+		sd_card_instance[0].state &= ~SD_CARD_SELECTED;
 	} else if(card_num == 1) { // select card 1
 		ioport_set_pin_level(PIN_SELECT_SD, SELECT_SD1);
-		sd_card_instance[0].state |= SD_CARD_SELECTED ;
-		sd_card_instance[1].state &= ~SD_CARD_SELECTED ;
+		sd_card_instance[0].state |= SD_CARD_SELECTED;
+		sd_card_instance[1].state &= ~SD_CARD_SELECTED;
 	} else {
 		printf("sd_card_select: unknown card number\n\r");
 		return(0);
@@ -71,7 +75,7 @@ int sd_card_disable(uint8_t card_num)
 
 /*
  */
-int sd_card_open(uint8_t card_num, char *name, uint8_t reset_card)
+int sd_card_init(uint8_t card_num, char *name, uint8_t reset_card)
 {
 	if( card_num < 1 || card_num > MAX_NUMBER_SD_CARDS ) {
 		printf("sd_card_open: unknown card number\n\r");
@@ -101,6 +105,7 @@ int sd_card_open(uint8_t card_num, char *name, uint8_t reset_card)
 	card->capacity = sd_mmc_get_capacity(sd_card_slot);  // capacity in KBytes
 	
 	// read the card header and check if its valid
+	// if its not valid or the reset flag is set, reset the card header
 	if( (sd_card_read_header(card) == 0) || reset_card ) { 
 		// so reset the card header
 		card->start_block = SD_CARD_START_BLOCK;
@@ -116,9 +121,51 @@ int sd_card_open(uint8_t card_num, char *name, uint8_t reset_card)
 	// set header mod time
 	rtc_get_epoch( &card->epoch );
 	
-	// rewrite the header
+	// write the header
 	sd_card_write_header(card);
 
+	card->state |= SD_CARD_OPEN;
+	
+	return( (int)card_num );
+}
+
+int sd_card_open(uint8_t card_num)
+{
+	if( card_num < 1 || card_num > MAX_NUMBER_SD_CARDS ) {
+		printf("sd_card_open: unknown card number\n\r");
+		return(0);
+	}
+	sd_mmc_err_t err = SD_MMC_OK;
+	sd_card_t *card = &sd_card_instance[card_num-1];
+
+	sd_card_enable(card_num);
+	sd_card_select(card_num);
+
+	/* Initialize SD MMC stack */
+	sd_mmc_init();
+
+	err = sd_mmc_check(sd_card_slot);
+	int count = 0;
+	while (err != SD_MMC_OK  && count < 4) {
+		err = sd_mmc_check(sd_card_slot);
+		delay_ms(10);
+		count++;
+	}
+	
+	card->number = card_num;
+	card->type = sd_mmc_get_type(sd_card_slot);
+	card->version = sd_mmc_get_version(sd_card_slot);
+	card->capacity = sd_mmc_get_capacity(sd_card_slot);  // capacity in KBytes
+	
+	// read the card header and check if its valid
+	// if its not valid or the reset flag is set, reset the card header
+	if( (sd_card_read_header(card) == 0) ) {
+		return( 0 );
+	}
+	
+	// set header mod time
+	rtc_get_epoch( &card->epoch );
+	
 	card->state |= SD_CARD_OPEN;
 	
 	return( (int)card_num );
@@ -172,8 +219,8 @@ void sd_card_print_info(uint8_t card_num)
 	printf("- Read Addr:  %d\r\n", card->read_addr);
 	rtc_time_t tme;
 	epoch_to_rtc_time(&tme, card->epoch);
-	printf("- Last mod time: %02d/%02d/%02d %02d-%02d-%02d\r\n",
-		tme.year,tme.month,tme.day,tme.hour,tme.minute,tme.second);
+	printf("- Last mod time: %02d/%02d/%02d %02d-%02d-%02d (%lu)\r\n",
+		tme.year,tme.month,tme.day,tme.hour,tme.minute,tme.second, card->epoch);
 }
 
 //
@@ -197,11 +244,11 @@ uint16_t sd_card_write(uint8_t card_num, uint8_t *buffer, uint16_t nblocks)
 		return(0);
 	}
 	sd_card_t *card = &sd_card_instance[card_num-1];
-			
-//	if( ~sd_card_is_ready(card) ) {
-//		printf("sd_card_write: card not ready\n\r");
-//		return(-1);
-//	}
+	
+	if( !(card->state & SD_CARD_OPEN) ) {
+		printf("sd_card_write: card not open\n\r");
+		return(-1);
+	}
 	
 	// current write address (in blocks)
 	uint32_t addr = card->write_addr;
@@ -232,6 +279,11 @@ uint16_t sd_card_read(uint8_t card_num, uint8_t *buffer, uint16_t nblocks)
 		return(0);
 	}
 	sd_card_t *card = &sd_card_instance[card_num-1];
+
+	if( !(card->state & SD_CARD_OPEN) ) {
+		printf("sd_card_read: card not open\n\r");
+		return(-1);
+	}
 	
 	// current read address (in blocks)
 	uint32_t addr = card->read_addr;
@@ -327,9 +379,7 @@ int sd_card_read_header(sd_card_t *hdr)
 }
 
 int sd_card_write_header(sd_card_t *hdr)
-{
-	sd_mmc_err_t ret = SD_MMC_OK;
-	
+{	
 	// current write address (in blocks)
 	uint32_t addr = SD_CARD_HEADER_BLOCK;
 
@@ -364,17 +414,31 @@ int sd_card_parse_header(uint8_t *buf, sd_card_t *hdr)
 	hdr->name[5] = buf[12];
 	hdr->name[6] = buf[13];
 	hdr->name[7] = buf[14];
-	hdr->start_block = (uint32_t)buf[15] | ((uint32_t)buf[16] << 8) | ((uint32_t)buf[17] << 16) | ((uint32_t)buf[18] << 24);    // addr of first block (uint32_t)
-	hdr->end_block = (uint32_t)buf[19] | ((uint32_t)buf[20] << 8) | ((uint32_t)buf[21] << 16) | ((uint32_t)buf[22] << 24);    // addr of last block (uint32_t)
-	hdr->write_addr = (uint32_t)buf[23] | ((uint32_t)buf[24] << 8) | ((uint32_t)buf[25] << 16) | ((uint32_t)buf[26] << 24);    // addr of current write block (uint32_t)
-	hdr->read_addr = (uint32_t)buf[27] | ((uint32_t)buf[28] << 8) | ((uint32_t)buf[29] << 16) | ((uint32_t)buf[30] << 24);    // addr of current write block (uint32_t)
-	hdr->epoch = (uint32_t)buf[31] | ((uint32_t)buf[32] << 8) | ((uint32_t)buf[33] << 16) | ((uint32_t)buf[34] << 24);    // addr of current write block (uint32_t)
-	//hdr->modtime.year = buf[27];
-	//hdr->modtime.month = buf[28];
-	//hdr->modtime.day = buf[29];
-	//hdr->modtime.hour = buf[30];
-	//hdr->modtime.minute = buf[31];
-	//hdr->modtime.second = buf[32];
+
+	hdr->start_block  =  (uint32_t)buf[15];    // addr of first block (uint32_t)
+	hdr->start_block |= ((uint32_t)buf[16] << 8);
+	hdr->start_block |= ((uint32_t)buf[17] << 16);
+	hdr->start_block |= ((uint32_t)buf[18] << 24);    // addr of first block (uint32_t)
+
+	hdr->end_block  =  (uint32_t)buf[19];
+	hdr->end_block |= ((uint32_t)buf[20] << 8);
+	hdr->end_block |= ((uint32_t)buf[21] << 16);
+	hdr->end_block |= ((uint32_t)buf[22] << 24);    // addr of last block (uint32_t)
+
+	hdr->write_addr   = (uint32_t)buf[23];
+	hdr->write_addr |= ((uint32_t)buf[24] << 8);
+	hdr->write_addr |= ((uint32_t)buf[25] << 16);
+	hdr->write_addr |= ((uint32_t)buf[26] << 24);    // addr of current write block (uint32_t)
+	
+	hdr->read_addr  = (uint32_t)buf[27];
+	hdr->read_addr |= ((uint32_t)buf[28] << 8);
+	hdr->read_addr |= ((uint32_t)buf[29] << 16);
+	hdr->read_addr |= ((uint32_t)buf[30] << 24);    // addr of current write block (uint32_t)
+	
+	hdr->epoch  =  (uint32_t)buf[31];
+	hdr->epoch |= ((uint32_t)buf[32] << 8);
+	hdr->epoch |= ((uint32_t)buf[33] << 16);
+	hdr->epoch |= ((uint32_t)buf[34] << 24);    // addr of current write block (uint32_t)
 	return(35);
 }
 
@@ -432,7 +496,6 @@ int sd_card_serialize_header(sd_card_t *hdr, uint8_t *buf)
 	return(35);
 }
 
-
 int sd_card_read_config(uint8_t card_num, wispr_config_t *hdr)
 {
 	if( card_num < 0 || card_num > MAX_NUMBER_SD_CARDS ) {
@@ -486,6 +549,11 @@ int sd_card_set_number_of_blocks(uint8_t card_num, uint32_t nblocks)
 		return(-1);
 	}
 	sd_card_t *card = &sd_card_instance[card_num-1];
+
+	if( !(card->state & SD_CARD_OPEN) ) {
+		printf("sd_card_set_number_of_blocks: card not open\n\r");
+		return(-1);
+	}
 	
 	uint32_t first = SD_CARD_START_BLOCK;
 	uint32_t last = card->capacity * (1024 / SD_MMC_BLOCK_SIZE);

@@ -29,7 +29,9 @@
 
 #include "spectrogram.h"
 
-// statically allocated data arrays so avoid runtime alloc
+//
+// statically allocated data arrays so avoid runtime allocation
+//
 COMPILER_WORD_ALIGNED uint8_t psd_fft_input[4*MAX_FFT_SIZE];
 COMPILER_WORD_ALIGNED uint8_t psd_fft_output[4*MAX_FFT_SIZE];
 
@@ -44,7 +46,7 @@ uint16_t psd_fft_size;
 uint16_t psd_num_freq_bins;  // nfft/2 +1
 
 // 
-// window function converted from matlab
+// window function based on the matlab function
 //
 void spectrum_window(float32_t *w, uint8_t type, uint16_t size)
 {
@@ -139,7 +141,7 @@ int spectrum_f32(uint8_t *input, float32_t *output, uint16_t nsamps, uint16_t ov
 	int istart = 0;  // start index of segment
 	int iend;  // end index of segment
 	
-	// initialize magnitude vector
+	// clear output vector
 	for(m = 0; m < nbins; m++) output[m] = 0;
 
 	// average the time bins
@@ -165,12 +167,10 @@ int spectrum_f32(uint8_t *input, float32_t *output, uint16_t nsamps, uint16_t ov
 		arm_rfft_fast_f32(&psd_twid_f32, ibuf, obuf, 0);
 
 		// sum and save the magnitude of the complex fft output
-		arm_cmplx_mag_squared_f32(output, obuf, nbins);
 		output[0] = obuf[0]; // dc component
-		
-		//for(m = 1, n = 2; m < nbins; m++, n+=2) {
-		//	output[m] += obuf[n]*obuf[n] + obuf[n+1]*obuf[n+1];
-		//}
+		for(m = 1, n = 2; m < nbins; m++, n+=2) {
+			output[m] += obuf[n]*obuf[n] + obuf[n+1]*obuf[n+1];
+		}
 
 		// increment the start index by skip=nsamps-overlap
 		istart += skip;

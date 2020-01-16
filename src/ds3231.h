@@ -22,16 +22,18 @@ typedef enum
 /*
  * Simple date/time structure passed to RTCGetDateTime(), RTCIsDateTimeValid(), RTCSetDateTime()
  */
-typedef struct
-{
-	uint8_t	century;
-	uint8_t	year;
-	uint8_t	month;
-	uint8_t	day;
-	uint8_t	hour;
-	uint8_t	minute;
-	uint8_t	second;
-} ds3231_datetime;
+//typedef struct
+//{
+//	uint8_t	century;
+//	uint8_t	year;
+//	uint8_t	month;
+//	uint8_t	day;
+//	uint8_t	hour;
+//	uint8_t	minute;
+//	uint8_t	second;
+//} ds3231_datetime;
+
+typedef rtc_time_t ds3231_datetime;
 
 extern uint32_t ds3231_twi_init(void);
 extern uint32_t ds3231_write(uint16_t addr, uint8_t *buf, uint16_t len);

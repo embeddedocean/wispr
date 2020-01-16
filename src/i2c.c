@@ -52,7 +52,10 @@ int i2c_init(Twi *twi, uint32_t speed)
 	}
 	
 	twi_options_t opt;
-	opt.master_clk = sysclk_get_main_hz();
+	// uses main or peripheral/cpu clock??
+	opt.master_clk = board_get_cpu_clock_hz();
+	//opt.master_clk = board_get_main_clock_hz;
+	//opt.master_clk = sysclk_get_main_hz(); // this uses conf_clock.h settings
 	opt.speed = speed; //100000UL;
 	opt.smbus = 0;
 

@@ -9,18 +9,12 @@
 #include <stdint.h>
 #include <sam4sd32b.h>
 
-extern void board_init(void);
-extern void board_gpio_init(void);
-extern uint32_t board_uart_init(int port, uint32_t baud);
-extern uint32_t board_console_uart_init(void);
-extern uint32_t board_wdt_init(uint32_t wdt_msec);
-extern void display_reset_reason(void);
-
 //! Name string macro
 #define BOARD_NAME    "WISPR V2.0"
 
 // Console UART
 #define BOARD_CONSOLE_UART            UART1
+//#define BOARD_CONSOLE_UART_BAUDRATE   9600
 #define BOARD_CONSOLE_UART_BAUDRATE   115200
 
 //! Resonator definitions
@@ -29,6 +23,37 @@ extern void display_reset_reason(void);
 #define BOARD_FREQ_MAINCK_XTAL    (12000000U)
 #define BOARD_FREQ_MAINCK_BYPASS  (12000000U)
 #define BOARD_OSC_STARTUP_US      15625
+
+/* Valid CPU frequency list */
+enum board_cpu_freq_hz {
+	BOARD_CPU_FREQ_24M,
+	BOARD_CPU_FREQ_32M,
+	BOARD_CPU_FREQ_48M,
+	BOARD_CPU_FREQ_64M,
+	BOARD_CPU_FREQ_84M,
+	BOARD_CPU_FREQ_96M,
+	BOARD_CPU_FREQ_100M,
+	BOARD_CPU_FREQ_120M
+};
+
+// Reset types
+#define BOARD_GENERAL_RESET    0
+#define BOARD_BACKUP_RESET     1
+#define BOARD_WATCHDOG_RESET   2
+#define BOARD_SOFTWARE_RESET   3
+#define BOARD_USER_RESET       4
+#define BOARD_UNKNOWN_RESET    8
+
+extern int board_init(void);
+extern uint32_t board_get_cpu_clock_hz(void);
+extern uint32_t board_get_main_clock_hz(void);
+extern void board_set_clock(enum board_cpu_freq_hz mck);
+extern void board_gpio_init(void);
+extern uint32_t board_uart_init(int port, uint32_t baud);
+extern uint32_t board_console_uart_init(void);
+extern uint32_t board_wdt_init(uint32_t wdt_msec);
+extern void board_reset_reason(uint8_t *reason, uint8_t *nrst, uint8_t *user);
+
 
 #define PIN_PA0    IOPORT_CREATE_PIN(PIOA, 0)
 #define PIN_PA1    IOPORT_CREATE_PIN(PIOA, 1)

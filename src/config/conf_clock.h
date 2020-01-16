@@ -81,8 +81,8 @@
 
 // - System clock: (XTAL=12) * 10 / 1 / (SYSCLK_PRES=2) = 60MHz
 #define CONFIG_PLL0_MUL             10
-#define CONFIG_PLL0_DIV             1
-#define CONFIG_SYSCLK_PRES          SYSCLK_PRES_2
+#define CONFIG_PLL0_DIV             2
+#define CONFIG_SYSCLK_PRES          SYSCLK_PRES_1
 
 // - System clock: (XTAL=10) * 24 / 1 / (SYSCLK_PRES=2) = 120MHz
 //#define CONFIG_PLL0_MUL             24
@@ -94,8 +94,8 @@
 //#define CONFIG_PLL0_DIV             1
 //#define CONFIG_SYSCLK_PRES          SYSCLK_PRES_2
 
-// - System clock: (XTAL=10) * 12 / 1 / (SYSCLK_PRES=2) = 60MHz
-//#define CONFIG_PLL0_MUL             12
+// - System clock: (XTAL=10) * 16 / 1 / (SYSCLK_PRES=2) = 96MHz
+//#define CONFIG_PLL0_MUL             16
 //#define CONFIG_PLL0_DIV             1
 //#define CONFIG_SYSCLK_PRES          SYSCLK_PRES_2
 
