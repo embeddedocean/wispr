@@ -10,30 +10,33 @@
 
 #include "wispr.h"
 
+#include "arm_math.h"
+#include "arm_const_structs.h"
+
 #include <string.h>
 
 // SSC bus serial bit clock frequency (Hz)
 #define LTC2512_SSC_RSCK (12000000)
 
-#define LTC2512_DMA_BITS_PER_SAMPLE (32)
-#define LTC2512_DMA_BYTES_PER_SAMPLE (4)
-
-#define LTC2512_BYTES_PER_SAMPLE ADC_SAMPLE_SIZE
-#define LTC2512_BITS_PER_SAMPLE (8*ADC_SAMPLE_SIZE)
+#define LTC2512_BYTES_PER_SAMPLE 3
+#define LTC2512_BITS_PER_SAMPLE 24
 
 // If the header size is a multiple of the sample size
 // then the buffer will be completely filled by the header and data
 // otherwise the buffer will have a few unused bytes at the end   
-#define LTC2512_HEADER_NBYTES ADC_HEADER_SIZE
+//#define LTC2512_HEADER_NBYTES WISPR_DATA_HEADER_SIZE
 
 //#define LTC2512_SPI_BUFFER_NBLOCKS (6)
 //#define LTC2512_SPI_BUFFER_NBYTES (LTC2512_SPI_BUFFER_NBLOCKS * SD_MMC_BLOCK_SIZE)
 
-#define LTC2512_BUFFER_NBLOCKS ADC_BLOCKS_PER_BUFFER
-#define LTC2512_BUFFER_NBYTES ADC_BUFFER_SIZE 
-#define LTC2512_NUM_SAMPLES ADC_NUM_SAMPLES
+//#define LTC2512_BUFFER_NBLOCKS ADC_BLOCKS_PER_BUFFER
+//#define LTC2512_BUFFER_NBYTES ADC_BUFFER_SIZE 
 
-#define LTC2512_DMA_BUFFER_NBYTES (LTC2512_NUM_SAMPLES * LTC2512_DMA_BYTES_PER_SAMPLE)
+#define LTC2512_MAX_SAMPLES ADC_MAX_SAMPLES_PER_BUFFER //ADC_NUM_SAMPLES
+
+#define LTC2512_DMA_BITS_PER_SAMPLE (32)
+#define LTC2512_DMA_BYTES_PER_SAMPLE (4)
+#define LTC2512_DMA_BUFFER_NBYTES (LTC2512_MAX_SAMPLES * LTC2512_DMA_BYTES_PER_SAMPLE)
 
 // MCLK modes
 #define	LTC2512_MAX_MCLK  1600000  // MCLK supplied by TC
@@ -56,22 +59,22 @@ typedef struct {
 
 // nblocks per buffer is 3/4 the size of the dma buffer because we only need 24 of the 32 bits
 
-extern int ltc2512_init(uint32_t *fs, uint8_t df, uint8_t gain);
-extern int ltc2512_config_mclk(uint32_t *fs);
+//extern int ltc2512_init(uint32_t *fs, uint8_t df, uint8_t gain);
+extern uint32_t ltc2512_init(wispr_config_t *wispr);
+extern uint32_t ltc2512_config_mclk(uint32_t fs, uint8_t df);
 
 extern void ltc2512_start_conversion(void);
 extern void ltc2512_stop_conversion(void);
 extern void ltc2512_shutdown(void);
 
-extern uint16_t ltc2512_read_dma(uint8_t *hdr, uint8_t *data);
-extern uint16_t ltc2512_read_dma_int24(uint8_t *hdr, uint8_t *data);
-extern uint16_t ltc2512_read_dma_int16(uint8_t *hdr, uint8_t *data);
-
+extern uint16_t ltc2512_read_dma(uint8_t *hdr, uint8_t *data, uint16_t nsamps);
 extern uint8_t *ltc2512_get_dma_buffer(void);
-extern uint16_t ltc2512_init_dma(void);
+
+extern uint16_t ltc2512_init_dma(uint16_t nsamps);
 extern void ltc2512_start_dma(void);
 extern void ltc2512_stop_dma(void);
-extern void ltc2512_update_header(uint8_t *hdr, uint8_t chksum);
+
+extern void ltc2512_init_test(wispr_config_t *wispr, uint16_t nsamps, uint32_t freq);
 
 extern void ltc2512_get_date(uint8_t *cent, uint8_t *year, uint8_t *month, uint8_t *day, uint8_t *week);
 extern void ltc2512_get_time(uint8_t *hour, uint8_t *minute, uint8_t *second, uint32_t *usec);

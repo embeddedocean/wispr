@@ -26,24 +26,33 @@
 #include <fcntl.h>
 #include <stdlib.h>
 #include <compiler.h>
+#include <math.h>
 
+#include "rtc_time.h"
+#include "wispr.h"
 #include "spectrogram.h"
 
 //
 // statically allocated data arrays so avoid runtime allocation
 //
-COMPILER_WORD_ALIGNED uint8_t psd_fft_input[4*MAX_FFT_SIZE];
-COMPILER_WORD_ALIGNED uint8_t psd_fft_output[4*MAX_FFT_SIZE];
+COMPILER_WORD_ALIGNED uint8_t psd_fft_input[4*PSD_MAX_FFT_SIZE];
+COMPILER_WORD_ALIGNED uint8_t psd_fft_output[4*PSD_MAX_FFT_SIZE];
 
 // FFT window
-float32_t psd_window_f32[MAX_FFT_SIZE];
-q31_t psd_window_q31[MAX_FFT_SIZE];
+COMPILER_WORD_ALIGNED uint8_t psd_fft_window[4*PSD_MAX_FFT_SIZE];
 
 arm_rfft_instance_q31 psd_twid_q31;	// pre-calculated twiddle factors
 arm_rfft_fast_instance_f32 psd_twid_f32;	// pre-calculated twiddle factors
 
 uint16_t psd_fft_size;
+uint16_t psd_fft_overlap;
 uint16_t psd_num_freq_bins;  // nfft/2 +1
+uint32_t psd_sampling_freq; // samples per second
+uint32_t psd_freq_bin_size; // hz/bin
+uint8_t psd_sample_size; // samples per second
+
+// local instance of the wispr data header to use for updating the data buffer
+static wispr_data_header_t psd_data_header;
 
 // 
 // window function based on the matlab function
@@ -84,23 +93,42 @@ void spectrum_window(float32_t *w, uint8_t type, uint16_t size)
 	
 }
 
-int spectrum_init_f32(uint16_t size, uint8_t wintype)
+int spectrum_init_f32(wispr_config_t *wispr, uint16_t *nbins, uint16_t nfft, uint16_t overlap, uint8_t bps, uint8_t wintype)
 {
 	// check spectrum size
-	if( (size != 32) && (size != 64) && (size != 128) && (size != 256) && (size != 512) && (size != 1024)) {
-		printf("spectrum_init_f32: error, unsupported size %d", size);
-		return(ARM_MATH_LENGTH_ERROR);
+	if( *nbins > nfft/2 ) {
+		*nbins = nfft/2;
+		//printf("spectrum_init_f32: number of bins greater than half fft size: %d\r\n", nbins);
 	}
-	
-	// check fft size 
-	psd_fft_size = 2*size;
-	if( psd_fft_size > MAX_FFT_SIZE ) {
-		printf("spectrum_init: error, unsupported fft size %d", psd_fft_size);
-		return(ARM_MATH_LENGTH_ERROR);
+
+	// check number of bins
+	if(*nbins > PSD_MAX_BINS_PER_BUFFER) {
+		*nbins = PSD_MAX_BINS_PER_BUFFER;
+		printf("spectrum_init_f32: number of bin truncated to %d\r\n", *nbins);
 	}
+	psd_num_freq_bins = *nbins;
+
+	// check fft size
+	if( nfft > PSD_MAX_FFT_SIZE ) {
+		printf("spectrum_init_f32: unsupported fft size %d\r\n", nfft);
+		return(ARM_MATH_LENGTH_ERROR);
+	}	
+	psd_fft_size = nfft;
 	
-	psd_num_freq_bins = size;
+	// check overlap
+	if( overlap >= psd_fft_size || overlap < 0  ) {
+		printf("spectrum_init_f32: unsupported fft overlap size %d\r\n", overlap);
+		return(ARM_MATH_ARGUMENT_ERROR);
+	}
+	psd_fft_overlap = overlap;
 	
+	// check bytes per sample
+	if( (bps < 2) || (bps > 4)  ) {
+		printf("spectrum_init_f32: unsupported sample size %d\r\n", bps);
+		return(ARM_MATH_ARGUMENT_ERROR);
+	}
+	psd_sample_size = bps;
+
 	// pre-calculated twiddle factors
 	arm_status status = arm_rfft_fast_init_f32(&psd_twid_f32, psd_fft_size);
 	if( status != ARM_MATH_SUCCESS) {
@@ -109,8 +137,43 @@ int spectrum_init_f32(uint16_t size, uint8_t wintype)
 	}
 	
 	// generate window function
-	spectrum_window(psd_window_f32, wintype, psd_fft_size);
+	spectrum_window((float32_t *)psd_fft_window, wintype, psd_fft_size);
+
+	// max adc value used for scaling
+	float32_t max_value  = 2147483648.0; // 2^31
+	if( psd_sample_size == 3) {
+		max_value = 8388608.0; // 2^23
+	}
+	else if( psd_sample_size == 2 ) {
+		max_value = 32768.0; // 2^15
+	}
+
+	float32_t scale = (ADC_VREF/2.0) / max_value;
+	float32_t *win_f32 = (float32_t *)psd_fft_window;
+	for(int n = 0; n < psd_fft_size; n++) {
+		win_f32[n] *= scale;
+	}
 	
+	// update local data header structure with the current config
+	// this is used to update the current data buffer header
+	//wispr_update_data_header(wispr, &psd_data_header);
+	
+	psd_sampling_freq = wispr->sampling_rate; // samples per second (hz)
+	psd_freq_bin_size = 1000 * psd_sampling_freq / psd_fft_size; // 1000 * hz/bin
+
+	// update local data header structure with the current config
+	wispr_update_data_header(wispr, &psd_data_header);
+	psd_data_header.settings[0] = WISPR_SPECTRUM;
+
+	// but change settings, sampling rate (1000*hz/bin), sample_size, ...
+	psd_data_header.sampling_rate = psd_freq_bin_size;
+	psd_data_header.sample_size = 4;
+	psd_data_header.samples_per_block = psd_num_freq_bins;
+	psd_data_header.block_size = PSD_MAX_BUFFER_SIZE; // number of bytes in an psd record block
+	
+	printf("spectrum_init_f32:  nfft=%d, nbins=%d, overlap=%d, bps=%d\r\n", 
+		psd_fft_size, psd_num_freq_bins, psd_fft_overlap, psd_sample_size);
+
 	return(status);
 }
 
@@ -119,23 +182,44 @@ int spectrum_init_f32(uint16_t size, uint8_t wintype)
 // using a floating point (float32) real fft.
 // see https://arm-software.github.io/CMSIS_5/DSP/html/group__RealFFT.html
 //
-int spectrum_f32(uint8_t *input, float32_t *output, uint16_t nsamps, uint16_t overlap)
+//int spectrum_f32(float32_t *output, uint8_t *input, uint16_t nsamps, int bps, uint16_t overlap, uint8_t *hdr)
+int spectrum_f32(uint8_t *psd_buffer, uint8_t *adc_buffer, uint16_t nsamps)
 {
 	int k, m, n;
-	float32_t *win = (float32_t *)psd_window_f32;
+	float32_t *win = (float32_t *)psd_fft_window;
 	float32_t *obuf = (float32_t *)psd_fft_output;
 	float32_t *ibuf = (float32_t *)psd_fft_input;
+	
 	uint16_t nfft = psd_fft_size;
 	uint16_t nbins = psd_num_freq_bins;
+	uint16_t overlap = psd_fft_overlap;	
+	
+	uint8_t *input = &adc_buffer[WISPR_DATA_HEADER_SIZE];
+	float32_t *output = (float32_t *)&psd_buffer[WISPR_DATA_HEADER_SIZE];
+	
+	// parse the adc buffer header to get the timestamp
+	//wispr_data_header_t adc_hdr;
+	//wispr_parse_data_header(adc_buffer, &adc_hdr);
+
+	// update the data header timestamp
+	//psd_data_header.second = adc_hdr.seconds; // epoch time stamp
+	//psd_data_header.usec = adc_hdr.usec; // epoch time stamp
+	rtc_get_epoch(&psd_data_header.second); // epoch time stamp	
+	psd_data_header.usec = 0;
+
+	// serialize the data buffer header
+	wispr_serialize_data_header(&psd_data_header, psd_buffer);
 
 	// number of spectral estimates in the psd
 	uint16_t navg = ((nsamps - nfft)/(nfft - overlap));
 	if(navg < 0) navg = 1;
-
+	
 	// scale is used to normalized the averaging
 	float32_t scale = 1.0 / (float32_t)navg;
 	
 	uint16_t skip = nfft - overlap;
+	
+	//printf("Spectrum: %d %d %d %d %d\r\n", nfft, nbins, overlap, navg, skip);
 	
 	// build the spectrogram using overlapping ffts
 	int istart = 0;  // start index of segment
@@ -146,75 +230,139 @@ int spectrum_f32(uint8_t *input, float32_t *output, uint16_t nsamps, uint16_t ov
 
 	// average the time bins
 	for(k = 0; k < navg; k++)  {
-
+		
 		iend = istart + nfft; // end of segment
-
+		
 		// handle buffer at the end of the input signal
 		if(iend > nsamps) {
 			iend = nsamps;
 			// fill buffer with zeros so it is assured to be padded at the end
-			for(m = 0; m < 2*nfft; m++) ibuf[m] = 0.0;
+			for(m = 0; m < nfft; m++) ibuf[m] = 0.0;
 		}
-
-		// load the data window into the real part of complex fft buffer
-		for(n = istart, m = 0; n < iend; n++, m+=2) {
-			// load the 24 bit word into a 32 bit word, preserving the sign bit
-			uint32_t uv = ((uint32_t)input[3*n+0] << 8) | ((uint32_t)input[3*n+1] << 16) | ((uint32_t)input[3*n+2] << 24);
-			ibuf[m] = win[m] * (float32_t)((int32_t)uv >> 8); // real
+		
+		// load the data window into the real fft buffer
+		// units of ibuf are volts
+		m = 0;
+		for(n = istart; n < iend; n++) {
+			// load the 24 or 16 bit word into a 32 bit float, preserving the sign bit
+			if ( psd_sample_size == 3 ) {	
+				uint32_t uv = ((uint32_t)input[3*n+0] << 8) | ((uint32_t)input[3*n+1] << 16) | ((uint32_t)input[3*n+2] << 24);
+				ibuf[m] = win[m] * ((float32_t)((int32_t)uv >> 8)); //  // real
+			} else if ( psd_sample_size == 2 ) {
+				int16_t uv = (int16_t)( ((uint16_t)input[2*n+0] << 0) | ((uint16_t)input[2*n+1] << 8) );
+				ibuf[m] = win[m] * (float32_t)uv;
+			}
+			//if((k == 0) && (n < istart+8)) printf("%.4f ", ibuf[m]);
+			m++;
 		}
+		//if(k == 0) printf("\r\n\r\n");
 
 		/* Process the data through the CFFT/CIFFT module */
 		arm_rfft_fast_f32(&psd_twid_f32, ibuf, obuf, 0);
-
+		
+		// calc magnitude of the complex fft output stored in obuf
+		//obuf[1] = 0;
+		//arm_cmplx_mag_squared_q31(obuf, ibuf, nbins);
+		
 		// sum and save the magnitude of the complex fft output
-		output[0] = obuf[0]; // dc component
-		for(m = 1, n = 2; m < nbins; m++, n+=2) {
-			output[m] += obuf[n]*obuf[n] + obuf[n+1]*obuf[n+1];
+		obuf[1] = 0; // dc component
+		for(m = 0, n = 0; m < nbins; m++, n+=2) {
+			//output[m] += scale * (obuf[n]*obuf[n] + obuf[n+1]*obuf[n+1]);
+			output[m] += (obuf[n]*obuf[n] + obuf[n+1]*obuf[n+1]);
 		}
-
+		
 		// increment the start index by skip=nsamps-overlap
 		istart += skip;
-
+		
 	}
-
+	
 	// normalize the average
 	for(n = 0; n < nbins; n++) output[n] = output[n] * scale;
 
+	//printf(". finished\r\n");
+		
 	return(navg);
 }
 
-int spectrum_init_q31(uint16_t size, uint8_t wintype)
+
+int spectrum_init_q31(wispr_config_t *wispr, uint16_t nbins, uint16_t nfft, uint16_t overlap, uint8_t bps, uint8_t wintype)
 {
 	// check spectrum size
-	if( (size != 32) && (size != 64) && (size != 128) && (size != 256) && (size != 512) && (size != 1024)) {
-		printf("spectrum_init: error, unsupported size %d", size);
-		return(ARM_MATH_LENGTH_ERROR);
+	if( nbins > nfft/2 ) {
+		nbins = nfft/2;
+		//printf("spectrum_init_f32: number of bins greater than half fft size: %d\r\n", nbins);
 	}
-	
+
+	// check number of bins
+	if(nbins > PSD_MAX_BINS_PER_BUFFER) {
+		nbins = PSD_MAX_BINS_PER_BUFFER;
+		printf("spectrum_init_f32: number of bin truncated to %d\r\n", nbins);
+	}
+	psd_num_freq_bins = nbins;
+
 	// check fft size
-	psd_fft_size = 2*size;
-	if( psd_fft_size > MAX_FFT_SIZE ) {
-		printf("spectrum_init: error, unsupported fft size %d", psd_fft_size);
+	if( nfft > PSD_MAX_FFT_SIZE ) {
+		printf("spectrum_init_f32: unsupported fft size %d\r\n", nfft);
 		return(ARM_MATH_LENGTH_ERROR);
 	}
+	psd_fft_size = nfft;
 	
-	psd_num_freq_bins = size;
+	// check overlap
+	if( overlap >= psd_fft_size || overlap < 0  ) {
+		printf("spectrum_init_f32: unsupported fft overlap size %d\r\n", overlap);
+		return(ARM_MATH_ARGUMENT_ERROR);
+	}
+	psd_fft_overlap = overlap;
 	
+	// check bytes per sample
+	if( (bps < 2) || (bps > 4)  ) {
+		printf("spectrum_init_f32: unsupported sample size %d\r\n", bps);
+		return(ARM_MATH_ARGUMENT_ERROR);
+	}
+	psd_sample_size = bps;
+
 	// pre-calculated twiddle factors
-	arm_status status = arm_rfft_init_q31(&psd_twid_q31, psd_fft_size, 0, 0);
+	arm_status status = arm_rfft_fast_init_f32(&psd_twid_f32, psd_fft_size);
 	if( status != ARM_MATH_SUCCESS) {
-		printf("spectrum_init: error in arm_rfft_init_q31 %d", status);
+		printf("spectrum_init: error in arm_rfft_fast_init_f32 %d", status);
 		return(status);
 	}
 	
-	// generate q31 window 
-	float32_t temp[MAX_FFT_SIZE];
-	spectrum_window(temp, wintype, psd_fft_size);
-	for(int n = 0; n < psd_fft_size; n++) {
-		psd_window_q31[n] = (q31_t)(temp[n] * 2147483648.0); // convert float to q31 - mult by 2^31
-	}
+	// generate window function
+	spectrum_window((float32_t *)psd_fft_window, wintype, psd_fft_size);
 	
+	//float32_t scale = 2147483648.0 / 8388608.0;
+	float32_t scale = 2147483648.0;
+	
+	// convert window f32 values to q31
+	q31_t *win_q31 = (q31_t *)psd_fft_window;
+	float32_t *win_f32 = (float32_t *)psd_fft_window;
+	for(int n = 0; n < psd_fft_size; n++) {
+		win_q31[n] = (q31_t)(win_f32[n] * scale); // convert float to q31 by mult with 2^31
+	}
+
+	// update local data header structure with the current config
+	// this is used to update the current data buffer header
+	//wispr_update_data_header(wispr, &psd_data_header);
+	
+	psd_sampling_freq = wispr->sampling_rate; // samples per second (hz)
+	psd_freq_bin_size = 1000 * psd_sampling_freq / psd_fft_size; // 1000 * hz/bin
+
+	// update local data header structure with the current config
+	wispr_update_data_header(wispr, &psd_data_header);
+	psd_data_header.settings[0] = WISPR_SPECTRUM;
+
+	// but change settings, sampling rate (1000*hz/bin), sample_size, ...
+	psd_data_header.sampling_rate = psd_freq_bin_size;
+	psd_data_header.sample_size = 4;
+	psd_data_header.samples_per_block = psd_num_freq_bins;
+	psd_data_header.block_size = PSD_MAX_BUFFER_SIZE; // number of bytes in an psd record block
+	
+	printf("spectrum_init_q31:  nfft=%d, nbins=%d, overlap=%d, bps=%d\r\n",
+		psd_fft_size, psd_num_freq_bins, psd_fft_overlap, psd_sample_size);
+
 	return(status);
+
 }
 
 //
@@ -223,15 +371,34 @@ int spectrum_init_q31(uint16_t size, uint8_t wintype)
 // 
 // see https://arm-software.github.io/CMSIS_5/DSP/html/group__RealFFT.html
 //
-int spectrum_q31(uint8_t *input, q31_t *output, uint16_t nsamps, uint16_t overlap)
+int spectrum_q31(uint8_t *psd_buffer, uint8_t *adc_buffer, uint16_t nsamps)
 {
 	int k, m, n;
-	q31_t *win = psd_window_q31;
-	q31_t *obuf = (q31_t *)psd_fft_output;
-	q31_t *ibuf = (q31_t *)psd_fft_input;
+	q31_t *win = (q31_t *)psd_fft_window;
+	q31_t *buf1 = (q31_t *)psd_fft_output;
+	q31_t *buf2 = (q31_t *)psd_fft_input;
+
 	uint16_t nfft = psd_fft_size;
 	uint16_t nbins = psd_num_freq_bins;
+	uint16_t overlap = psd_fft_overlap;
 
+	// break out the hdr and data pointers
+	uint8_t *input = &adc_buffer[WISPR_DATA_HEADER_SIZE];
+	q31_t *output = (q31_t *)&psd_buffer[WISPR_DATA_HEADER_SIZE];
+
+	// parse the adc buffer header to get the timestamp
+	//wispr_data_header_t adc_hdr;
+	//wispr_parse_data_header(adc_buffer, &adc_hdr);
+
+	// update the data header timestamp
+	//psd_data_header.second = adc_hdr.seconds; // epoch time stamp
+	//psd_data_header.usec = adc_hdr.usec; // epoch time stamp
+	rtc_get_epoch(&psd_data_header.second); // epoch time stamp
+	psd_data_header.usec = 0;
+
+	// serialize the data header buffer
+	wispr_serialize_data_header(&psd_data_header, psd_buffer);
+	
 	// number of spectral estimates in the psd
 	uint16_t navg = ((nsamps - nfft)/(nfft - overlap));
 	if(navg < 0) navg = 1;
@@ -242,13 +409,12 @@ int spectrum_q31(uint8_t *input, q31_t *output, uint16_t nsamps, uint16_t overla
 	while( (nbins >> scale_bits) > 1 ) scale_bits++;
 	
 	// normalization for the output averaging
-	float32_t fnorm = 1.0 / (float32_t)navg;
-	q31_t norm = (q31_t)(fnorm * 2147483648.0); // convert float to q31 - mult by 2^31
+	q31_t norm = (q31_t)(2147483648.0 / (float32_t)navg); // convert float to q31 - mult by 2^31
 	
 	// build the spectrogram using overlapping ffts
 	int istart = 0;  // start index of segment
 	int iend;  // end index of segment
-
+	
 	uint16_t skip = nfft - overlap; // 
 	
 	// initialize magnitude vector
@@ -258,227 +424,67 @@ int spectrum_q31(uint8_t *input, q31_t *output, uint16_t nsamps, uint16_t overla
 	for(k = 0; k < navg; k++)  {
 
 		iend = istart + nfft; // end of segment
-
+		
 		// handle buffer at the end of the input signal
 		if(iend > nsamps) {
 			iend = nsamps;
 			// fill buffer with zeros so it is assured to be padded at the end
-			for(m = 0; m < 2*nfft; m++) ibuf[m] = 0.0;
-		}
-
-		// load the data window into the real part of complex fft buffer
-		for(n = istart, m = 0; n < iend; n++, m+=2) {
-			// load the 24 bit word into a 32 bit word, preserving the sign bit
-			//uint32_t uv = (uint32_t)(input[3*n+0] << 8) | (input[3*n+1] << 16) | (input[3*n+2] << 24);
-			uint32_t uv = ((uint32_t)input[3*n+0] << 8) | ((uint32_t)input[3*n+1] << 16) | ((uint32_t)input[3*n+2] << 24);
-			ibuf[m] = win[n] * (q31_t)((int32_t)uv >> 8); 
+			for(m = 0; m < nfft; m++) buf1[m] = 0;
 		}
 		
-		// apply the window to the input buffer
-		//arm_mult_q31(ibuf, win, ibuf, nfft);
+		// load the data window into the real fft buffer
+		m = 0;
+		for(n = istart; n < iend; n++) {
+			// load the 24 or 16 bit word into a 32 bit float, preserving the sign bit
+			if ( psd_sample_size == 3 ) {
+				uint32_t uv = ((uint32_t)input[3*n+0] << 8) | ((uint32_t)input[3*n+1] << 16) | ((uint32_t)input[3*n+2] << 24);
+				buf1[m] = (q31_t)((int32_t)uv >> 8); //  // real
+			} else if ( psd_sample_size == 2 ) {
+				int16_t uv = (int16_t)( ((uint16_t)input[2*n+0] << 0) | ((uint16_t)input[2*n+1] << 8) );
+				buf1[m] = (q31_t)uv;
+			}
+			//if((k == 0) && (n < istart+8)) printf("%.4f ", ibuf[m]);
+			m++;
+		}
+		//if(k == 0) printf("\r\n\r\n");
 
+		// apply the window to the input buffer
+		arm_mult_q31(buf1, win, buf2, nfft);
+
+		//if(k == 0) {
+		//	for(n = 0; n < 8; n++) printf("%x ", ibuf[n]);
+		//	printf("\r\n");			
+		//}
+		
 		/* Process the data through the CFFT/CIFFT module */
-		arm_rfft_q31(&psd_twid_q31, ibuf, obuf);
-		arm_shift_q31(obuf, scale_bits, obuf, nbins); // upshift the fft output inplace
+		arm_rfft_q31(&psd_twid_q31, buf2, buf1);
+
+		// upshift the fft output inplace
+		arm_shift_q31(buf1, scale_bits, buf1, nfft);
 
 		// calc magnitude of the complex fft output stored in obuf
-		//  using ibuf as the destination 
-		arm_cmplx_mag_squared_q31(obuf, ibuf, nbins);
-		ibuf[0] = obuf[0]; // dc component
-
-		// sum the result in the output array to average
-		arm_add_q31(output, ibuf, output, nbins);
-		//for(m = 0; m < nbins; m++) {
-		//	output[m] += ibuf[m];
-		//}
-
-		// increment the start index by skip=nsamps-overlap
-		istart += skip;
-
-	}
-
-	// normalize the average
-	arm_scale_q31(output, norm, 0, output, nbins); // normalize the averaged output
-
-	return(navg);
-}
-
-
-/*
-//
-// Calculate the spectrum for the input signal
-// using a floating point (float32) complex fft.
-// see https://arm-software.github.io/CMSIS_5/DSP/html/group__ComplexFFT.html
-//
-int spectrum_cfft_f32(uint8_t *input, float32_t *output, uint16_t nsamps, uint16_t overlap)
-{
-	int k, m, n;
-	uint16_t fft_size = PSD_FFT_SIZE;
-	float32_t mag[PSD_FFT_SIZE]; // real
-	float32_t buf[2*PSD_FFT_SIZE]; // complex
-
-	// pre-calculated twiddle factors
-	const arm_cfft_instance_f32 *twid;
-#if PSD_FFT_SIZE == 64
-	twid = &arm_cfft_sR_f32_len64;
-#elif PSD_FFT_SIZE == 128
-	twid = &arm_cfft_sR_f32_len128;
-#elif PSD_FFT_SIZE == 256
-	twid = &arm_cfft_sR_f32_len256;
-#elif PSD_FFT_SIZE == 512
-	twid = &arm_cfft_sR_f32_len512;
-#elif PSD_FFT_SIZE == 1024
-	twid = &arm_cfft_sR_f32_len1024;
-#elif PSD_FFT_SIZE == 2048
-	twid = &arm_cfft_sR_f32_len2048;
-#elif PSD_FFT_SIZE == 4096
-	twid = &arm_cfft_sR_f32_len4096;
-#endif
-
-	// number of spectral estimates in the psd
-	uint16_t navg = ((nsamps - fft_size)/(fft_size - overlap));
-	if(navg < 0) navg = 1;
-
-	float32_t norm = 1.0 / (float32_t)fft_size;	
-	uint16_t skip = fft_size - overlap;
-	
-	// build the spectrogram using overlapping ffts 
-	int istart = 0;  // start index of segment
-	int iend;  // end index of segment
-	
-	// initialize magnitude vector
-	for(m = 0; m < fft_size; m++) mag[m] = 0;
-
-	// average the time bins
-	for(k = 0; k < navg; k++)  {
-
-		iend = istart + fft_size; // end of segment
-
-		// handle buffer at the end of the input signal
-		if(iend > nsamps) {
-			iend = nsamps;
-			// fill buffer with zeros so it is assured to be padded at the end 
-			for(m = 0; m < 2*fft_size; m++) buf[m] = 0.0;
-		}
-
-		// load the data window into the real part of complex fft buffer
-		for(n = istart, m = 0; n < iend; n++, m+=2) {
-			// load the 24 bit word into a 32 bit word, preserving the sign bit
-			uint32_t uv = ((uint32_t)input[3*n+0] << 8) | ((uint32_t)input[3*n+1] << 16) | ((uint32_t)input[3*n+2] << 24);
-			buf[m] = (float32_t)((int32_t)uv >> 8); // real
-			buf[m+1] = 0.0; // imag
-		}
-
-		// Process the data through the CFFT/CIFFT module 
-		arm_cfft_f32(twid, buf, 0, 0);
-
-		// Calculating the magnitude at each bin 
-		arm_cmplx_mag_f32(buf, mag, fft_size);
-			
-		// sum and save the magnitude of the complex fft output
-		// could take cabf after the sum
-		for(n = 0; n < fft_size; n++) {
-			output[n] += mag[n];
-		}
-
-		// increment the start index by skip=nsamps-overlap
-		istart += skip;
-
-	}
-
-	// normalize the average
-	for(n = 0; n < fft_size; n++) output[n] = output[n] * norm;
-
-	// initialize psd structure for return
-	return(navg);
-}
-
-//
-// calculate the spectrum for the input signal
-// using a fixed point (q31 or int32) complex fft
-// see https://arm-software.github.io/CMSIS_5/DSP/html/group__ComplexFFT.html
-//
-int spectrum_cfft_q31(uint8_t *input, int32_t *output, uint16_t nsamps, uint16_t overlap)
-{
-	int k, m, n;
-	uint16_t nfft = psd_fft_size;
-	int32_t mag = (q31_t *)psd_fft_output; // real
-	int32_t buf = (q31_t *)psd_fft_input; // complex fft buffer
-
-	// pre-calculated twiddle factors
-	const arm_cfft_instance_q31 *twid;
-#if PSD_FFT_SIZE == 64
-	twid = &arm_cfft_sR_q31_len64;
-#elif PSD_FFT_SIZE == 128
-	twid = &arm_cfft_sR_q31_len128;
-#elif PSD_FFT_SIZE == 256
-	twid = &arm_cfft_sR_q31_len256;
-#elif PSD_FFT_SIZE == 512
-	twid = &arm_cfft_sR_q31_len512;
-#elif PSD_FFT_SIZE == 1024
-	twid = &arm_cfft_sR_q31_len1024;
-#elif PSD_FFT_SIZE == 2048
-	twid = &arm_cfft_sR_q31_len2048;
-#elif PSD_FFT_SIZE == 4096
-	twid = &arm_cfft_sR_q31_len4096;
-#endif
-
-	// number of spectral estimates in the psd
-	uint16_t navg = ((nsamps - nfft)/(nfft - overlap));
-	if(navg < 0) navg = 1;
-
-	float32_t norm = 1.0 / (float32_t)nfft;
-	uint16_t skip = nfft - overlap;
-	
-	// build the spectrogram using overlapping ffts
-	int istart = 0;  // start index of segment
-	int iend;  // end index of segment
-	
-	// initialize magnitude vector
-	for(m = 0; m < nfft; m++) mag[m] = 0;
-
-	// average the time bins
-	for(k = 0; k < navg; k++)  {
-
-		iend = istart + nfft; // end of segment
-
-		// handle buffer at the end of the input signal
-		if(iend > nsamps) {
-			iend = nsamps;
-			// fill buffer with zeros so it is assured to be padded at the end
-			for(m = 0; m < 2*nfft; m++) buf[m] = 0.0;
-		}
-
-		// load the data window into the real part of complex fft buffer
-		for(n = istart, m = 0; n < iend; n++, m+=2) {
-			// load the 24 bit word into a 32 bit word, preserving the sign bit
-			uint32_t uv = ((uint32_t)input[3*n+0] << 8) | ((uint32_t)input[3*n+1] << 16) | ((uint32_t)input[3*n+2] << 24);
-			buf[m] = ((int32_t)uv >> 8); // real
-			buf[m+1] = 0; // imag
-		}
-
-		// Process the data through the CFFT/CIFFT module
-		arm_cfft_q31(twid, buf, 0, 0);
-
-		// Calculating the magnitude at each bin
-		arm_cmplx_mag_q31(buf, mag, nfft);
+		buf1[1] = 0; // dc component
+		arm_cmplx_mag_squared_q31(buf1, buf2, nbins);
 		
-		// sum and save the magnitude of the complex fft output
-		// could take cabf after the sum
-		for(n = 0; n < nfft; n++) {
-			output[n] += mag[n];
+		// accumulate the result in the output array to average
+		//arm_add_q31(output, ibuf, output, nbins);
+		for(m = 0; m < nbins; m++) {
+			output[m] = buf2[m];
 		}
-
+		
 		// increment the start index by skip=nsamps-overlap
 		istart += skip;
-
+		
 	}
 
 	// normalize the average
-	for(n = 0; n < nfft; n++) output[n] = output[n] * norm;
-
-	// initialize psd structure for return
+	//arm_mult_q31(buf1, win, buf2, nfft);
+	//arm_scale_q31(output, norm, 0, output, nbins); // normalize the averaged output
+	for(m = 0; m < nbins; m++) {
+		//output[m] *= norm;
+	}
+	
+	//printf("spectrum_q31:  %d %d, %d, %d\r\n", navg, nbins, nfft, overlap);
 	return(navg);
 }
 
-*/

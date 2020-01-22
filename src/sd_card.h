@@ -14,11 +14,10 @@
 
 #define MAX_NUMBER_SD_CARDS 2
 
-#define SD_CARD_BLOCK_SIZE SD_MMC_BLOCK_SIZE 
-
-#define SD_CARD_HEADER_BLOCK 30
-#define SD_CARD_CONFIG_BLOCK 31
-#define SD_CARD_START_BLOCK 32
+#define SD_CARD_BLOCK_SIZE WISPR_SD_CARD_BLOCK_SIZE 
+#define SD_CARD_HEADER_BLOCK WISPR_SD_CARD_HEADER_BLOCK
+#define SD_CARD_CONFIG_BLOCK WISPR_SD_CARD_CONFIG_BLOCK
+#define SD_CARD_START_BLOCK WISPR_SD_CARD_START_BLOCK
 
 #define SD_CARD_HEADER_VERSION 1
 
@@ -28,7 +27,6 @@
 #define SD_CARD_ENABLED  0x02
 #define SD_CARD_SELECTED 0x04
 #define SD_CARD_FULL     0x08
-#define SD_CARD_ACTIVE   0x10
 
 //typedef struct {	
 //	char     type[5];      // fixed identifier
@@ -41,19 +39,7 @@
 //	rtc_time_t modtime;    // time last modified
 //} sd_card_header_t;
 
-typedef struct {
-	char    name[8];      // user set identifier
-	uint8_t number;
-	uint8_t state;
-	uint8_t type;
-	uint8_t version;
-	uint32_t capacity;     // card capacity in KBytes
-	uint32_t start_block;  // addr of start block
-	uint32_t end_block;    // addr of end block
-	uint32_t write_addr;   // addr of current write block
-	uint32_t read_addr;    // addr of current read block
-	uint32_t epoch;        // time last header was written
-} sd_card_t;
+typedef wispr_sd_card_t sd_card_t;
 
 extern int sd_card_select(uint8_t card_num);
 extern int sd_card_enable(uint8_t card_num);
@@ -63,6 +49,7 @@ extern int sd_card_init(uint8_t card_num, char *name, uint8_t reset_card);
 extern int sd_card_open(uint8_t card_num);
 extern void sd_card_close(uint8_t card_num);
 extern void sd_card_print_info(uint8_t card_num);
+extern uint8_t sd_card_state(uint8_t card_num, uint8_t state);
 
 extern uint16_t sd_card_write(uint8_t card_num, uint8_t *buffer, uint16_t nblocks);
 extern uint16_t sd_card_read(uint8_t card_num, uint8_t *buffer, uint16_t nblocks);
@@ -73,8 +60,8 @@ extern sd_mmc_err_t sd_card_read_raw(uint8_t *buffer, uint16_t nblocks, uint32_t
 extern int sd_card_write_header(sd_card_t *sd_card);
 extern int sd_card_read_header(sd_card_t *sd_card);
 
-extern int sd_card_parse_header(uint8_t *buf, sd_card_t *hdr);
-extern int sd_card_serialize_header(sd_card_t *hdr, uint8_t *buf);
+//extern int sd_card_parse_header(uint8_t *buf, sd_card_t *hdr);
+//extern int sd_card_serialize_header(sd_card_t *hdr, uint8_t *buf);
 
 extern int sd_card_write_config(uint8_t card_num, wispr_config_t *hdr);
 extern int sd_card_read_config(uint8_t card_num, wispr_config_t *hdr);

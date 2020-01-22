@@ -109,7 +109,7 @@ int sd_card_init(uint8_t card_num, char *name, uint8_t reset_card)
 	if( (sd_card_read_header(card) == 0) || reset_card ) { 
 		// so reset the card header
 		card->start_block = SD_CARD_START_BLOCK;
-		card->end_block = card->capacity * (1024 / SD_MMC_BLOCK_SIZE);
+		card->end_block = card->capacity * (1024 / SD_MMC_BLOCK_SIZE) - 1;
 		// this will cause an overwrite of existing data
 		card->write_addr = SD_CARD_START_BLOCK;
 		card->read_addr = SD_CARD_START_BLOCK;
@@ -124,7 +124,7 @@ int sd_card_init(uint8_t card_num, char *name, uint8_t reset_card)
 	// write the header
 	sd_card_write_header(card);
 
-	card->state |= SD_CARD_OPEN;
+	card->state |= (SD_CARD_OPEN);
 	
 	return( (int)card_num );
 }
@@ -166,7 +166,7 @@ int sd_card_open(uint8_t card_num)
 	// set header mod time
 	rtc_get_epoch( &card->epoch );
 	
-	card->state |= SD_CARD_OPEN;
+	card->state |= (SD_CARD_OPEN);
 	
 	return( (int)card_num );
 }
@@ -189,7 +189,7 @@ void sd_card_close(uint8_t card_num)
 
 	sd_card_disable(card_num);
 
-	card->state &= ~SD_CARD_OPEN;
+	card->state &= ~(SD_CARD_OPEN);
 }
 
 void sd_card_print_info(uint8_t card_num)
@@ -199,6 +199,8 @@ void sd_card_print_info(uint8_t card_num)
 	}
 	sd_card_t *card = &sd_card_instance[card_num-1];
 	
+	printf("\n\rSD Card %d\n\r", card->number);
+
 	switch(card->type)
 	{
 		case CARD_TYPE_SD:
@@ -211,6 +213,7 @@ void sd_card_print_info(uint8_t card_num)
 		printf("- Type: Unknown type %d, %d\r\n", card->type);
 	}
 	printf("- Name: %s:\r\n", card->name);
+	printf("- State: %02x KB\r\n", card->state);
 	printf("- Size: %lu KB\r\n", card->capacity);
 	printf("- Version: %d\r\n", card->version);
 	printf("- Start block: %d\r\n", card->start_block);
@@ -221,6 +224,16 @@ void sd_card_print_info(uint8_t card_num)
 	epoch_to_rtc_time(&tme, card->epoch);
 	printf("- Last mod time: %02d/%02d/%02d %02d-%02d-%02d (%lu)\r\n",
 		tme.year,tme.month,tme.day,tme.hour,tme.minute,tme.second, card->epoch);
+}
+
+uint8_t sd_card_state(uint8_t card_num, uint8_t state)
+{
+	if( card_num < 1 || card_num > MAX_NUMBER_SD_CARDS ) {
+		printf("sd_card_state: unknown card number\n\r");
+		return(0);
+	}
+	sd_card_t *card = &sd_card_instance[card_num-1];	
+	return(card->state & state);
 }
 
 //
@@ -371,7 +384,7 @@ int sd_card_read_header(sd_card_t *hdr)
 		return(0);
 	}
 
-	int nrd = sd_card_parse_header(sd_card_header_block, hdr);
+	int nrd = wispr_sd_card_parse_header(sd_card_header_block, hdr);
 	if( nrd == 0 ) {
 		printf("sd_card_read_header: card is not configured\r\n");
 	}	
@@ -384,7 +397,7 @@ int sd_card_write_header(sd_card_t *hdr)
 	uint32_t addr = SD_CARD_HEADER_BLOCK;
 
 	// unparse the config header into config block buffer
-	int nwrt = sd_card_serialize_header(hdr, sd_card_header_block);
+	int nwrt = wispr_sd_card_serialize_header(hdr, sd_card_header_block);
 	
 	// raw write to sd card
 	if( sd_card_write_raw(sd_card_header_block, 1, addr) != SD_MMC_OK) {
@@ -394,107 +407,6 @@ int sd_card_write_header(sd_card_t *hdr)
 	return(nwrt);
 }
 
-//
-//
-//
-int sd_card_parse_header(uint8_t *buf, sd_card_t *hdr)
-{
-	if ((buf[0] != 'W') && (buf[1] != 'I') && (buf[2] != 'S') && (buf[3] != 'P') && (buf[4] != 'R')) {
-		fprintf(stdout, "wispr_parse_header: unrecognized\r\n");
-		return(0);
-	}
-
-	uint8_t size = buf[5];
-	hdr->version = buf[6];
-	hdr->name[0] = buf[7]; 
-	hdr->name[1] = buf[8]; 
-	hdr->name[2] = buf[9];
-	hdr->name[3] = buf[10];
-	hdr->name[4] = buf[11];
-	hdr->name[5] = buf[12];
-	hdr->name[6] = buf[13];
-	hdr->name[7] = buf[14];
-
-	hdr->start_block  =  (uint32_t)buf[15];    // addr of first block (uint32_t)
-	hdr->start_block |= ((uint32_t)buf[16] << 8);
-	hdr->start_block |= ((uint32_t)buf[17] << 16);
-	hdr->start_block |= ((uint32_t)buf[18] << 24);    // addr of first block (uint32_t)
-
-	hdr->end_block  =  (uint32_t)buf[19];
-	hdr->end_block |= ((uint32_t)buf[20] << 8);
-	hdr->end_block |= ((uint32_t)buf[21] << 16);
-	hdr->end_block |= ((uint32_t)buf[22] << 24);    // addr of last block (uint32_t)
-
-	hdr->write_addr   = (uint32_t)buf[23];
-	hdr->write_addr |= ((uint32_t)buf[24] << 8);
-	hdr->write_addr |= ((uint32_t)buf[25] << 16);
-	hdr->write_addr |= ((uint32_t)buf[26] << 24);    // addr of current write block (uint32_t)
-	
-	hdr->read_addr  = (uint32_t)buf[27];
-	hdr->read_addr |= ((uint32_t)buf[28] << 8);
-	hdr->read_addr |= ((uint32_t)buf[29] << 16);
-	hdr->read_addr |= ((uint32_t)buf[30] << 24);    // addr of current write block (uint32_t)
-	
-	hdr->epoch  =  (uint32_t)buf[31];
-	hdr->epoch |= ((uint32_t)buf[32] << 8);
-	hdr->epoch |= ((uint32_t)buf[33] << 16);
-	hdr->epoch |= ((uint32_t)buf[34] << 24);    // addr of current write block (uint32_t)
-	return(35);
-}
-
-int sd_card_serialize_header(sd_card_t *hdr, uint8_t *buf)
-{
-	buf[0]   = 'W';
-	buf[1]   = 'I';
-	buf[2]   = 'S';
-	buf[3]   = 'P';
-	buf[4]   = 'R';
-
-	buf[5]   = 35; // header size
-
-	buf[6]   = (uint8_t)(hdr->version);
-
-	buf[7]   = hdr->name[0];
-	buf[8]   = hdr->name[1];
-	buf[9]   = hdr->name[2];
-	buf[10]  = hdr->name[3];
-	buf[11]  = hdr->name[4];
-	buf[12]  = hdr->name[5];
-	buf[13]  = hdr->name[6];
-	buf[14]  = hdr->name[7];
-
-	buf[15]  = (uint8_t)(hdr->start_block >> 0);
-	buf[16]  = (uint8_t)(hdr->start_block >> 8);
-	buf[17]  = (uint8_t)(hdr->start_block >> 16);
-	buf[18]  = (uint8_t)(hdr->start_block >> 24);
-	buf[19]  = (uint8_t)(hdr->end_block >> 0);
-	buf[20]  = (uint8_t)(hdr->end_block >> 8);
-	buf[21]  = (uint8_t)(hdr->end_block >> 16);
-	buf[22]  = (uint8_t)(hdr->end_block >> 24);
-
-	buf[23]  = (uint8_t)(hdr->write_addr >> 0);
-	buf[24]  = (uint8_t)(hdr->write_addr >> 8);
-	buf[25]  = (uint8_t)(hdr->write_addr >> 16);
-	buf[26]  = (uint8_t)(hdr->write_addr >> 24);
-	buf[27]  = (uint8_t)(hdr->read_addr >> 0);
-	buf[28]  = (uint8_t)(hdr->read_addr >> 8);
-	buf[29]  = (uint8_t)(hdr->read_addr >> 16);
-	buf[30]  = (uint8_t)(hdr->read_addr >> 24);
-
-	buf[31]  = (uint8_t)(hdr->epoch >> 0);
-	buf[32]  = (uint8_t)(hdr->epoch >> 8);
-	buf[33]  = (uint8_t)(hdr->epoch >> 16);
-	buf[34]  = (uint8_t)(hdr->epoch >> 24);
-
-	//buf[27]  = (uint8_t)(hdr->modtime.year);
-	//buf[28]  = (uint8_t)(hdr->modtime.month);
-	//buf[29]  = (uint8_t)(hdr->modtime.day);
-	//buf[30]  = (uint8_t)(hdr->modtime.hour);
-	//buf[31]  = (uint8_t)(hdr->modtime.minute);
-	//buf[32]  = (uint8_t)(hdr->modtime.second);
-
-	return(35);
-}
 
 int sd_card_read_config(uint8_t card_num, wispr_config_t *hdr)
 {
@@ -516,6 +428,7 @@ int sd_card_read_config(uint8_t card_num, wispr_config_t *hdr)
 	int nrd = wispr_parse_config(sd_card_header_block, hdr);
 	if( nrd == 0 ) {
 		printf("sd_card_read_header: card is not configured\r\n");
+		return(0);
 	}
 	return(nrd);
 }

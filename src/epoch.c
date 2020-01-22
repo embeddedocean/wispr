@@ -13,6 +13,7 @@
 #include <stdint.h>
 #include <string.h>
 #include "rtc_time.h"
+#include "epoch.h"
 
 // offset is January 1, 2000 12:00:00 AM
 #define EPOCH_OFFSET 946684800

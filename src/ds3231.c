@@ -405,7 +405,7 @@ uint32_t ds3231_get_datetime( ds3231_datetime*  dt)
 	// check if RTC osc has stopped for any reason
 	if( reg.osf == 1 ) {
 		status = TWI_INVALID_ARGUMENT;
-		printf("ds3231_get_datetime(): status_register osf bit set, invalid date: 0x%02x\r\n", reg);
+		printf("ds3231_get_datetime(): status_register osf bit set, invalid date\r\n");
 		return status;
 	}
 	 

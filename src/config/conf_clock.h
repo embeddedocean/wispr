@@ -74,18 +74,13 @@
 //#define CONFIG_PLL0_SOURCE          PLL_SRC_MAINCK_XTAL
 #define CONFIG_PLL0_SOURCE          PLL_SRC_MAINCK_BYPASS
 
-// - System clock: (XTAL=12) * 20 / 1 / (SYSCLK_PRES=2) = 120MHz
-//#define CONFIG_PLL0_MUL             20
-//#define CONFIG_PLL0_DIV             1
-//#define CONFIG_SYSCLK_PRES          SYSCLK_PRES_2
+// - System clock: (XTAL=12) * 8 / 1 / (SYSCLK_PRES=2) = 48MHz
+#define CONFIG_PLL0_MUL             8
+#define CONFIG_PLL0_DIV             1
+#define CONFIG_SYSCLK_PRES          SYSCLK_PRES_2
 
 // - System clock: (XTAL=12) * 10 / 1 / (SYSCLK_PRES=2) = 60MHz
-#define CONFIG_PLL0_MUL             10
-#define CONFIG_PLL0_DIV             2
-#define CONFIG_SYSCLK_PRES          SYSCLK_PRES_1
-
-// - System clock: (XTAL=10) * 24 / 1 / (SYSCLK_PRES=2) = 120MHz
-//#define CONFIG_PLL0_MUL             24
+//#define CONFIG_PLL0_MUL             10
 //#define CONFIG_PLL0_DIV             1
 //#define CONFIG_SYSCLK_PRES          SYSCLK_PRES_2
 
