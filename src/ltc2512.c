@@ -463,6 +463,8 @@ uint8_t *ltc2512_get_dma_buffer(void)
 //  output is 
 //  -8 fffffff8 f8ffffff
 //
+// copy the most significant first 3 bytes of the dma buffer into the user buffer
+//
 static inline uint8_t ltc2512_copy_dma_int24(uint8_t *ibuf, uint8_t *obuf, uint16_t nsamps)
 {
 	// copy 32 bit data word as 24 bit word
@@ -481,7 +483,7 @@ static inline uint8_t ltc2512_copy_dma_int24(uint8_t *ibuf, uint8_t *obuf, uint1
 }
 
 //
-// careful to preserve the sig bit
+// copy the most significant first 2 bytes of the dma buffer into the user buffer
 //
 static inline uint8_t ltc2512_copy_dma_int16(uint8_t *ibuf, uint8_t *obuf, uint16_t nsamps)
 {
@@ -490,8 +492,8 @@ static inline uint8_t ltc2512_copy_dma_int16(uint8_t *ibuf, uint8_t *obuf, uint1
 	uint32_t nbytes = nsamps * 4;
 	uint32_t m = 0;
 	for(uint32_t n = 0; n < nbytes; n += 4) {
-		//obuf[m++] = ibuf[n]; 
-		obuf[m++] = ibuf[n+1]; // LSB
+		//obuf[m++] = ibuf[n]; // LSB
+		obuf[m++] = ibuf[n+1]; // 
 		obuf[m++] = ibuf[n+2]; // MSB
 		chksum = ibuf[n+1] + ibuf[n+2];
 		//if(n < 32) printf("%x%x ", ibuf[n+2], ibuf[n+1]);

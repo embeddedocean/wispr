@@ -75,8 +75,8 @@ typedef struct
 	uint8_t intcn	: 1;	// interrupt control
 	uint8_t rs		: 2;	// rate select for square wave output
 	uint8_t conv	: 1;	// convert temperature
-	uint8_t bbsqw	: 1;	// battery backed square wave enabled
-	uint8_t eoscnot	: 1;	// enable oscillator
+	uint8_t bbsqw	: 1;	// battery backed square wave enabled (0 = disabled)
+	uint8_t eoscnot	: 1;	// enable oscillator (1 = disable)
 } ds3231_controlregister;
 
 typedef struct 
@@ -335,11 +335,11 @@ uint32_t ds3231_init(void)
 	 */
 	controlreg.a1ie		= 1;		// alarm 1 enabled
 	controlreg.a2ie		= 0;		// alarm 2 disabled
-	controlreg.intcn	= 0;		// generate interrupt on alarm match
+	controlreg.intcn	= 1;		// generate interrupt on alarm match
 	controlreg.rs		= 0;		// square wave frequency 1Hz
 	controlreg.conv		= 0;		// not requesting a temperature conversion
-	controlreg.bbsqw	= 1;		// square wave output enabled
-	controlreg.eoscnot	= 1;		// oscillator enabled
+	controlreg.bbsqw	= 0;		// square wave output enabled (0=disable)
+	controlreg.eoscnot	= 0;		// oscillator enabled (1=disable)
 		 
 	if ((status = ds3231_write_register(CONTROL_REGISTER, (uint8_t *)&controlreg)) != TWI_SUCCESS)
 	{
@@ -773,7 +773,7 @@ uint32_t ds3231_set_alarm( ds3231_datetime *dt )
 	controlreg.rs		= 0;		// square wave frequency 1khz, if unused
 	controlreg.conv		= 0;		// not requesting a temperature conversion
 	controlreg.bbsqw	= 0;		// square wave output disabled
-	controlreg.eoscnot	= 1;		// oscillator enabled
+	controlreg.eoscnot	= 0;		// oscillator enabled (1 = disable)
 		 
 	if ((status = ds3231_write_register(CONTROL_REGISTER, (uint8_t *)&controlreg)) != TWI_SUCCESS)
 	{

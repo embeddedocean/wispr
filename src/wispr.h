@@ -65,8 +65,7 @@
 //
 // Data header object written to the front of each data buffer
 //
-typedef struct
-{
+typedef struct {
 	char      name[5];
 	uint8_t   version[2];
 	uint8_t   settings[4];

@@ -273,8 +273,7 @@ int wispr_parse_config(uint8_t *buf, wispr_config_t *hdr)
 	hdr->settings[7] = buf[29];
 
 	// pull out specific settings
-	//hdr->sample_size = hdr->settings[1];
-	//hdr->active_sd_card = hdr->settings[0];
+	hdr->active_sd_card = hdr->settings[0];
 
 	hdr->window = buf[30] | (buf[31] << 8);
 	hdr->interval = buf[32] | (buf[33] << 8);
@@ -313,8 +312,7 @@ int wispr_serialize_config(wispr_config_t *hdr, uint8_t *buf)
 	buf[21] = (uint8_t)(hdr->sampling_rate >> 24);
 
 	// update specific settings
-	//hdr->settings[1] = hdr->sample_size;
-	//hdr->settings[0] = hdr->active_sd_card;
+	hdr->settings[0] = hdr->active_sd_card;
 
 	buf[22] = (uint8_t)(hdr->settings[0]);
 	buf[23] = (uint8_t)(hdr->settings[1]);

@@ -22,11 +22,15 @@
 #define SD_CARD_HEADER_VERSION 1
 
 // card states
-#define SD_CARD_OK		 0x00
-#define SD_CARD_OPEN     0x01
-#define SD_CARD_ENABLED  0x02
-#define SD_CARD_SELECTED 0x04
-#define SD_CARD_FULL     0x08
+#define SD_CARD_OK	      0x01
+#define SD_CARD_FORMATED  0x02
+#define SD_CARD_OPEN      0x04
+#define SD_CARD_FULL      0x08
+#define SD_CARD_ENABLED   0x10
+#define SD_CARD_SELECTED  0x20
+
+// for a card to be ready for read/write it nit have all these states set
+#define SD_CARD_READY  SD_CARD_OK|SD_CARD_FORMATED|SD_CARD_OPEN|SD_CARD_ENABLED|SD_CARD_SELECTED
 
 //typedef struct {	
 //	char     type[5];      // fixed identifier
@@ -45,8 +49,9 @@ extern int sd_card_select(uint8_t card_num);
 extern int sd_card_enable(uint8_t card_num);
 extern int sd_card_disable(uint8_t card_num);
 
-extern int sd_card_init(uint8_t card_num, char *name, uint8_t reset_card);
-extern int sd_card_open(uint8_t card_num);
+extern uint8_t sd_card_init(uint8_t card_num);
+extern uint8_t sd_card_format(uint8_t card_num, char *name);
+extern uint8_t sd_card_open(uint8_t card_num);
 extern void sd_card_close(uint8_t card_num);
 extern void sd_card_print_info(uint8_t card_num);
 extern uint8_t sd_card_state(uint8_t card_num, uint8_t state);
