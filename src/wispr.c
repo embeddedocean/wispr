@@ -134,8 +134,8 @@ int wispr_gpbr_write_config(wispr_config_t *hdr)
 	reg = (hdr->sampling_rate);
 	gpbr_write(GPBR3, reg);
 
-	reg = (hdr->window << 16);
-	reg |= (hdr->interval << 0);
+	reg = (hdr->awake_time << 16);
+	reg |= (hdr->sleep_time << 0);
 	gpbr_write(GPBR4, reg);
 
 	reg = (hdr->fft_size << 16);
@@ -182,8 +182,8 @@ int wispr_gpbr_read_config(wispr_config_t *hdr)
 	hdr->sampling_rate = reg;
 	
 	reg = gpbr_read(GPBR4);
-	hdr->window   = (uint16_t)(reg >> 16);
-	hdr->interval = (uint16_t)(reg >> 0);
+	hdr->awake_time   = (uint16_t)(reg >> 16);
+	hdr->sleep_time = (uint16_t)(reg >> 0);
 	
 	reg = gpbr_read(GPBR5);
 	hdr->fft_size  = (uint16_t)(reg >> 16);
@@ -275,8 +275,8 @@ int wispr_parse_config(uint8_t *buf, wispr_config_t *hdr)
 	// pull out specific settings
 	hdr->active_sd_card = hdr->settings[0];
 
-	hdr->window = buf[30] | (buf[31] << 8);
-	hdr->interval = buf[32] | (buf[33] << 8);
+	hdr->awake_time = buf[30] | (buf[31] << 8);
+	hdr->sleep_time = buf[32] | (buf[33] << 8);
 	hdr->fft_size = buf[34] | (buf[35] << 8);
 
 	return(36);
@@ -323,10 +323,10 @@ int wispr_serialize_config(wispr_config_t *hdr, uint8_t *buf)
 	buf[28] = (uint8_t)(hdr->settings[6]);
 	buf[29] = (uint8_t)(hdr->settings[7]);
 
-	buf[30] = (uint8_t)(hdr->window >> 0);
-	buf[31] = (uint8_t)(hdr->window >> 8);
-	buf[32] = (uint8_t)(hdr->interval >> 0);
-	buf[33] = (uint8_t)(hdr->interval >> 8);
+	buf[30] = (uint8_t)(hdr->awake_time >> 0);
+	buf[31] = (uint8_t)(hdr->awake_time >> 8);
+	buf[32] = (uint8_t)(hdr->sleep_time >> 0);
+	buf[33] = (uint8_t)(hdr->sleep_time >> 8);
 	buf[34] = (uint8_t)(hdr->fft_size >> 0);
 	buf[35] = (uint8_t)(hdr->fft_size >> 8);
 

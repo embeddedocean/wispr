@@ -417,7 +417,7 @@
   <armgcc.compiler.optimization.OtherFlags>-fdata-sections</armgcc.compiler.optimization.OtherFlags>
   <armgcc.compiler.optimization.PrepareFunctionsForGarbageCollection>True</armgcc.compiler.optimization.PrepareFunctionsForGarbageCollection>
   <armgcc.compiler.warnings.AllWarnings>True</armgcc.compiler.warnings.AllWarnings>
-  <armgcc.compiler.miscellaneous.OtherFlags>-pipe -fno-strict-aliasing -Wall -Wstrict-prototypes -Wmissing-prototypes -Werror-implicit-function-declaration -Wpointer-arith -std=gnu99 -ffunction-sections -fdata-sections -Wchar-subscripts -Wcomment -Wformat=2 -Wimplicit-int -Wmain -Wparentheses -Wsequence-point -Wreturn-type -Wswitch -Wtrigraphs -Wunused -Wuninitialized -Wunknown-pragmas -Wfloat-equal -Wundef -Wshadow -Wbad-function-cast -Wwrite-strings -Wsign-compare -Waggregate-return  -Wmissing-declarations -Wformat -Wmissing-format-attribute -Wno-deprecated-declarations -Wpacked -Wredundant-decls -Wnested-externs -Wlong-long -Wunreachable-code -Wcast-align --param max-inline-insns-single=500</armgcc.compiler.miscellaneous.OtherFlags>
+  <armgcc.compiler.miscellaneous.OtherFlags>-pipe -fno-strict-aliasing -Wall -Wstrict-prototypes -Wmissing-prototypes -Werror-implicit-function-declaration -Wpointer-arith -std=gnu99 -ffunction-sections -fdata-sections -Wchar-subscripts -Wcomment -Wformat=0 -Wimplicit-int -Wmain -Wparentheses -Wsequence-point -Wreturn-type -Wswitch -Wtrigraphs -Wunused -Wuninitialized -Wunknown-pragmas -Wfloat-equal -Wundef -Wshadow -Wbad-function-cast -Wwrite-strings -Wsign-compare -Waggregate-return  -Wmissing-declarations -Wmissing-format-attribute -Wno-deprecated-declarations -Wpacked -Wredundant-decls -Wnested-externs -Wlong-long -Wunreachable-code -Wcast-align --param max-inline-insns-single=500</armgcc.compiler.miscellaneous.OtherFlags>
   <armgcc.linker.libraries.Libraries>
     <ListValues>
       <Value>libarm_cortexM4l_math</Value>
@@ -789,10 +789,22 @@
     <None Include="src\ASF\sam\drivers\supc\supc.h">
       <SubType>compile</SubType>
     </None>
+    <Compile Include="src\com.c">
+      <SubType>compile</SubType>
+    </Compile>
+    <Compile Include="src\com.h">
+      <SubType>compile</SubType>
+    </Compile>
     <Compile Include="src\epoch.c">
       <SubType>compile</SubType>
     </Compile>
     <Compile Include="src\epoch.h">
+      <SubType>compile</SubType>
+    </Compile>
+    <Compile Include="src\spectrum.c">
+      <SubType>compile</SubType>
+    </Compile>
+    <Compile Include="src\spectrum.h">
       <SubType>compile</SubType>
     </Compile>
     <Compile Include="src\wispr_main.c">
@@ -1648,12 +1660,6 @@
       <SubType>compile</SubType>
     </Compile>
     <Compile Include="src\sd_card.h">
-      <SubType>compile</SubType>
-    </Compile>
-    <Compile Include="src\spectrogram.c">
-      <SubType>compile</SubType>
-    </Compile>
-    <Compile Include="src\spectrogram.h">
       <SubType>compile</SubType>
     </Compile>
     <Compile Include="src\uart_queue.c">

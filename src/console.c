@@ -12,7 +12,9 @@
 #include "uart_queue.h"
 
 #include "board.h"  
-Uart *CONSOLE_UART = BOARD_CONSOLE_UART;
+Uart *CONSOLE_UART = 0; //BOARD_CONSOLE_UART;
+
+int console_echo = 1;
 
 /**
  *  Configure UART console on UART0
@@ -40,64 +42,64 @@ void console_init(int port, uint32_t baud)
 	
 }
 
-int console_gets(char *str)
-{
-	uint8_t c;
-	int n = 0;
-	int go = 1;
-	while( go ) {
-		if(uart_is_rx_ready(CONSOLE_UART)) {
-			uart_read(CONSOLE_UART, &c);
-			if(c == 13) { // newline
-				str[n] = 0;
-				go = 0;
-			} else {
-				uart_write(CONSOLE_UART, c);
-				str[n] = (char)c;
-			}
-			if(c==8 && n>0) n--; // backspace
-			n++;
-		}
-	}
-	return(n);
-}
 
+//
+// this is like a gets with a timeout 
+// but it resets the WDT as it waits for input
+// 
 static int console_input(char *str, int size, int timeout)
 {
 	uint8_t c;
-	//char str[64];
 	int n = 0;
 	int go = 1;
-	int count = 0;
+	int timeout_count = 0;
 	
 	if( timeout <= 0 ) timeout = 60; // always have some timeout
 	int timeout_ms = timeout*1000;
 
-	while( go > 0 ) {
-		if(uart_is_rx_ready(CONSOLE_UART)) {
-			uart_read(CONSOLE_UART, &c);
-			if(c == 13) { // newline
-				str[n++] = 0;
-				go = 0;
-			} else {
-				uart_write(CONSOLE_UART, c);  // echo
-				str[n++] = (char)c;
+	str[0] = 0;
+	
+	while( go ) {
+
+		if(!uart_is_rx_ready(CONSOLE_UART)) {
+			if((timeout > 0) && (timeout_count >= timeout_ms)) {
+				n = 0; // ignore chars that has been read 
+				break;
 			}
-			if(c==8 && n>0) n--; // backspace
-			if(n >= size) go = 0;
-		} else {
+			wdt_restart(WDT);
 			delay_ms(1);
-			count++;
+			timeout_count++;
+			continue;
 		}
 
-		// restart the wdt counter every second
-		if( count >= 1000 ) wdt_restart(WDT);
+		uart_read(CONSOLE_UART, &c);
 
-		// timeout
-		if((timeout > 0) && (count >= timeout_ms)) {
-			n = 1;
-			go = 0;
+		// termination
+		if((c == 13)||(c == 10)) { // CR or NL
+			str[n] = 0;
+			break;
 		}
+
+		// echo 
+		if( console_echo && (c != 8) ) {
+			while(!uart_is_tx_ready(CONSOLE_UART)) {}
+			uart_write(CONSOLE_UART, c);  // echo
+		}
+
+		// backspace
+		if( c == 8 && n > 0 ) {
+			n = n-1;
+			while(!uart_is_tx_ready(CONSOLE_UART)) {}
+			uart_write(CONSOLE_UART, c);  // echo
+			while(!uart_is_tx_ready(CONSOLE_UART)) {}
+			uart_write(CONSOLE_UART, ' ');  // echo
+			while(!uart_is_tx_ready(CONSOLE_UART)) {}
+			uart_write(CONSOLE_UART, c);  // echo
+		}
+		
+		if( c != 8 ) str[n++] = (char)c;
+
+		if(n >= size) break;
 
 	}	
 	return(n);
@@ -109,11 +111,12 @@ int console_prompt_int(const char *prompt, int default_value, int timeout)
 	fprintf(stdout, "\r\n%s [%d]: ", prompt, default_value);
 	int n = console_input(str, 32, timeout);
 	int value = default_value;
-	if(n > 1) value = atoi(str);
-	//fprintf(stdout, "\r\n %d chars, %s, value = %d count = %d, %d \r\n", n, str, value, count, timeout);
+	if(n > 0) sscanf(str, "%d", &value); //value = atoi(str);
+	//fprintf(stdout, "\r\n %d chars, str=%s, value=%d\r\n", n, str, value);
 	fprintf(stdout, "\r\n");
 	return(value);
 }
+
 
 float console_prompt_f32(const char *prompt, float default_value, int timeout)
 {
@@ -121,8 +124,8 @@ float console_prompt_f32(const char *prompt, float default_value, int timeout)
 	fprintf(stdout, "\r\n%s [%f]: ", prompt, default_value);
 	int n = console_input(str, 64, timeout);
 	float value = default_value;
-	if(n > 1) value = atoff(str);
-	//fprintf(stdout, "\r\n %d chars, %s, value = %d count = %d, %d \r\n", n, str, value, count, timeout);
+	if(n > 0) sscanf(str, "%f", &value); //value = atoff(str);
+	//fprintf(stdout, "\r\n %d chars, str=%s, value = %f\r\n", n, str, value);
 	fprintf(stdout, "\r\n");
 	return(value);
 }
@@ -142,6 +145,9 @@ uint8_t console_prompt_uint8(const char *prompt, uint8_t default_value, int time
 	return((uint8_t)console_prompt_int(prompt, (int)default_value, timeout));
 }
 
+//
+// string parsing
+//
 int read_console_input(void)
 {
 	char str[128]; 
@@ -153,16 +159,16 @@ int read_console_input(void)
 		tok = strtok(str, delims);
 		while(tok) {
 			// sample rate		
-			if(!strcmp("sampling_rate", tok)) {
+			if(!strcmp("value1", tok)) {
 				tok = strtok(NULL, delims);
-				//sampling_rate = (uint32_t)atoi(tok);
-				//fprintf(stdout, "\r\n set sample_rate = %d\r\n", sampling_rate);
+				int value1 = atoi(tok);
+				fprintf(stdout, "\r\n value1 = %d\r\n", value1);
 			}
 			// upload interval
-			if(!strcmp("upload_interval_in_minutes", tok)) {
+			if(!strcmp("value2", tok)) {
 				tok = strtok(NULL, delims);
-				//upload_interval_in_minutes = (uint32_t)atoi(tok);
-				//fprintf(stdout, "\r\n set upload_interval_in_minutes = %d\r\n", upload_interval_in_minutes);
+				float value2 = atof(tok);
+				fprintf(stdout, "\r\n value2 = %f\r\n", value2);
 			}	
 			tok = strtok(NULL, delims);
 		}

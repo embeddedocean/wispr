@@ -10,7 +10,6 @@
 #include <delay.h>
 
 #include "board.h"
-
 #include "uart_queue.h"
 
 struct  uart_queue {
@@ -25,9 +24,9 @@ struct  uart_queue {
 };
 
 //  queue lists
-static struct uart_queue uart_queue_list[USART_MAX_PORTS];
-static Uart *uart_queue_port[USART_MAX_PORTS];
-static uint8_t uart_echo[USART_MAX_PORTS];
+static struct uart_queue uart_queue_list[UART_MAX_PORTS];
+static Uart *uart_queue_port[UART_MAX_PORTS];
+static uint8_t uart_echo[UART_MAX_PORTS];
 
 
 //
@@ -75,7 +74,7 @@ static void uart_read_queue_callback(int port, uint8_t input_char)
 //
 void UART0_Handler(void)
 {
-	/* Read USART Status. */
+	/* Read UART Status. */
 	uint8_t c;
 	uint32_t status = uart_get_status(UART0);
 	if (status & UART_SR_RXRDY) {
@@ -87,7 +86,7 @@ void UART0_Handler(void)
 
 void UART1_Handler(void)
 {
-	/* Read USART Status. */
+	/* Read UART Status. */
 	uint8_t c;
 	//uint32_t status = uart_get_status(UART1);
 	//if (status & UART_SR_RXRDY) {
@@ -103,7 +102,7 @@ enum status_code uart_read_message_queue(int port, uint8_t *buf, int len)
 {
 	enum status_code stat = STATUS_ERR_BUSY;
 	
-	if( (port < 0) || (port >= USART_MAX_PORTS) ) {
+	if( (port < 0) || (port >= UART_MAX_PORTS) ) {
 		return(ERR_INVALID_ARG);
 	}
 	
@@ -166,7 +165,7 @@ enum status_code uart_read_message_queue(int port, uint8_t *buf, int len)
 
 enum status_code uart_read_queue(int port, uint8_t *buf, int len)
 {
-	if( (port < 0) || (port >= USART_MAX_PORTS) ) {
+	if( (port < 0) || (port >= UART_MAX_PORTS) ) {
 		return(ERR_INVALID_ARG);
 	}
 	
@@ -201,10 +200,26 @@ enum status_code uart_read_queue(int port, uint8_t *buf, int len)
 	return (stat);
 }
 
+enum status_code uart_write_queue(int port, uint8_t *buf, int len)
+{
+	if( (port < 0) || (port >= UART_MAX_PORTS) ) {
+		return(ERR_INVALID_ARG);
+	}
+	Uart *uart = uart_queue_port[port];
+
+	enum status_code stat = STATUS_OK;
+	//len = strlen(buf);
+	for(int n = 0; n < len; n++) {
+		while (!uart_is_tx_empty(uart)) {}
+		uart_write(uart, buf[n]);
+	}
+	return (stat);
+}
+
 enum status_code uart_start_queue(int port)
 {
 	enum status_code stat = STATUS_OK;
-	if( (port < 0) || (port >= USART_MAX_PORTS) ) {
+	if( (port < 0) || (port >= UART_MAX_PORTS) ) {
 		return(ERR_INVALID_ARG);
 	}
 
@@ -227,7 +242,7 @@ enum status_code uart_start_queue(int port)
 enum status_code uart_stop_queue(int port)
 {
 	enum status_code stat = STATUS_OK;
-	if( (port < 0) || (port >= USART_MAX_PORTS) ) {
+	if( (port < 0) || (port >= UART_MAX_PORTS) ) {
 		return(ERR_INVALID_ARG);
 	}
 
@@ -251,7 +266,7 @@ enum status_code uart_stop_queue(int port)
 // clear queue
 void uart_clear_queue(int port)
 {
-	if( (port < 0) || (port >= USART_MAX_PORTS) ) {
+	if( (port < 0) || (port >= UART_MAX_PORTS) ) {
 		return;
 	}
 	// get the queue for this uart module
@@ -271,7 +286,7 @@ void uart_clear_queue(int port)
 // clear the queue list
 void uart_clear_all_queues(void)
 {
-	for(int n = 0; n < USART_MAX_PORTS; n++) {
+	for(int n = 0; n < UART_MAX_PORTS; n++) {
 		uart_clear_queue(n);
 	}
 }
@@ -280,7 +295,7 @@ void uart_clear_all_queues(void)
 enum status_code uart_set_termination(int port, uint8_t term)
 {
 	enum status_code stat = STATUS_OK;	
-	if( (port < 0) || (port >= USART_MAX_PORTS) ) {
+	if( (port < 0) || (port >= UART_MAX_PORTS) ) {
 		return(ERR_INVALID_ARG);
 	}
 	// get the queue for this uart module
@@ -290,7 +305,7 @@ enum status_code uart_set_termination(int port, uint8_t term)
 		return(ERR_UNSUPPORTED_DEV);
 	}
 
-	if( term == USART_NO_TERMINATION ) {
+	if( term == UART_NO_TERMINATION ) {
 		queue->termination_enabled = 0;
 	} else {
 		queue->termination_enabled = 1;
@@ -302,18 +317,17 @@ enum status_code uart_set_termination(int port, uint8_t term)
 enum status_code uart_set_echo(int port, uint8_t on)
 {
 	enum status_code stat = STATUS_OK;
-	if( (port < 0) || (port >= USART_MAX_PORTS) ) {
+	if( (port < 0) || (port >= UART_MAX_PORTS) ) {
 		return(ERR_INVALID_ARG);
 	}
 	uart_echo[port] = on;
 	return(stat);
 }
 
-//enum status_code uart_configure(int port, uint32_t baud, int stdio)
-enum status_code uart_configure_queue(int port, uint32_t baud)
+enum status_code uart_init_queue(int port, uint32_t baud)
 {
 	enum status_code stat = STATUS_OK;
-	if( (port < 0) || (port >= USART_MAX_PORTS) ) {
+	if( (port < 0) || (port >= UART_MAX_PORTS) ) {
 		return(ERR_INVALID_ARG);
 	}
 
@@ -348,7 +362,7 @@ enum status_code uart_configure_queue(int port, uint32_t baud)
 
 	// setup receiving queue
 	uart_clear_queue(port);
-	uart_set_termination(port, USART_NO_TERMINATION);
+	uart_set_termination(port, UART_NO_TERMINATION);
 	uart_start_queue(port);
 	uart_set_echo(port, 0);
 

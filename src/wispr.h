@@ -19,22 +19,24 @@
 
 #define WISPR_SD_CARD_BLOCK_SIZE (512)
 
-// If the header size is a multiple of the sample size
-// then the buffer will be completely filled by the header and data
-// otherwise the buffer will have a few unused bytes at the end
+// If the header size should be a multiple of a word size (4 bytes)
+// to avoid issues with word alignment when casting
 #define WISPR_DATA_HEADER_SIZE (32)
 
-#define ADC_DEFAULT_SAMPLING_RATE (100000)
+#define ADC_DEFAULT_SAMPLING_RATE (50000)
 #define ADC_MIN_SAMPLE_SIZE (2)
 #define ADC_MAX_BLOCKS_PER_BUFFER (32)
 #define ADC_MAX_BUFFER_SIZE (ADC_MAX_BLOCKS_PER_BUFFER * WISPR_SD_CARD_BLOCK_SIZE)
 #define ADC_MAX_SAMPLES_PER_BUFFER ((ADC_MAX_BUFFER_SIZE - WISPR_DATA_HEADER_SIZE) / ADC_MIN_SAMPLE_SIZE)
 
-#define ADC_DEFAULT_WINDOW 10
-#define ADC_DEFAULT_INTERVAL 30
+#define ADC_DEFAULT_AWAKE 10
+#define ADC_DEFAULT_SLEEP 10
+
+#define ADC_DEFAULT_GAIN 0
 
 // adc reference voltage
 #define ADC_VREF 5.0
+#define ADC_SCALING 5.0
 
 // spectrum uses float32_t ffts, so each freq bin is a float32
 #define PSD_MAX_FFT_SIZE 512
@@ -89,12 +91,13 @@ typedef struct {
 	uint8_t  mode;
 	uint32_t epoch;
 	uint8_t  settings[8]; // various system and adc settings
-	uint16_t samples_per_block; // number of samples in a block
-	uint16_t block_size;  // number of bytes in an adc record block
 	uint8_t  sample_size; // number of bytes per sample
+	uint16_t samples_per_block; // number of samples in a block
 	uint32_t sampling_rate; // samples per second
-	uint16_t window; // time in seconds of the adc records block
-	uint16_t interval; // time in seconds between adc records (must be >= window)
+	uint16_t block_size;  // number of bytes in a block, this can be different than samples_per_block*sample_size
+	uint16_t blocks_per_window; // 
+	uint16_t awake_time; // time in seconds of the adc records block
+	uint16_t sleep_time; // time in seconds between adc records (must be >= window)
 	uint16_t fft_size; //
 	uint8_t active_sd_card;
 } wispr_config_t;

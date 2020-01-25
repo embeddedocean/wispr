@@ -18,14 +18,17 @@
 #include "ds3231.h"
 #include "ina260.h"
 #include "pcf8574.h"
+#include "com.h"
 
-#include "spectrogram.h"
+#include "spectrum.h"
 #include "arm_math.h"
 #include "arm_const_structs.h"
 
-//COMPILER_WORD_ALIGNED uint8_t adc_test_buffer[ADC_MAX_BUFFER_SIZE];
-//uint8_t *adc_test_header = adc_test_buffer;  // header is at start of buffer
-//uint8_t *adc_test_data = &adc_test_buffer[WISPR_DATA_HEADER_SIZE]; // data follows header
+// Allocate max size buffer
+// The compiler will give warning when the buffers are cast into the appropriate data types:
+// "cast increases required alignment of target type [-Wcast-align]"
+// But using the COMPILER_WORD_ALIGNED macro will avoid any memory alignment problem,
+// although the compiler will still give the warning.
 
 COMPILER_WORD_ALIGNED uint8_t adc_buffer[ADC_MAX_BUFFER_SIZE];
 uint8_t *adc_buffer_header = adc_buffer;  // header is at start of buffer
@@ -64,18 +67,9 @@ int main (void)
 	// returns the reason the board was last reset (user, sleep, watchdog, ...)
 	int reset_type = board_init();
 
+	// init I2C bus for the rtc and gpio
 	i2c_init(TWI0, WISPR_I2C_SPEED);
 	
-	// Read current configuration from general purpose backup registers (gpbr)
-	// if config is not valid, set defaults
-//	if( reset_type == BOARD_BACKUP_RESET ) {
-//		if(wispr_gpbr_read_config(&wispr) == 0 ) {
-//			// if gpbr config is not valid - something whent wrong
-//			printf("\r\nWARNING - Initializing WISPR configuration coming out of backup reset.\r\n");
-//			set_default_config(&wispr);	// set defaults
-//		}
-//	}
-
 	// Setup the DS3231 External RTC
 	if( ds3231_init() != STATUS_OK ) {
 		printf("Error initializing DS3231 RTC\r\n");
@@ -104,7 +98,7 @@ int main (void)
 	sd_card_read_config(wispr.active_sd_card, &wispr);
 	sd_card_close(wispr.active_sd_card);
 
-	// prompt to change/initialize config and display card info	
+	// if user reset then prompt to change/initialize config
 	// skip if reset from backup because there typically will be no user at the console
 	// this means that the configuration can only be changed after a user reset or powerup
 	if( reset_type != BOARD_BACKUP_RESET ) {
@@ -151,18 +145,17 @@ int main (void)
 		psd_overlap = 0;
 		psd_sample_size = wispr.sample_size;
 		spectrum_init_f32(&wispr, &psd_nbins, psd_nfft, psd_overlap, psd_sample_size, HAMMING_WINDOW);
+		//spectrum_init_q31(&wispr, &psd_nbins, psd_nfft, psd_overlap, psd_sample_size, HAMMING_WINDOW);
 	}
 	
 	// Define the variables that control the window and interval timing.
 	float adc_block_duration =  (float)wispr.samples_per_block / (float)wispr.sampling_rate; // seconds
-	uint16_t adc_blocks_per_window = (uint16_t)( (float)wispr.window / adc_block_duration ); // truncated number of blocks
-	uint16_t sleep_seconds = (wispr.interval - wispr.window); // sleep time between windows in seconds 
+	uint16_t adc_blocks_per_window = (uint16_t)( (float)wispr.awake_time / adc_block_duration ); // truncated number of blocks
 	// since the adc buffer duration is defined by a fixed number of blocks
-	// the actual window and interval durations are:
-	float actual_window = (float)adc_blocks_per_window * adc_block_duration;
-	float actual_interval = (float)sleep_seconds + actual_window;
-	printf("Actual window: %f\n\r", actual_window);
-	printf("Actual interval: %f\n\r", actual_interval);
+	// the actual sampling window may be different
+	uint16_t wakeup_interval = wispr.awake_time + wispr.sleep_time;
+	float actual_sampling_time = (float)adc_blocks_per_window * adc_block_duration;
+	printf("Actual sampling time: %.2f\n\r", actual_sampling_time);
 
 	//uint32_t samples_per_window = (uint32_t)wispr.window * wispr.sampling_rate;
 	//uint16_t adc_blocks_per_window = (uint16_t)(samples_per_window / (uint32_t)wispr.samples_per_block);
@@ -175,7 +168,8 @@ int main (void)
 	// this is a fixed number now, but could be variable to save card memory
 	uint16_t psd_write_size = PSD_MAX_BLOCKS_PER_BUFFER;
 
-	printf("\n\rStart read loop: %d data blocks per window\n\r", adc_blocks_per_window);
+	printf("\n\rStart read loop: %.2f second windows (%d block) at %d second intervals\n\r", 
+		actual_sampling_time, adc_blocks_per_window, wakeup_interval);
 
 	ltc2512_init_test(&wispr, samples_per_adc_block, wispr.sampling_rate/10);
 	
@@ -186,6 +180,11 @@ int main (void)
 	// throw away the first adc buffer
 	while( ltc2512_read_dma(adc_buffer_header, adc_buffer_data, samples_per_adc_block) == 0 ) {}
 
+	// initialize uart com communication on port 0
+	wispr_com_msg_t com_msg;
+	char com_buf[COM_MAX_MESSAGE_SIZE];
+	com_init(BOARD_COM_PORT, BOARD_COM_BAUDRATE);
+	
 	uint32_t start;
 	rtc_get_epoch(&start);
 	
@@ -195,7 +194,14 @@ int main (void)
 	while (go) {
 		
 		if( count < adc_blocks_per_window ) {
-		
+	
+			// check for a com message
+			int nrd = com_read_msg (BOARD_COM_PORT, com_buf);
+			if( nrd > 0) {
+				com_parse_msg(&com_msg, com_buf, nrd);
+				printf("com message received: %s\r\n", com_buf);
+			}
+				
 			// read the current a buffer. If a new buffer is not ready read returns 0
 			uint16_t nsamps = ltc2512_read_dma(adc_buffer_header, adc_buffer_data, samples_per_adc_block);
 			
@@ -252,17 +258,17 @@ int main (void)
 			// sleep between dma buffers, the next dma interrupt will wake from sleep
 			pmc_sleep(SAM_PM_SMODE_SLEEP_WFI);
 
-		} else if( sleep_seconds > 0 ) {
+		} else if( wispr.sleep_time > 0 ) {
 
 			uint32_t now;
 			rtc_get_epoch(&now);
 
 			float32_t *psd = (float32_t *)psd_buffer_data;
+			//printf("nbins = %d\r\n", psd_nbins);
 			//q31_t *psd = (q31_t *)psd_buffer_data;
 			for(int n = 0; n < psd_nbins; n++) {
-				//printf("%f ", (float32_t)psd[n] / 2147483648.0 );
 				printf("%f ", psd[n] );
-				//printf("%d ", psd[n]);
+				//printf("%f ", (float)psd[n] / 2147483648.0);
 			}
 			printf("\r\n");
 			
@@ -275,15 +281,17 @@ int main (void)
 			sd_card_close(wispr.active_sd_card);
 
 			// set the alarm to wakeup for the next window read cycle
-			epoch_to_rtc_time((rtc_time_t *)&datetime, now + sleep_seconds);
+			epoch_to_rtc_time((rtc_time_t *)&datetime, now + wispr.sleep_time);
 			ds3231_set_alarm(&datetime);
-			printf("\r\nAlarm set for %s\r\n", epoch_time_string(now + sleep_seconds));				
+			printf("\r\nAlarm set for %s\r\n", epoch_time_string(now + wispr.sleep_time));				
 
 			count = 0; // reset block counter
 
 			// enter backup mode sleep
 			go_to_sleep();	// The core will reset when exiting from backup mode. 
 		
+		} else {
+			count = 0; // reset block counter			
 		}
 	
 	}
@@ -308,6 +316,9 @@ void go_to_sleep(void)
 	ltc2512_shutdown();
 	ltc2512_stop_dma();
 	
+	// flush the uarts
+	while (!uart_is_tx_empty(UART1)) {}
+
 	// enable wakeup input on WKUP2 (PA2) with active low
 	// this is the external rtc interrupt line
 	supc_set_wakeup_inputs(SUPC, SUPC_WUIR_WKUPEN2_ENABLE, SUPC_WUIR_WKUPT2_LOW);
@@ -384,14 +395,15 @@ void set_default_config(wispr_config_t *config)
 	config->version[0] = WISPR_SUBVERSION;
 	
 	config->block_size = ADC_MAX_BLOCKS_PER_BUFFER * SD_MMC_BLOCK_SIZE;
-	config->sample_size = 3;
-	config->samples_per_block = (config->block_size - WISPR_DATA_HEADER_SIZE) / 3;
+	config->sample_size = ADC_MIN_SAMPLE_SIZE;
 	config->sampling_rate = ADC_DEFAULT_SAMPLING_RATE;
-	config->window = ADC_DEFAULT_WINDOW;
-	config->interval = ADC_DEFAULT_INTERVAL;
+	config->awake_time = ADC_DEFAULT_AWAKE;
+	config->sleep_time = ADC_DEFAULT_SLEEP;
 
-	config->settings[7] = LTC2512_DF4; // adc df
-	config->settings[6] = 0; // adc gain
+	config->samples_per_block = (uint32_t)(config->block_size - WISPR_DATA_HEADER_SIZE) / (uint32_t)config->sample_size;
+
+	config->settings[7] = LTC2512_DF8; // adc df
+	config->settings[6] = ADC_DEFAULT_GAIN; // adc gain
 	config->settings[5] = 0;
 	config->settings[4] = 0;
 	config->settings[3] = 0;
@@ -478,7 +490,7 @@ void initialize_config(wispr_config_t *config)
 	wispr_print_config(config);
 			
 	// Prompt to set new configuration
-	if( console_prompt_int("Change configuration?", 0, 5) ) {
+	if( console_prompt_int("Change configuration?", 0, 8) ) {
 		prompt_config_menu(config, 60);
 	}
 	
@@ -518,6 +530,10 @@ void initialize_config(wispr_config_t *config)
 
 void prompt_config_menu(wispr_config_t *config, int timeout)
 {	
+	uint32_t u32;
+	uint16_t u16;
+	uint8_t u8;
+	
 	config->version[1] = WISPR_VERSION;
 	config->version[0] = WISPR_SUBVERSION;
 	
@@ -534,17 +550,37 @@ void prompt_config_menu(wispr_config_t *config, int timeout)
 	uint16_t blocks_per_buffer = ADC_MAX_BLOCKS_PER_BUFFER;
 	//blocks_per_buffer = console_prompt_uint32("Enter number of blocks (512 bytes) per buffer", blocks_per_buffer, timeout);
 	
-	config->sample_size = console_prompt_uint32("Enter sample size in bytes", config->sample_size, timeout);
-	config->sampling_rate = console_prompt_uint32("Enter sampling rate in Hz", config->sampling_rate, timeout);
-	config->window = console_prompt_uint32("Enter sampling time window in seconds", config->window, timeout);
-	config->interval = console_prompt_uint32("Enter sampling interval in seconds", config->interval, timeout);
+	u8 = console_prompt_uint8("Enter sample size in bytes", config->sample_size, timeout);
+	if( u8 >= 2 && u8 <= 3 ) config->sample_size = u8;
 
-	config->settings[6] = console_prompt_uint8("Enter preamp gain", config->settings[6], timeout);
-	config->settings[7] = console_prompt_uint8("Enter adc decimation factor (4, 8, 16, or 32)", config->settings[7], timeout);
+	u32 = console_prompt_uint32("Enter sampling rate in Hz", config->sampling_rate, timeout);
+	if( u32 > 0 && u32 <= 350000 ) config->sampling_rate = u32;
 
-	//float buffer_duration =  (float)config->samples_per_block / (float)config->sampling_rate;
+	u8 = console_prompt_uint8("Enter preamp gain setting (0 to 4)", config->settings[6], timeout);
+	if( u8 >= 0 && u8 <= 4 ) config->settings[6] = u8;
+
+	u8 = console_prompt_uint8("Enter adc decimation factor (4, 8, 16, or 32)", config->settings[7], timeout);
+	if( u8 == 0 || u8 == 4 || u8 == 16 || u8 == 32) config->settings[7] = u8;
+
+	// prompt for sampling interval
+	u16 = 1;
+	if( config->sleep_time > 0 ) u16 = 0;
+	u16 = console_prompt_uint16("Enter continuous sampling", u16, timeout);
+	if( u16 == 1 ) {
+		config->awake_time = 10;
+		config->sleep_time = 0;
+	} else {
+		u16 = console_prompt_uint16("Enter sampling time window in seconds", config->awake_time, timeout);
+		if( u16 >= 1 ) config->awake_time = u16;
+		u16 = console_prompt_uint16("Enter sleep time between sampling windows in seconds", config->sleep_time, timeout);
+		if( u16 >= 0 ) config->sleep_time = u16;
+	}
+	
+	// update variables based on new input
 	config->block_size = (uint16_t)(blocks_per_buffer * SD_MMC_BLOCK_SIZE);
 	config->samples_per_block = (config->block_size - WISPR_DATA_HEADER_SIZE) / (uint16_t)config->sample_size;
+	float adc_block_duration =  (float)config->samples_per_block / (float)config->sampling_rate; // seconds
+	config->blocks_per_window = (uint16_t)( (float)config->awake_time / adc_block_duration ); // truncated number of blocks
 	
 	config->state = WISPR_READY;
 
@@ -578,7 +614,9 @@ void prompt_config_menu(wispr_config_t *config, int timeout)
 	if( console_prompt_int("Enter new time?", 0, timeout) ) {
 		int go = 1;
 		rtc_time_t datetime;
+		ds3231_get_datetime(&datetime);  // get current time
 		while(go) {
+			ds3231_get_datetime(&datetime);  // get current time
 			datetime.year = (uint8_t)console_prompt_int("Enter year", (int)datetime.year, timeout);
 			datetime.month = (uint8_t)console_prompt_int("Enter month", (int)datetime.month, timeout);
 			datetime.day = (uint8_t)console_prompt_int("Enter day", (int)datetime.day, timeout);

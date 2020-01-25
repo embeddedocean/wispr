@@ -47,6 +47,7 @@
 #include <stdio.h>
 
 #include <asf.h>
+#include "console.h"
 
 /** Current MCK in Hz */
 uint32_t board_current_cpu_hz;
@@ -91,7 +92,7 @@ int board_init(void)
 //  pio_set_input(PIOB, 0xFFFFFFFF, PIO_PULLUP);
 
   // Initialize the console uart first so printf works
-  board_console_uart_init();  
+  console_init(BOARD_CONSOLE_PORT, BOARD_CONSOLE_BAUDRATE);  
 
   // Initialize the user gpio pins
   board_gpio_init();
@@ -290,28 +291,30 @@ uint32_t board_uart_init(int port, uint32_t baud)
 //
 // console is where printf goes (using usart_serial_putchar and usart_serial_getchar)
 //
-uint32_t board_console_uart_init(void)
+/* This is now defined in console.c
+uint32_t board_console_init(int port, uint32_t baud)
 {
   uint32_t stat = 1;
 	
   const usart_serial_options_t uart_serial_options = {
-    .baudrate = BOARD_CONSOLE_UART_BAUDRATE,
+    .baudrate = baud,
     .paritytype = UART_MR_PAR_NO
   };
 
-  /* Configure console UART. */
-  if(BOARD_CONSOLE_UART == UART0) {
-	board_uart_init(0, BOARD_CONSOLE_UART_BAUDRATE);
+  // Configure console UART.
+  if(port == 0) {
+	board_uart_init(0, baud);
     stdio_serial_init(UART0, &uart_serial_options);
-  } else if(BOARD_CONSOLE_UART == UART1) {
-	board_uart_init(1, BOARD_CONSOLE_UART_BAUDRATE);
+  } else if(port == 1) {
+	board_uart_init(1, baud);
     stdio_serial_init(UART1, &uart_serial_options);
   } else {
     stat = -1;
   }  
   return(stat);
 }
-
+*/
+  
 //
 // initialize WDT to the max timeout value (~15 seconds)
 //

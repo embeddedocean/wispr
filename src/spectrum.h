@@ -1,5 +1,5 @@
 /*
- * Spectrogram header file
+ * Spectrum header file
  * ------
  * THIS SOFTWARE IS PROVIDED BY EOS AND CONTRIBUTORS
  * ``AS IS'' AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
@@ -13,11 +13,11 @@
  * NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  *
- * Embedded Ocean Systems (EOS), 2015
+ * Embedded Ocean Systems (EOS), 2020
  *
  */
-#ifndef _SPECTROGRAM_H
-#define _SPECTROGRAM_H
+#ifndef _SPECTRUM_H
+#define _SPECTRUM_H
 
 #include "arm_math.h"
 #include "arm_const_structs.h"
@@ -30,9 +30,6 @@
 
 extern int spectrum_init_f32(wispr_config_t *wispr, uint16_t *nbins, uint16_t nfft, uint16_t overlap, uint8_t bps, uint8_t wintype);
 extern int spectrum_f32(uint8_t *psd_buffer, uint8_t *adc_buffer, uint16_t nsamps);
-
-extern int spectrum_init_q31(wispr_config_t *wispr, uint16_t *nbins, uint16_t nfft, uint16_t overlap, uint8_t bps, uint8_t wintype);
-extern int spectrum_q31(uint8_t *psd_buffer, uint8_t *adc_buffer, uint16_t nsamps);
 
 extern void spectrum_window(float32_t *w, uint8_t type, uint16_t size);
 
@@ -50,22 +47,7 @@ typedef struct {
 	uint16_t num_time_bins;  // ((nsamps - nfft)/(nfft - overlap)) / navg
 	uint16_t num_freq_bins;  // nfft/2 +1
 } spectrum_f32_t;
-
-typedef struct {
-	uint16_t nfft;      // size of fft
-	uint16_t overlap;   // data overlap for each fft
-	uint16_t navg;      // num of time bins to average
-	uint32_t fs;        // sampling freq [hz]
-	float32_t dtime;        // size of time bin in seconds.
-	float32_t dfreq;        // size of frequency bins in Hz.
-	uint16_t num_time_bins;  // ((nsamps - nfft)/(nfft - overlap)) / navg
-	uint16_t num_freq_bins;  // nfft/2 +1
-} spectrogram_q31_t;
 */
-//extern int spectrogram_f32(uint8_t *input, float32_t *output, uint16_t nsamps, uint16_t overlap);
-//extern int spectrogram_q31(uint8_t *input, int32_t *output, uint16_t nsamps, uint16_t overlap);
 
-//extern void spectrogram_clear(spectrogram_f32_t *psd);
-
-#endif /* _PSD_H */
+#endif /* _SPECTRUM_H */
 

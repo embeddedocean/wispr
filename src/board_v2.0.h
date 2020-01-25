@@ -12,10 +12,13 @@
 //! Name string macro
 #define BOARD_NAME    "WISPR V2.0"
 
+// COM UART 
+#define BOARD_COM_PORT 0
+#define BOARD_COM_BAUDRATE 9600
+
 // Console UART
-#define BOARD_CONSOLE_UART            UART1
-//#define BOARD_CONSOLE_UART_BAUDRATE   9600
-#define BOARD_CONSOLE_UART_BAUDRATE   115200
+#define BOARD_CONSOLE_PORT  1
+#define BOARD_CONSOLE_BAUDRATE   115200
 
 //! Resonator definitions
 #define BOARD_FREQ_SLCK_XTAL      (32768U)
@@ -50,7 +53,6 @@ extern uint32_t board_get_main_clock_hz(void);
 extern void board_set_clock(enum board_cpu_freq_hz mck);
 extern void board_gpio_init(void);
 extern uint32_t board_uart_init(int port, uint32_t baud);
-extern uint32_t board_console_uart_init(void);
 extern uint32_t board_wdt_init(uint32_t wdt_msec);
 extern void board_reset_reason(uint8_t *reason, uint8_t *nrst, uint8_t *user);
 
