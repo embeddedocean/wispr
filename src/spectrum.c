@@ -52,7 +52,7 @@ uint8_t  psd_sample_size; // samples per second
 float32_t psd_window_power;
 
 // local instance of the wispr data header to use for updating the data buffer
-static wispr_data_header_t psd_data_header;
+//static wispr_data_header_t psd_data_header;
 
 // 
 // window function based on the matlab function
@@ -93,7 +93,7 @@ void spectrum_window(float32_t *w, uint8_t type, uint16_t size)
 	
 }
 
-int spectrum_init_f32(wispr_config_t *wispr, uint16_t *nbins, uint16_t nfft, uint16_t overlap, uint8_t bps, uint8_t wintype)
+int spectrum_init_f32(wispr_config_t *wispr, wispr_data_header_t *psd, uint16_t *nbins, uint16_t nfft, uint16_t overlap, uint8_t bps, uint8_t wintype)
 {
 	// check spectrum size
 	if( *nbins > nfft/2 ) {
@@ -164,15 +164,28 @@ int spectrum_init_f32(wispr_config_t *wispr, uint16_t *nbins, uint16_t nfft, uin
 	psd_sampling_freq = wispr->sampling_rate; // samples per second (hz)
 	psd_freq_bin_size = 1000 * psd_sampling_freq / psd_fft_size / 2; // khz/bin
 	
-	// update local data header structure with the current config
-	wispr_update_data_header(wispr, &psd_data_header);
-	psd_data_header.settings[0] = WISPR_SPECTRUM;
+	// update psd data header structure with the current config
+	//wispr_update_data_header(wispr, psd);
 
-	// but change settings, sampling rate (1000*hz/bin), sample_size, ...
-	psd_data_header.sampling_rate = psd_freq_bin_size;
-	psd_data_header.sample_size = 4;
-	psd_data_header.samples_per_block = psd_num_freq_bins;
-	psd_data_header.block_size = PSD_MAX_BUFFER_SIZE; // number of bytes in an psd record block
+	// initialize the adc data header
+	// make sure to set all the fields because this is what gets written to storage
+	psd->version[0] = wispr->version[0];
+	psd->version[1] = wispr->version[1];
+	psd->type = WISPR_SPECTRUM;
+	psd->sample_size = 4;
+	psd->samples_per_block = psd_num_freq_bins;
+	psd->block_size = PSD_MAX_BUFFER_SIZE; // number of bytes in an psd record block
+	psd->second = 0;
+	psd->usec = 0;
+
+	// change sampling rate (1000*hz/bin), sample_size, ...
+	psd->sampling_rate = psd_freq_bin_size;
+
+	// save the psd settings in the data header 
+	psd->settings[0] = wispr->settings[0]; // this will be adc gain, if the adc has been initialized;
+	psd->settings[1] = wispr->settings[1]; // future use
+	psd->settings[2] = psd_fft_size >> 4; // shifted 4 to fit into an 8 bit value
+	psd->settings[3] = psd_fft_overlap >> 4; // shifted 4 to fit into an 8 bit value
 	
 	printf("spectrum_init_f32:  nfft=%d, nbins=%d, overlap=%d, bps=%d\r\n", 
 		psd_fft_size, psd_num_freq_bins, psd_fft_overlap, psd_sample_size);
@@ -189,7 +202,7 @@ int spectrum_init_f32(wispr_config_t *wispr, uint16_t *nbins, uint16_t nfft, uin
 //  https://arm-software.github.io/CMSIS_5/DSP/html/group__RealFFT.html
 //  https://www.mathworks.com/help/signal/ug/power-spectral-density-estimates-using-fft.html
 // 
-int spectrum_f32(uint8_t *psd_buffer, uint8_t *adc_buffer, uint16_t nsamps)
+int spectrum_f32(wispr_data_header_t *psd, uint8_t *psd_data, wispr_data_header_t *adc, uint8_t *adc_data, uint16_t nsamps)
 {
 	int k, m, n;
 	float32_t *win = psd_fft_window_f32;
@@ -200,21 +213,17 @@ int spectrum_f32(uint8_t *psd_buffer, uint8_t *adc_buffer, uint16_t nsamps)
 	uint16_t nbins = psd_num_freq_bins;
 	uint16_t overlap = psd_fft_overlap;	
 	
-	uint8_t *input = &adc_buffer[WISPR_DATA_HEADER_SIZE];
-	float32_t *output = (float32_t *)&psd_buffer[WISPR_DATA_HEADER_SIZE];
+	uint8_t *input = adc_data;
+	float32_t *output = (float32_t *)psd_data;
 	
-	// parse the adc buffer header to get the timestamp
-	//wispr_data_header_t adc_hdr;
-	//wispr_parse_data_header(adc_buffer, &adc_hdr);
-
 	// update the data header timestamp
-	//psd_data_header.second = adc_hdr.seconds; // epoch time stamp
-	//psd_data_header.usec = adc_hdr.usec; // epoch time stamp
-	rtc_get_epoch(&psd_data_header.second); // epoch time stamp	
-	psd_data_header.usec = 0;
+	psd->second = adc->second; // epoch time stamp
+	psd->usec = adc->usec; // epoch time stamp
+	//rtc_get_epoch(&psd->second); // epoch time stamp	
+	//psd->usec = 0;
 
 	// serialize the data buffer header
-	wispr_serialize_data_header(&psd_data_header, psd_buffer);
+//	wispr_serialize_data_header(&psd_data_header, psd_buffer);
 
 	// number of spectral estimates in the psd
 	uint16_t navg = ((nsamps - nfft)/(nfft - overlap));

@@ -113,8 +113,11 @@ uint8_t sd_card_init(uint8_t card_num)
 	card->state |= SD_CARD_OK;
 	card->number = card_num;
 	card->type = sd_mmc_get_type(sd_card_slot);
-	card->version = sd_mmc_get_version(sd_card_slot);
+	card->hw_ver = sd_mmc_get_version(sd_card_slot);
 	card->capacity = sd_mmc_get_capacity(sd_card_slot);  // capacity in KBytes
+
+	card->version[0] = WISPR_VERSION;
+	card->version[1] = WISPR_SUBVERSION;
 	
 	return( card->state );
 }
@@ -142,7 +145,7 @@ uint8_t sd_card_format(uint8_t card_num, char *name)
 
 	// set header mod time
 	rtc_get_epoch( &card->epoch );
-	
+
 	// rewrite the header
 	sd_card_write_header(card);
 
@@ -232,13 +235,13 @@ void sd_card_print_info(uint8_t card_num)
 		printf("- Type: Unknown type %d, %d\r\n", card->type);
 	}
 	printf("- Name: %s:\r\n", card->name);
-	printf("- State: %02x KB\r\n", card->state);
+	printf("- Version: %d.%d\r\n", card->version[0], card->version[1]);
 	printf("- Size: %lu KB\r\n", card->capacity);
-	printf("- Version: %d\r\n", card->version);
 	printf("- Start block: %d\r\n", card->start_block);
 	printf("- End block: %d\r\n", card->end_block);
 	printf("- Write Addr: %d\r\n", card->write_addr);
 	printf("- Read Addr:  %d\r\n", card->read_addr);
+	//printf("- State: %02x\r\n", card->state);
 	rtc_time_t tme;
 	epoch_to_rtc_time(&tme, card->epoch);
 	printf("- Last mod time: %02d/%02d/%02d %02d-%02d-%02d (%lu)\r\n",
@@ -432,6 +435,7 @@ int sd_card_write_header(sd_card_t *hdr)
 	return(nwrt);
 }
 
+uint8_t sd_card_config_block[SD_MMC_BLOCK_SIZE];
 
 int sd_card_read_config(uint8_t card_num, wispr_config_t *hdr)
 {
@@ -445,12 +449,12 @@ int sd_card_read_config(uint8_t card_num, wispr_config_t *hdr)
 	uint32_t addr = SD_CARD_CONFIG_BLOCK;
 	
 	// raw read to sd card
-	if( sd_card_read_raw(sd_card_header_block, 1, addr) != SD_MMC_OK ) {
+	if( sd_card_read_raw(sd_card_config_block, 1, addr) != SD_MMC_OK ) {
 		printf("sd_card_read_config: raw read error\r\n");
 		return(0);
 	}
 
-	int nrd = wispr_parse_config(sd_card_header_block, hdr);
+	int nrd = wispr_parse_config(sd_card_config_block, hdr);
 	if( nrd == 0 ) {
 		printf("sd_card_read_config: card is not configured\r\n");
 		return(0);
@@ -470,10 +474,10 @@ int sd_card_write_config(uint8_t card_num, wispr_config_t *hdr)
 	uint32_t addr = SD_CARD_CONFIG_BLOCK;
 
 	// unparse the config header into config block buffer
-	int nwrt = wispr_serialize_config(hdr, sd_card_header_block);
+	int nwrt = wispr_serialize_config(hdr, sd_card_config_block);
 	
 	// raw write to sd card
-	if( sd_card_write_raw(sd_card_header_block, 1, addr) != SD_MMC_OK) {
+	if( sd_card_write_raw(sd_card_config_block, 1, addr) != SD_MMC_OK) {
 		printf("sd_card_write_config: raw write error\r\n");
 		return(0);
 	}

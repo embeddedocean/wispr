@@ -30,7 +30,7 @@
 #define SD_CARD_SELECTED  0x20
 
 // for a card to be ready for read/write it nit have all these states set
-#define SD_CARD_READY  SD_CARD_OK|SD_CARD_FORMATED|SD_CARD_OPEN|SD_CARD_ENABLED|SD_CARD_SELECTED
+#define SD_CARD_READY  (SD_CARD_OK|SD_CARD_FORMATED|SD_CARD_OPEN|SD_CARD_ENABLED|SD_CARD_SELECTED)
 
 //typedef struct {	
 //	char     type[5];      // fixed identifier

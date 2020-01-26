@@ -14,7 +14,7 @@
 // constants
 #define DS3231_ADDR  (0xD0 >> 1)
 
-static enum
+static enum ds3231_reg
 {
 	/*
 	* Register numbers and field values
@@ -60,7 +60,7 @@ static enum
 	/*
 	* Miscellaneous
 	*/
-	TIMEMEOUT = 1000	// Passes through a loop
+	TIMEMEOUT = 1000,	// Passes through a loop
 };
 
 /*

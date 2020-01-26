@@ -12,7 +12,6 @@
 #include <stdlib.h>
 
 #include "ltc2512.h"
-#include "sd_card.h"
 #include "wispr.h"
 
 /* The SSC interrupt IRQ priority. */
@@ -58,25 +57,34 @@ uint32_t ltc_adc_date2 = 0;
 uint8_t ltc_adc_overflow = 0; // overflow flag
 
 // local instance used to update the data buffer header
-wispr_data_header_t adc_data_header;
-
+//wispr_data_header_t adc_data_header;
 
 //
 // initialize ltc2512 hardware
 //
 //int ltc2512_init(uint32_t *fs, uint8_t df, uint8_t gain)
-uint32_t ltc2512_init(wispr_config_t *wispr)
+uint32_t ltc2512_init(wispr_config_t *wispr, wispr_data_header_t *hdr)
 {
 	// pull out the needed values
 	uint32_t fs = wispr->sampling_rate;
-	uint8_t df = wispr->settings[7];
-	uint8_t gain = wispr->settings[6];
+	uint8_t df = wispr->settings[1];
+	uint8_t gain = wispr->settings[0];
 	
     if( (fs <= 1) || (fs > 350000) ) {
-	    printf("init_ltc2512: invalid sampling frequency\n\r");
+	    printf("ltc2512_init: invalid sampling frequency\n\r");
 	    return(-1);
     }
-    
+
+	if( !((df == 4)||(df == 8)||(df == 16)||(df == 32)) ) {
+		printf("ltc2512_init: invalid decimation factor %d\n\r", df);
+		df = ADC_DEFAULT_DECIMATION;
+	}
+	    
+	if( (gain < 0) || (gain > 3) ) {
+		printf("ltc2512_init: invalid gain %d\n\r", gain);
+		gain = ADC_DEFAULT_GAIN;
+	}
+
 	// power up and initialize adc
 	ioport_set_pin_level(PIN_ENABLE_ADC_PWR, 1);
 	delay_ms(100);
@@ -177,13 +185,28 @@ uint32_t ltc2512_init(wispr_config_t *wispr)
 	//printf("init_ltc2512: fs = %d, df = %d, gain = %d\r\n", fs, df, gain);
     printf("ltc2512: actual fs = %lu, serial clock = %lu\n\r", fs, rsck);
 
-	// update local data header structure with the current config
-	// this is used to update the current data buffer header
-	wispr_update_data_header(wispr, &adc_data_header);
-	adc_data_header.settings[3] = df;
-	adc_data_header.settings[2] = gain;
-	adc_data_header.settings[1] = ltc_adc_overflow;
-	adc_data_header.settings[0] = WISPR_WAVEFORM;
+	// update adc data header structure with the current config
+	//wispr_update_data_header(wispr, hdr);
+	
+	// initialize the adc data header
+	// make sure to set all the fields because this is what gets written to storage
+	hdr->version[0] = wispr->version[0];
+	hdr->version[1] = wispr->version[1];
+	hdr->type = WISPR_WAVEFORM;
+	hdr->sample_size = wispr->sample_size; // number of bytes per sample
+	hdr->block_size = wispr->block_size; // number of bytes in an adc record block
+	hdr->samples_per_block = 0; // nothing yet
+	hdr->sampling_rate = actual_fs; // actual samples per second
+	hdr->settings[0] = gain;
+	hdr->settings[1] = df;
+	hdr->settings[2] = 0;
+	hdr->settings[3] = ltc_adc_overflow;
+	hdr->second = 0;
+	hdr->usec = 0;
+
+	// reset the wispr config settings
+	wispr->settings[0] = gain;
+	wispr->settings[1] = df;
 	
 	return(actual_fs);
 }
@@ -196,8 +219,6 @@ uint32_t ltc2512_config_mclk(uint32_t fs, uint8_t df)
 	// Configure TC TC_CHANNEL_WAVEFORM in waveform operating mode.
 	//see: http://www.allaboutcircuits.com/projects/dma-digital-to-analog-conversion-with-a-sam4s-microcontroller-the-timer-cou/
 
-	//uint8_t df = ltc_down_sampling_factor;
-	
 	/* Configure PIO Pins for TC */
 	ioport_set_pin_mode(PIN_TC0_TIOA0, PIN_TC0_TIOA0_MUX);
 
@@ -227,7 +248,8 @@ uint32_t ltc2512_config_mclk(uint32_t fs, uint8_t df)
 	);
 	
 	/* Configure waveform frequency and duty cycle. */
-	uint32_t ra, rb, rc;
+	uint32_t ra, rc;
+	//uint32_t rb;
 	uint32_t dutycycle = 10; /** Duty cycle in percent (positive).*/
 	uint32_t mclk;
 
@@ -246,7 +268,7 @@ uint32_t ltc2512_config_mclk(uint32_t fs, uint8_t df)
 	//mclk = sck / 2 / rc; // actual mclk
 
 	ra = (100 - dutycycle) * rc / 100;
-	rb = ra;
+	//rb = ra;
 	
 	// actual sampling freq
 	uint32_t act_fs = mclk / (uint32_t)df;
@@ -417,7 +439,7 @@ void SSC_Handler(void)
 	// RXBUFF flag is set when both PERIPH_RCR and the PDC Receive Next Counter register (PERIPH_RNCR) reach zero.
 	if ((status & SSC_SR_RXBUFF) == SSC_SR_RXBUFF) {
 		// buffer overflow
-		printf("SSC_Handler: buffer overflow\r\n");
+		//printf("SSC_Handler: buffer overflow\r\n");
 		ltc_adc_overflow = 1;
 	} else {
 		ltc_adc_overflow = 0;
@@ -507,7 +529,8 @@ uint8_t ltc_dma_test = 0;
 //
 // be careful with timing here because the dma buffer gets overwritten.
 //
-uint16_t ltc2512_read_dma(uint8_t *hdr, uint8_t *data, uint16_t nsamps)
+//uint16_t ltc2512_read_dma(uint8_t *hdr, uint8_t *data, uint16_t nsamps)
+uint16_t ltc2512_read_dma(wispr_data_header_t *hdr, uint8_t *data, uint16_t nsamps)
 {
 	// no buffer ready or buffer has already been read
 	if(ltc_adc_buffer == NULL) return(0);
@@ -523,22 +546,6 @@ uint16_t ltc2512_read_dma(uint8_t *hdr, uint8_t *data, uint16_t nsamps)
 		chksum = ltc2512_copy_dma_int16(ltc_adc_buffer, data, nsamps);
 	}
 
-	// copy 32 bit data word as 24 bit word
-	/*
-	uint8_t *ibuf = ltc_adc_buffer;
-	uint8_t *obuf = data;
-	uint8_t chksum = 0;
-	uint32_t nbytes = 4 * (uint32_t)nsamps;
-	uint32_t m = 0;
-	uint32_t off = 0; // offset 0 or 1
-	for(uint32_t n = 0; n < nbytes; n += 4) {
-		for (uint32_t k = 0; k < ltc_adc_sample_size; k++) {
-			obuf[m++] = ibuf[n+k+off];
-			chksum += ibuf[n+k+off];
-		}
-	}
-	*/
-
 	// update the data header info
 	uint8_t year,month,day,hour,minute,sec;
 	uint32_t usec = 0;
@@ -546,14 +553,16 @@ uint16_t ltc2512_read_dma(uint8_t *hdr, uint8_t *data, uint16_t nsamps)
 	ltc2512_get_time(&hour, &minute, &sec, &usec);
 	ltc2512_get_date(NULL, &year, &month, &day, NULL);
 
-	adc_data_header.second = time_to_epoch(year, month, day, hour, minute, sec);
-	adc_data_header.usec = usec;
-	adc_data_header.data_chksum = chksum; // checksum for data
-	adc_data_header.samples_per_block = nsamps;
-	adc_data_header.sample_size = ltc_adc_sample_size;
-	adc_data_header.settings[1] = ltc_adc_overflow;
+	hdr->type = WISPR_WAVEFORM;
+	hdr->second = time_to_epoch(year, month, day, hour, minute, sec);
+	//printf("time = %d\r\n", hdr->second);
+	hdr->usec = usec;
+	hdr->data_chksum = chksum; // checksum for data
+	hdr->samples_per_block = nsamps;
+	hdr->sample_size = ltc_adc_sample_size;
+	hdr->settings[3] = ltc_adc_overflow;
 
-	wispr_serialize_data_header(&adc_data_header, hdr);
+	//wispr_serialize_data_header(&adc_data_header, hdr);
 
 	return(nsamps);
 }

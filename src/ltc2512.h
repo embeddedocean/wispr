@@ -60,14 +60,16 @@ typedef struct {
 // nblocks per buffer is 3/4 the size of the dma buffer because we only need 24 of the 32 bits
 
 //extern int ltc2512_init(uint32_t *fs, uint8_t df, uint8_t gain);
-extern uint32_t ltc2512_init(wispr_config_t *wispr);
+//extern uint32_t ltc2512_init(wispr_config_t *wispr);
+extern uint32_t ltc2512_init(wispr_config_t *wispr, wispr_data_header_t *hdr);
 extern uint32_t ltc2512_config_mclk(uint32_t fs, uint8_t df);
 
 extern void ltc2512_start_conversion(void);
 extern void ltc2512_stop_conversion(void);
 extern void ltc2512_shutdown(void);
 
-extern uint16_t ltc2512_read_dma(uint8_t *hdr, uint8_t *data, uint16_t nsamps);
+//extern uint16_t ltc2512_read_dma(uint8_t *hdr, uint8_t *data, uint16_t nsamps);
+extern uint16_t ltc2512_read_dma(wispr_data_header_t *hdr, uint8_t *data, uint16_t nsamps);
 extern uint8_t *ltc2512_get_dma_buffer(void);
 
 extern uint16_t ltc2512_init_dma(uint16_t nsamps);

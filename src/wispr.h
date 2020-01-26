@@ -33,6 +33,7 @@
 #define ADC_DEFAULT_SLEEP 10
 
 #define ADC_DEFAULT_GAIN 0
+#define ADC_DEFAULT_DECIMATION 4
 
 // adc reference voltage
 #define ADC_VREF 5.0
@@ -68,8 +69,9 @@
 // Data header object written to the front of each data buffer
 //
 typedef struct {
-	char      name[5];
+	char      name[6];
 	uint8_t   version[2];
+	uint8_t   type;
 	uint8_t   settings[4];
 	uint8_t   sample_size; // number of bytes per sample
 	uint16_t  block_size; // number of bytes in an adc data block
@@ -103,11 +105,12 @@ typedef struct {
 } wispr_config_t;
 
 typedef struct {
-	char    name[8];      // user set identifier
-	uint8_t number;
-	uint8_t state;
-	uint8_t type;
-	uint8_t version;
+	char     name[8];      // user set identifier
+	uint8_t  number;       // card number
+	uint8_t  version[2];   // wispr version
+	uint8_t  hw_ver;       // card hardware version
+	uint8_t  state;        // current state (OPEN, ENABLED, ..)
+	uint8_t  type;         // hardware type
 	uint32_t capacity;     // card capacity in KBytes
 	uint32_t start_block;  // addr of start block
 	uint32_t end_block;    // addr of end block

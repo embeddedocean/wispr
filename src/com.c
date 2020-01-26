@@ -36,7 +36,6 @@ int com_init(int port, uint32_t baud)
 
 void com_stop(int port)
 {
-	enum status_code stat = STATUS_OK;
 	if( (port < 0) || (port > 1) ) {
 		return;
 	}

@@ -45,7 +45,7 @@ void console_init(int port, uint32_t baud)
 
 //
 // this is like a gets with a timeout 
-// but it resets the WDT as it waits for input
+// and it resets the WDT as it waits for input
 // 
 static int console_input(char *str, int size, int timeout)
 {
@@ -132,17 +132,17 @@ float console_prompt_f32(const char *prompt, float default_value, int timeout)
 
 uint32_t console_prompt_uint32(const char *prompt, uint32_t default_value, int timeout)
 {
-	return((uint32_t)console_prompt_int(prompt, (int)default_value, timeout));
+	return( (uint32_t)console_prompt_int(prompt, (int)default_value, timeout) );
 }
 
 uint16_t console_prompt_uint16(const char *prompt, uint16_t default_value, int timeout)
 {
-	return((uint16_t)console_prompt_int(prompt, (int)default_value, timeout));
+	return( (uint16_t)console_prompt_int(prompt, (int)default_value, timeout) );
 }
 
 uint8_t console_prompt_uint8(const char *prompt, uint8_t default_value, int timeout)
 {
-	return((uint8_t)console_prompt_int(prompt, (int)default_value, timeout));
+	return( (uint8_t)console_prompt_int(prompt, (int)default_value, timeout) );
 }
 
 //
