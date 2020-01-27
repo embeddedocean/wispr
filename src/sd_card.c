@@ -221,7 +221,7 @@ void sd_card_print_info(uint8_t card_num)
 	}
 	sd_card_t *card = &sd_card_instance[card_num-1];
 	
-	printf("\n\rSD Card %d\n\r", card->number);
+	printf("SD Card %d\n\r", card->number);
 
 	switch(card->type)
 	{
@@ -244,7 +244,7 @@ void sd_card_print_info(uint8_t card_num)
 	//printf("- State: %02x\r\n", card->state);
 	rtc_time_t tme;
 	epoch_to_rtc_time(&tme, card->epoch);
-	printf("- Last mod time: %02d/%02d/%02d %02d-%02d-%02d (%lu)\r\n",
+	printf("- Time: %02d/%02d/%02d %02d-%02d-%02d (%lu)\r\n",
 		tme.year,tme.month,tme.day,tme.hour,tme.minute,tme.second, card->epoch);
 }
 
@@ -519,6 +519,16 @@ uint32_t sd_card_get_number_of_blocks(uint8_t card_num)
 	}
 	sd_card_t *card = &sd_card_instance[card_num-1];
 	return(card->end_block - card->start_block);
+}
+
+uint32_t sd_card_get_epoch(uint8_t card_num)
+{
+	if( card_num < 1 || card_num > MAX_NUMBER_SD_CARDS ) {
+		printf("Unknown SD number: enable SD Card Failed\n\r");
+		return(0);
+	}
+	sd_card_t *card = &sd_card_instance[card_num-1];
+	return(card->epoch);
 }
 
 

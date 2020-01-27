@@ -555,14 +555,11 @@ uint16_t ltc2512_read_dma(wispr_data_header_t *hdr, uint8_t *data, uint16_t nsam
 
 	hdr->type = WISPR_WAVEFORM;
 	hdr->second = time_to_epoch(year, month, day, hour, minute, sec);
-	//printf("time = %d\r\n", hdr->second);
 	hdr->usec = usec;
 	hdr->data_chksum = chksum; // checksum for data
 	hdr->samples_per_block = nsamps;
 	hdr->sample_size = ltc_adc_sample_size;
 	hdr->settings[3] = ltc_adc_overflow;
-
-	//wispr_serialize_data_header(&adc_data_header, hdr);
 
 	return(nsamps);
 }
@@ -643,7 +640,6 @@ uint16_t ltc2512_init_dma(uint16_t nsamps)
 
 	pdc_active_buffer_number = 1;
 	ltc_adc_buffer = NULL;  // no buffer ready
-	//ltc_adc_nsamps = nsamps;
 	
 	/* Configure PDC for data receive */
 	pdc_rx_init(ssc_pdc, &pdc_ssc_packet1, &pdc_ssc_packet2);

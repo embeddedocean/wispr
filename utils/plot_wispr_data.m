@@ -1,20 +1,18 @@
 %
-% matlab script to plot rockhopper data
+% matlab script to plot wispr data
 %
 %
 
 clear all;
 
-[file, dpath, filterindex] = uigetfile('./*', 'Pick a waveform file');
+[file, dpath, filterindex] = uigetfile('./*.dat', 'Pick a waveform file');
 name = fullfile(dpath,file);
 
 % read file
 format = 'ieee-le';
 fp = fopen( name, 'r', format );
 
-q = 1.0; %5.0/8388608.0;  % ltc2512 scaling to volts
-
-N = 1; % number of buffer to concatenate
+N = 4; % number of buffer to concatenate
 
 count = 0;
 go = 1;
@@ -26,11 +24,22 @@ while( go )
         
         % read block header
         [hdr, raw] = wispr_read(fp);
+     
         if(isempty(raw)) 
             go = 0;
             break; 
         end
-        data = [data; double(raw)*q]; % concatenate raw data buffer into one dat vector
+        
+        if(hdr.sample_size == 2) 
+            q = 5.0/32767.0;  % 16 bit scaling to volts
+        elseif(hdr.sample_size == 3)
+            q = 5.0/8388608.0;  % l24 bit scaling to volts
+        elseif(hdr.sample_size == 4)
+            q = 1.0;
+        end
+
+        % concatenate raw data buffer into one dat vector
+        data = [data; double(raw)*q]; 
     
     end
     

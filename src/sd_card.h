@@ -74,6 +74,7 @@ extern int sd_card_read_config(uint8_t card_num, wispr_config_t *hdr);
 extern int sd_card_is_full(uint8_t card_num, uint32_t nblocks);
 extern int sd_card_set_number_of_blocks(uint8_t card_num, uint32_t nblocks);
 extern uint32_t sd_card_get_number_of_blocks(uint8_t card_num);
+extern uint32_t sd_card_get_epoch(uint8_t card_num);
 
 extern int sd_card_init_fat(void);
 extern FRESULT sd_card_open_file(char *filename);

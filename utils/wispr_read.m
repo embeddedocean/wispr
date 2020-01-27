@@ -6,9 +6,9 @@ function [hdr, data] = wispr_read(fp)
 hdr = [];
 data = [];
 
-name = fread(fp, 6, 'uint8=>char' );
-if( ~strcmp(name', 'WISPR2') ) 
-   fprintf('Unknown data record name %s\n', name);
+hdr.name = fread(fp, 6, 'uint8=>char' );
+if( ~strcmp(hdr.name', 'WISPR2') ) 
+   fprintf('Unknown data record name %s\n', hdr.name');
    return;
 end
 
@@ -27,7 +27,7 @@ hdr.settings(4) = fread(fp, 1, 'uint8' );
 
 hdr.block_size = fread(fp, 1, 'uint16' );
 
-hdr.sample_size = fread(fp, 1, 'uint8'  );
+hdr.sample_size = fread(fp, 1, 'uint8' );
 hdr.samples_per_block = fread(fp, 1, 'uint16' );
 hdr.sampling_rate = fread(fp, 1, 'uint32' );
 
@@ -35,14 +35,14 @@ hdr.checksum1 = fread(fp, 1, 'uint8' );
 hdr.checksum2 = fread(fp, 1, 'uint8' );
 
 if(hdr.sample_size == 2)
-    raw = fread(fp, hdr.samples_per_block, 'int16' ); % data block
+    data = fread(fp, hdr.samples_per_block, 'int16' ); % data block
 elseif (hdr.sample_size == 3)
-    raw = fread(fp, hdr.samples_per_block, 'bit24' ); % data block
+    data = fread(fp, hdr.samples_per_block, 'bit24' ); % data block
 elseif (hdr.sample_size == 4)
     if(hdr.type == 2) 
-        raw = fread(fp, hdr.samples_per_block, 'real*4=>double' ); % data block
+        data = fread(fp, hdr.samples_per_block, 'real*4=>double' ); % data block
     else
-        raw = fread(fp, hdr.samples_per_block, 'int32' ); % data block
+        data = fread(fp, hdr.samples_per_block, 'int32' ); % data block
     end
 else
     fprintf('Unknown sample size %d\n', hdr.sample_size);

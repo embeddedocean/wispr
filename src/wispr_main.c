@@ -31,12 +31,10 @@
 // although the compiler will still give the warning.
 
 COMPILER_WORD_ALIGNED uint8_t adc_buffer[ADC_MAX_BUFFER_SIZE];
-//uint8_t *adc_buffer_header = adc_buffer;  // header is at start of buffer
 uint8_t *adc_data = &adc_buffer[WISPR_DATA_HEADER_SIZE]; // data follows header
 wispr_data_header_t adc_header;
 
 COMPILER_WORD_ALIGNED uint8_t psd_buffer[PSD_MAX_BUFFER_SIZE];
-//uint8_t *psd_buffer_header = psd_buffer;  // header is at start of buffer
 uint8_t *psd_data = &psd_buffer[WISPR_DATA_HEADER_SIZE]; // data follows header
 wispr_data_header_t psd_header;
 
@@ -47,7 +45,9 @@ uint8_t psd_sample_size;
 
 #define WISPR_I2C_SPEED 100000UL
 
-uint32_t test_sd_card_nblocks = 200 * ADC_MAX_BLOCKS_PER_BUFFER; // TESTING ONLY 
+// set this only for testing - this will force card swaps 
+//uint32_t test_sd_card_nblocks = 300 * ADC_MAX_BLOCKS_PER_BUFFER;
+uint32_t test_sd_card_nblocks = 0;
 
 // local function prototypes
 void go_to_sleep(void);
@@ -65,7 +65,7 @@ int main (void)
 	wispr_config_t wispr; // current configuration
 	wispr.active_sd_card = 0; // active sd card number
 		
-	// initialize the board specific function (clocks, gpio, console, wdt, ...)
+	// initialize the board specific functions (clocks, gpio, console, wdt, ...)
 	// returns the reason the board was last reset (user, sleep, watchdog, ...)
 	int reset_type = board_init();
 
@@ -90,16 +90,16 @@ int main (void)
 	printf("Internal RTC set to %02d/%02d/%02d %02d:%02d:%02d\r\n",
 		datetime.year, datetime.month, datetime.day, datetime.hour, datetime.minute, datetime.second);
 
-	// check all sd cards and format and configure them if needed
-	// this sets the active sd card number 
+	// check all sd cards, format and configure them if needed
+	// this also sets the active sd card number 
 	initialize_sd_cards(&wispr);
 
-	// double check that its using the correct sd card to start
-	// this was for testing
+	// check that its using the correct sd card (for testing only)
 	//wispr.active_sd_card = console_prompt_uint8("Set active SD card", wispr.active_sd_card, 4);
 	
 	// read the configuration from the active sd card 
 	sd_card_open(wispr.active_sd_card);
+	printf("\r\nStartup using ");
 	sd_card_print_info(wispr.active_sd_card);
 	sd_card_read_config(wispr.active_sd_card, &wispr);
 	sd_card_close(wispr.active_sd_card);
@@ -120,11 +120,12 @@ int main (void)
 	}
 	printf("\n\r");
 
-	// setup INA260
+	// setup INA260 powe monitor
 	uint32_t volts; // mVolts
 	int32_t amps; // mAmps
 	ina260_init();
 	ina260_read_power(&amps, &volts); // first read returns zero
+	ina260_read_power(&amps, &volts);
 
 	// gpio control example
 	//uint8_t gpio = 0;
@@ -141,14 +142,11 @@ int main (void)
 	uint16_t samples_per_adc_block = wispr.samples_per_block;
 	ltc2512_init_dma(samples_per_adc_block);
 	
-	//ina260_read_power(&amps, &volts);
-	//printf("\r\nina260: mA = %lu, mV = %lu, mW = %lu\r\n", amps, volts, amps*volts/1000);
-		
 	// Initialize spectrum
 	if( wispr.mode & WISPR_SPECTRUM ) {
 		psd_nfft = wispr.fft_size;
 		psd_nbins = psd_nfft/2;
-		psd_overlap = 0;
+		psd_overlap = wispr.fft_overlap;
 		psd_sample_size = wispr.sample_size;
 		spectrum_init_f32(&wispr, &psd_header, &psd_nbins, psd_nfft, psd_overlap, psd_sample_size, HAMMING_WINDOW);
 		//spectrum_init_q31(&wispr, &psd_nbins, psd_nfft, psd_overlap, psd_sample_size, HAMMING_WINDOW);
@@ -163,10 +161,6 @@ int main (void)
 	float actual_sampling_time = (float)adc_blocks_per_window * adc_block_duration;
 	printf("Actual sampling time: %.2f\n\r", actual_sampling_time);
 
-	//uint32_t samples_per_window = (uint32_t)wispr.window * wispr.sampling_rate;
-	//uint16_t adc_blocks_per_window = (uint16_t)(samples_per_window / (uint32_t)wispr.samples_per_block);
-	//uint16_t buffers_per_interval = (uint16_t)(samples_per_window / (uint32_t)wispr.samples_per_block);
-
 	// number of 512 bytes blocks to write for each adc buffer
 	uint16_t adc_write_size = wispr.block_size / WISPR_SD_CARD_BLOCK_SIZE;
 
@@ -177,28 +171,26 @@ int main (void)
 	printf("\n\rStart read loop: %.2f second windows (%d block) at %d second intervals\n\r", 
 		actual_sampling_time, adc_blocks_per_window, wakeup_interval);
 
-	ltc2512_init_test(&wispr, samples_per_adc_block, wispr.sampling_rate/10);
+	//ltc2512_init_test(&wispr, samples_per_adc_block, wispr.sampling_rate/10);
 	
+	// initialize the uart com communications port
+	wispr_com_msg_t com_msg;
+	char com_buf[COM_MAX_MESSAGE_SIZE];
+	com_init(BOARD_COM_PORT, BOARD_COM_BAUDRATE);
+
 	// start adc
 	ltc2512_start_dma();
 	ltc2512_start_conversion();
 
 	// throw away the first adc buffer
 	while( ltc2512_read_dma(&adc_header, adc_data, samples_per_adc_block) == 0 ) {}
-
-	// initialize uart com communication on port 0
-	wispr_com_msg_t com_msg;
-	char com_buf[COM_MAX_MESSAGE_SIZE];
-	com_init(BOARD_COM_PORT, BOARD_COM_BAUDRATE);
-	
-	uint32_t start;
-	rtc_get_epoch(&start);
 	
 	// enter read loop
 	int go = 1;
 	uint16_t count = 0;
 	while (go) {
-		
+
+		// if within the sampling window
 		if( count < adc_blocks_per_window ) {
 	
 			// check for a com message
@@ -272,23 +264,20 @@ int main (void)
 			// sleep between dma buffers, the next dma interrupt will wake from sleep
 			pmc_sleep(SAM_PM_SMODE_SLEEP_WFI);
 
-		} else if( wispr.sleep_time > 0 ) {
+		}
+
+		// else go to deep sleep 
+		else if( wispr.sleep_time > 0 ) {
 
 			uint32_t now;
 			rtc_get_epoch(&now);
-
-			//float32_t *psd = (float32_t *)psd_buffer_data;
-			//for(int n = 0; n < psd_nbins; n++) {
-			//	printf("%f ", psd[n] );
-			//}
-			//printf("\r\n");
 			
-			// close active sd card 
-			// but first save the latest config to gpbr and sd card,
-			//  mainly to preserve the active sd card number for when it wakes up
+			// save the latest config
+			// update the config time so the last active card number can be determined on wakeup
 			wispr.epoch = now;
-			wispr_gpbr_write_config(&wispr);
 			sd_card_write_config(wispr.active_sd_card, &wispr);
+			
+			// close active sd card
 			sd_card_close(wispr.active_sd_card);
 
 			// set the alarm to wakeup for the next window read cycle
@@ -301,7 +290,10 @@ int main (void)
 			// enter backup mode sleep
 			go_to_sleep();	// The core will reset when exiting from backup mode. 
 		
-		} else {
+		} 
+
+		// esle sleep interval, just start new sampling window
+		else { 
 			count = 0; // reset block counter			
 		}
 	
@@ -381,16 +373,16 @@ uint8_t swap_sd_cards(wispr_config_t *config)
 		uint32_t nblocks = sd_card_get_number_of_blocks(config->active_sd_card);
 		sd_card_set_number_of_blocks(config->active_sd_card, nblocks + test_sd_card_nblocks);
 
-		rtc_time_t time;
-		rtc_get_datetime(&time);
-		printf("SD Card %d Active at ", config->active_sd_card);
-		printf("%02d/%02d/%02d %02d:%02d:%02d\r\n",
-			time.year, time.month, time.day, time.hour, time.minute, time.second);
+		uint32_t epoch = 0;
+		rtc_get_epoch(&epoch);
+		printf("\r\nSwitch to Card %d at %s\r\n", config->active_sd_card, epoch_time_string(epoch));
 
-		sd_card_print_info(config->active_sd_card);		
+		//sd_card_print_info(config->active_sd_card);
+
 	}
 
-	// update the sd card config preserve the active card number
+	// update the config time and save it to preserve the active card number
+	rtc_get_epoch(&config->epoch);
 	sd_card_write_config(config->active_sd_card, config);
 
 	return(config->active_sd_card);		
@@ -425,6 +417,7 @@ void set_default_config(wispr_config_t *config)
 	config->mode = WISPR_WAVEFORM; //
 
 	config->fft_size = 512;
+	config->fft_overlap = 0;
 	config->active_sd_card = 1;
 }
 
@@ -434,11 +427,11 @@ void initialize_sd_cards(wispr_config_t *config)
 	uint8_t state;
 	wispr_config_t config1, config2;
 	
-	// open, format if needed, and read config from the card 2
+	// open card 2, format if needed, and get time
 	state = sd_card_open(2);
 	if( !(state & SD_CARD_FORMATED) ) {
 		printf("SD Card 2 is unformatted.\r\n");
-		if( console_prompt_int("Reformat SD Card2?", 1, 10) ) {
+		if( console_prompt_int("Reformat SD Card 2?", 1, 10) ) {
 			sd_card_format(2,"Card2");
 		}
 		set_default_config(&config2);
@@ -446,17 +439,16 @@ void initialize_sd_cards(wispr_config_t *config)
 	}
 	if( state == SD_CARD_READY ) {
 		sd_card_read_config(2, &config2);
-		//sd_card_print_info(2);
 	} else {
 		printf("SD Card 2 failed to initialize\r\n");
 	}
 	sd_card_close(2);
 	
-	// open, format if needed, and read config from card 1
+	// open card 1, format if needed, and get time
 	state = sd_card_open(1);
 	if( !(state & SD_CARD_FORMATED) ) {
 		printf("SD Card 1 is unformatted.\r\n");
-		if( console_prompt_int("Reformat SD Card1?", 1, 10) ) {
+		if( console_prompt_int("Reformat SD Card 1?", 1, 10) ) {
 			sd_card_format(1,"Card1");
 		}
 		set_default_config(&config1);
@@ -464,16 +456,17 @@ void initialize_sd_cards(wispr_config_t *config)
 	}
 	if ( state == SD_CARD_READY ) {
 		sd_card_read_config(1, &config1);	
-		//sd_card_print_info(1);
 	} else {
 		printf("SD Card 1 failed to initialize\r\n");
 	}
 	sd_card_close(1);
 	
-	// use 1 by default
-	config->active_sd_card = 1;
-	
-	// use card 2 if config2 is newer than config1 
+	// select the active card based on the config time 
+
+	config->active_sd_card = 1;	
+
+	// use card 2 if it's config is newer 
+	// this assumes that the card 2 was last active
 	if(config2.epoch > config1.epoch) config->active_sd_card = 2;
 
 }
@@ -552,7 +545,7 @@ void prompt_config_menu(wispr_config_t *config, int timeout)
 	config->block_size = ADC_MAX_BLOCKS_PER_BUFFER * SD_MMC_BLOCK_SIZE;
 	config->samples_per_block = (config->block_size - WISPR_DATA_HEADER_SIZE) / 3;
 
-	// these settings are not used yet so clear them
+	// these settings are not used yet, so clear them
 	config->settings[7] = 0;
 	config->settings[6] = 0;
 	config->settings[5] = 0;
@@ -613,14 +606,16 @@ void prompt_config_menu(wispr_config_t *config, int timeout)
 	if( console_prompt_int("Record spectrum?", record_spectrum, timeout) ) {
 		psd_nfft = config->fft_size;
 		psd_nfft = console_prompt_uint16("Enter fft size (32, 64, 126, 512 or 1024)", psd_nfft, timeout);
-		psd_overlap = 0;
+		psd_overlap = config->fft_overlap;
 		psd_overlap = console_prompt_uint16("Enter fft overlap size", psd_overlap, timeout);	
 		//psd_nbins = psd_nfft / 2;	
 		config->fft_size = psd_nfft;
+		config->fft_overlap = psd_overlap;
 		mode |= WISPR_SPECTRUM;
 	} 	
 	psd_sample_size = config->sample_size;
 	psd_nfft = config->fft_size;
+	psd_overlap = config->fft_overlap;
 
 	// set the new mode
 	config->mode = mode;

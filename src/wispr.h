@@ -17,13 +17,18 @@
 #define WISPR_SD_CARD_CONFIG_BLOCK 31
 #define WISPR_SD_CARD_START_BLOCK 32
 
+// sd cards only read in blocks, not bytes, 
+// so reads and writes must be done in blocks of this size
+// fixed at 512 bytes for standard SD cards
 #define WISPR_SD_CARD_BLOCK_SIZE (512)
 
-// If the header size should be a multiple of a word size (4 bytes)
+// The header size should be a multiple of a word size (4 bytes)
 // to avoid issues with word alignment when casting
 #define WISPR_DATA_HEADER_SIZE (32)
 
 #define ADC_DEFAULT_SAMPLING_RATE (50000)
+
+// ADC max values used to define maximum sized static buffers
 #define ADC_MIN_SAMPLE_SIZE (2)
 #define ADC_MAX_BLOCKS_PER_BUFFER (32)
 #define ADC_MAX_BUFFER_SIZE (ADC_MAX_BLOCKS_PER_BUFFER * WISPR_SD_CARD_BLOCK_SIZE)
@@ -39,6 +44,7 @@
 #define ADC_VREF 5.0
 #define ADC_SCALING 5.0
 
+// spectrum max values
 // spectrum uses float32_t ffts, so each freq bin is a float32
 #define PSD_MAX_FFT_SIZE 512
 #define PSD_MAX_BLOCKS_PER_BUFFER 2 
@@ -91,17 +97,18 @@ typedef struct {
 	uint8_t  version[2];
 	uint8_t  state;
 	uint8_t  mode;
-	uint32_t epoch;
+	uint32_t epoch; // linux time in seconds
 	uint8_t  settings[8]; // various system and adc settings
 	uint8_t  sample_size; // number of bytes per sample
 	uint16_t samples_per_block; // number of samples in a block
 	uint32_t sampling_rate; // samples per second
 	uint16_t block_size;  // number of bytes in a block, this can be different than samples_per_block*sample_size
-	uint16_t blocks_per_window; // 
-	uint16_t awake_time; // time in seconds of the adc records block
+	uint16_t blocks_per_window; // number of adc record blocks in a sampling window
+	uint16_t awake_time; // time in seconds of the adc record block
 	uint16_t sleep_time; // time in seconds between adc records (must be >= window)
-	uint16_t fft_size; //
-	uint8_t active_sd_card;
+	uint16_t fft_size; // fft size used for spectrum
+	uint16_t fft_overlap; // ffy overlap used for spectrum
+	uint8_t active_sd_card; // last card written to
 } wispr_config_t;
 
 typedef struct {
@@ -122,18 +129,14 @@ typedef struct {
 extern int wispr_parse_data_header(uint8_t *buf, wispr_data_header_t *hdr);
 extern int wispr_serialize_data_header(wispr_data_header_t *hdr, uint8_t *buf);
 extern void wispr_print_data_header(wispr_data_header_t *header);
+extern void wispr_print_config(wispr_config_t *hdr);
+extern int wispr_parse_config(uint8_t *buf, wispr_config_t *hdr);
+extern int wispr_serialize_config(wispr_config_t *hdr, uint8_t *buf);
+extern void wispr_update_data_header(wispr_config_t *wispr, wispr_data_header_t *hdr);
+extern int wispr_sd_card_parse_header(uint8_t *buf, wispr_sd_card_t *hdr);
+extern int wispr_sd_card_serialize_header(wispr_sd_card_t *hdr, uint8_t *buf);
 
 extern int wispr_gpbr_write_config(wispr_config_t *hdr);
 extern int wispr_gpbr_read_config(wispr_config_t *hdr);
-
-extern void wispr_print_config(wispr_config_t *hdr);
-
-extern int wispr_parse_config(uint8_t *buf, wispr_config_t *hdr);
-extern int wispr_serialize_config(wispr_config_t *hdr, uint8_t *buf);
-
-extern void wispr_update_data_header(wispr_config_t *wispr, wispr_data_header_t *hdr);
-
-extern int wispr_sd_card_parse_header(uint8_t *buf, wispr_sd_card_t *hdr);
-extern int wispr_sd_card_serialize_header(wispr_sd_card_t *hdr, uint8_t *buf);
 
 #endif /* WISPR_H_ */

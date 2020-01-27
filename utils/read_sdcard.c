@@ -34,7 +34,6 @@ int main(int argc, char **argv)
   char out_filename[128];
   int c = 0;
   int buffer_count = 0;
-  int buffers_per_file = 50;
   int buffer_size = 0;
   int input_fd;
   size_t nrd = 0;
@@ -42,6 +41,8 @@ int main(int argc, char **argv)
   size_t start_block = WISPR_SD_CARD_START_BLOCK;
   int wave_file = 0;
   uint32_t pos = 0;
+
+  int buffers_per_file = 100;
 
   int dat_fd = -1;
   int psd_fd = -1;
@@ -84,10 +85,6 @@ int main(int argc, char **argv)
       case 'h':
       {
         fprintf(stdout, "Read SD Card and store data to file\n");
-        fprintf(stdout, "  Optional command line arguments\n");
-        fprintf(stdout, "    -i - Specify the input path raw data.  Defaults = /dev/sdb\n");
-        fprintf(stdout, "    -o - Specify the path to save data files. Default = /mnt/rockhopper\n");
-        fprintf(stdout, "Usage %s [-i /input/dev/path -o /output/dev/path]\n", argv[0]);
         return 1;
       }
     }

@@ -219,7 +219,10 @@ int wispr_parse_config(uint8_t *buf, wispr_config_t *hdr)
 	hdr->fft_size  = ((uint16_t)buf[36]);
 	hdr->fft_size |= ((uint16_t)buf[37] << 8);
 
-	return(38);
+	hdr->fft_overlap  = ((uint16_t)buf[38]);
+	hdr->fft_overlap |= ((uint16_t)buf[39] << 8);
+
+	return(40);
 }
 
 
@@ -274,9 +277,12 @@ int wispr_serialize_config(wispr_config_t *hdr, uint8_t *buf)
 	
 	buf[36] = (uint8_t)(hdr->fft_size >> 0);
 	buf[37] = (uint8_t)(hdr->fft_size >> 8);
+	
+	buf[38] = (uint8_t)(hdr->fft_overlap >> 0);
+	buf[39] = (uint8_t)(hdr->fft_overlap >> 8);
 
 	// update the data record size
-	return(38);
+	return(40);
 }
 
 void wispr_update_data_header(wispr_config_t *wispr, wispr_data_header_t *hdr)
