@@ -24,7 +24,7 @@
 
 int wispr_parse_data_header(uint8_t *buf, wispr_data_header_t *hdr)
 {
-    if ( strncmp((const char *)buf, "WISPR", 5) != 0 ) {
+    if ( strncmp((const char *)buf, "WISPR2", 6) != 0 ) {
       fprintf(stdout, "wispr_parse_data_header: unrecognized header.\n");
       return(0);
 	}
@@ -163,7 +163,7 @@ void wispr_print_config(wispr_config_t *hdr)
 
 int wispr_parse_config(uint8_t *buf, wispr_config_t *hdr)
 {
-    if ( strncmp((const char *)buf, "WISPR", 5) != 0 ) {
+    if ( strncmp((const char *)buf, "WISPR2", 6) != 0 ) {
 		fprintf(stdout, "wispr_parse_config: unrecognized config\n");
 		return(0);
 	}

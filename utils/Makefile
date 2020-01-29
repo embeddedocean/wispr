@@ -8,16 +8,18 @@ LIBS =
 INCS = -I..\src
 CFLAGS = -W -O2 
 
-SRCS = wav_file.c \
- ..\src\wispr.c \
- ..\src\epoch.c
+SRCS = wav_file.c wispr.c epoch.c
 
 OBJS = $(SRCS:.c=.o)
 
 .c.o:
 	$(CC) $(CFLAGS) $(INCS) -c $<  -o $@
 
-read_sdcard:  $(OBJS)
+update:
+	cp ../src/wispr.c .
+	cp ../src/epoch.c .
+	
+read_sdcard: read_sdcard.c $(OBJS)
 	$(CC) -o read_sdcard read_sdcard.c $(OBJS) $(CFLAGS) $(INCS)
 
 erase_sdcard:  $(OBJS)
@@ -25,12 +27,9 @@ erase_sdcard:  $(OBJS)
 
 clean:
 	rm $(OBJS)
-	rm read_sdcard
-	rm erase_sdcard
 
-mingw_read_sdcard:  $(OBJS)
-	$(CC) -o read_sdcard $(OBJS)
+mingw_read_sdcard: read_sdcard.c $(OBJS)
+	$(CC) -o read_sdcard_mingw read_sdcard.c $(OBJS) $(CFLAGS) $(INCS)
 
 mingw_clean:
-	del *.o
-	del read_sdcard
+	del $(OBJS)

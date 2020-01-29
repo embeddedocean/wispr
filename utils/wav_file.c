@@ -1,10 +1,6 @@
 /*
- * wav_file.c - wave data file I/O utilities
+ * wav_file.c - wav data file I/O utilities
  * 
- * File names contain a user defined prefix and the date:
- * Raw data file names have a .flac extension (prefix_YYMMDD_HHMMSS.flac)
- * Header file names have a .txt extension (prefix_YYMMDD_HHMMSS.txt)
- *
  * ------
  * THIS SOFTWARE IS PROVIDED BY EOS AND CONTRIBUTORS
  * ``AS IS'' AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
@@ -56,6 +52,10 @@ extern int verbose_level;
 * 36      4    Subchunk2ID    Contains the letters "data"
 * 40      4    Subchunk2Size  == NumSamples * NumChannels * BitsPerSample/8
 * 44      *    Data           The actual sound data.
+*
+* see: http://www-mmsp.ece.mcgill.ca/Documents/AudioFormats/WAVE/WAVE.html
+*
+*
 */
 
 size_t wav_read_header(wav_file_t *file)
@@ -130,7 +130,7 @@ void wav_print_header(wav_file_t *file)
 //
 // initialize wav header with default values
 //
-void wav_init_header(wav_file_t *file, int nbps, int fs, int nchans)
+void wav_init_header(wav_file_t *file, int nbps, int fs, int nchans, short format)
 {
   wav_file_header_t *wav = &file->hdr;
   wav->ChunkID[0] = 'R';
@@ -147,7 +147,7 @@ void wav_init_header(wav_file_t *file, int nbps, int fs, int nchans)
   wav->Subchunk1ID[2] = 't';
   wav->Subchunk1ID[3] = ' ';  // space, not null
   wav->Subchunk1Size = 16;
-  wav->AudioFormat = 1;
+  wav->AudioFormat = format;
   wav->NumChannels = nchans;
   wav->SampleRate = fs;
   wav->ByteRate = fs * nchans * nbps / 8;
@@ -163,23 +163,16 @@ void wav_init_header(wav_file_t *file, int nbps, int fs, int nchans)
 //
 // wave_fclose
 //
-void wav_fclose(wav_file_t *file)
+void wav_close(wav_file_t *file)
 {
    fclose(file->fp);
    free(file);
 }
 
-int wav_set_description(wav_file_t *file, char *str) 
-{
-	if(str == NULL) return(0);
-	strncpy(str, file->description, sizeof(file->description));
-    return(1);
-}
-
 // 
-// Open and initialize a new wav file using the time as the file name.
+// Open and initialize a new wav file
 //
-wav_file_t *wav_fopen(char *name, char *type, int nbps, int fs, int nchans)
+wav_file_t *wav_open(char *name, char *type, int nbps, int fs, int nchans, short format)
 {
    wav_file_t *file = malloc(sizeof(wav_file_t));
 
@@ -188,12 +181,10 @@ wav_file_t *wav_fopen(char *name, char *type, int nbps, int fs, int nchans)
      return(0);
    }
 
-   sprintf(file->name, "s", name);
-
    // Create an empty file for output operations. 
-   // If a file with the same name already exists, its contents are discarded 
+   // If a file with the same name already exists, its contents are discarded
    // and the file is treated as a new empty file.
-   file->fp = fopen(file->name, type);
+   file->fp = fopen(name, type);
    if(file->fp == NULL) {
       fprintf( stdout, "wav_fopen: Can't open output file\n");
       return(file);
@@ -202,14 +193,21 @@ wav_file_t *wav_fopen(char *name, char *type, int nbps, int fs, int nchans)
    // if the file is for writing
    if((type[0] == 'w')||(type[0]=='a')) {
      
+	 file->nbps = nbps;
+	 file->nchans = nchans;
+	 file->fs = fs;
+	 file->format = format;
+	 file->nsamps = 0;
+	 
 	 // initialize the wav header
-     wav_init_header(file, nbps, fs, nchans);
+     wav_init_header(file, nbps, fs, nchans, format);
+	 
      // write wav header
      if(wav_write_header(file) <= 0) {
        fprintf( stdout, "wav_fopen: error writing wav header\n");
      }
    
-   } 
+   }
    // if the file is for reading
    else if( type[0] == 'r' ) {
      
@@ -253,13 +251,13 @@ size_t wav_write(wav_file_t *file, uint8_t *data, uint32_t nsamps)
    size_t nwrt = fwrite(data, nbps/8, nsamps, file->fp);
 
    if(nwrt < (size_t)nsamps) {
-      fprintf(stdout, "wav_write: error writing data to %s\n", file->name);
+      fprintf(stdout, "wav_write: error writing data\n");
 	  nsamps = (int)nwrt;
    }
 
    // update the header:
    //  - Subchunk2Size - add number of bytes in this buffer
-   //  - ChunkSize - for PCM, 36 + Subchunk2Size.
+   //  - ChunkSize - for PCM, 36 + Subchunk2Size
    file->hdr.Subchunk2Size += (int)(nsamps * nchans * nbps/8); // add number of bytes 
    file->hdr.ChunkSize = 36 + file->hdr.Subchunk2Size;
    
@@ -270,6 +268,9 @@ size_t wav_write(wav_file_t *file, uint8_t *data, uint32_t nsamps)
    }
    //wav_print_header(fp, &file->hdr);   
 
+   // keep track of the total number of samples written to file
+   file->nsamps += nsamps;
+   
    // force output to file
    fflush(file->fp);
 
