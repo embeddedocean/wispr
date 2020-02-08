@@ -13,9 +13,9 @@
 #define WISPR_VERSION 2
 #define WISPR_SUBVERSION 0
 
-#define WISPR_SD_CARD_HEADER_BLOCK 30
-#define WISPR_SD_CARD_CONFIG_BLOCK 31
-#define WISPR_SD_CARD_START_BLOCK 32
+#define WISPR_SD_CARD_HEADER_BLOCK (30)
+#define WISPR_SD_CARD_CONFIG_BLOCK (31)
+#define WISPR_SD_CARD_START_BLOCK (32)
 
 // sd cards only read in blocks, not bytes, 
 // so reads and writes must be done in blocks of this size
@@ -46,8 +46,8 @@
 
 // spectrum max values
 // spectrum uses float32_t ffts, so each freq bin is a float32
-#define PSD_MAX_FFT_SIZE 512
-#define PSD_MAX_BLOCKS_PER_BUFFER 2 
+#define PSD_MAX_FFT_SIZE (512)
+#define PSD_MAX_BLOCKS_PER_BUFFER (2) 
 #define PSD_MAX_BUFFER_SIZE (PSD_MAX_BLOCKS_PER_BUFFER * WISPR_SD_CARD_BLOCK_SIZE) 
 #define PSD_MAX_BINS_PER_BUFFER ((PSD_MAX_BUFFER_SIZE - WISPR_DATA_HEADER_SIZE) / 4)
 
@@ -78,13 +78,14 @@ typedef struct {
 	char      name[6];
 	uint8_t   version[2];
 	uint8_t   type;
+	uint32_t  second; // epoch time stamp
+	uint32_t  usec;
 	uint8_t   settings[4];
 	uint8_t   sample_size; // number of bytes per sample
 	uint16_t  block_size; // number of bytes in an adc data block
 	uint16_t  samples_per_block;  // number of samples in a block
 	uint32_t  sampling_rate; // samples per second
-	uint32_t  second; // epoch time stamp
-	uint32_t  usec;
+	//uint8_t   channels;  // number of channels
 	uint8_t   header_chksum;
 	uint8_t   data_chksum;
 } wispr_data_header_t;
@@ -102,6 +103,7 @@ typedef struct {
 	uint8_t  sample_size; // number of bytes per sample
 	uint16_t samples_per_block; // number of samples in a block
 	uint32_t sampling_rate; // samples per second
+	//uint8_t   channels;  // number of channels
 	uint16_t block_size;  // number of bytes in a block, this can be different than samples_per_block*sample_size
 	uint16_t blocks_per_window; // number of adc record blocks in a sampling window
 	uint16_t awake_time; // time in seconds of the adc record block

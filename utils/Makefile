@@ -6,7 +6,8 @@ CC=gcc
 
 LIBS = 
 INCS = -I..\src
-CFLAGS = -W -O2 
+#CFLAGS = -Wall -O2 
+CFLAGS = -W
 
 SRCS = wav_file.c wispr.c epoch.c
 

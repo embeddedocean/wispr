@@ -117,10 +117,13 @@ int wispr_serialize_data_header(wispr_data_header_t *hdr, uint8_t *buf)
 	buf[28] = (uint8_t)(hdr->sampling_rate >> 16);
 	buf[29] = (uint8_t)(hdr->sampling_rate >> 24);
 
+	//buf[30] = (uint8_t)(hdr->channels);
+
 	// header checksum 
 	uint8_t chksum2 = 0;
 	for(int n=0; n<28; n++) chksum2 += buf[n];
 	buf[30]  = chksum2;
+	
 	// data checksum
 	buf[31]  = hdr->data_chksum; 
 	

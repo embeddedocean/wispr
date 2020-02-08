@@ -561,6 +561,9 @@ uint16_t ltc2512_read_dma(wispr_data_header_t *hdr, uint8_t *data, uint16_t nsam
 	hdr->sample_size = ltc_adc_sample_size;
 	hdr->settings[3] = ltc_adc_overflow;
 
+	// indicate that the dma buffer has been read
+	ltc_adc_buffer = NULL;
+
 	return(nsamps);
 }
 

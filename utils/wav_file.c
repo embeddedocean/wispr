@@ -62,8 +62,10 @@ size_t wav_read_header(wav_file_t *file)
 {
   size_t nrd = 0;
   FILE *fp = file->fp;
+  //int buf[12];
   wav_file_header_t *wav = &file->hdr;
   fseek(fp, 0, SEEK_SET);  
+  fflush(fp);
   nrd = fread(wav->ChunkID,1,4,fp);
   nrd += fread(&(wav->ChunkSize),1,4,fp);
   nrd += fread(wav->Format,1,4,fp);
@@ -101,6 +103,7 @@ size_t wav_write_header(wav_file_t *file)
   nwrt += fwrite(wav->Subchunk2ID,1,4,fp);
   nwrt += fwrite(&wav->Subchunk2Size,1,4,fp); 
   //nwrt = fwrite(wav, 1, 44, fp);
+  fflush(fp);
   return(nwrt);
 }
 
@@ -184,7 +187,7 @@ wav_file_t *wav_open(char *name, char *type, int nbps, int fs, int nchans, short
    // Create an empty file for output operations. 
    // If a file with the same name already exists, its contents are discarded
    // and the file is treated as a new empty file.
-   file->fp = fopen(name, type);
+   file->fp = fopen(name, "a+");
    if(file->fp == NULL) {
       fprintf( stdout, "wav_fopen: Can't open output file\n");
       return(file);
@@ -203,7 +206,7 @@ wav_file_t *wav_open(char *name, char *type, int nbps, int fs, int nchans, short
      wav_init_header(file, nbps, fs, nchans, format);
 	 
      // write wav header
-     if(wav_write_header(file) <= 0) {
+     if(wav_write_header(file) != 44) {
        fprintf( stdout, "wav_fopen: error writing wav header\n");
      }
    
@@ -232,8 +235,8 @@ size_t wav_write(wav_file_t *file, uint8_t *data, uint32_t nsamps)
 
    // read wav header
    size_t nrd = wav_read_header(file);
-   if(nrd < 44) {
-      fprintf(stdout, "wav_write: error reading wav header\n");
+   if(nrd != 44) {
+      fprintf(stdout, "wav_write: error reading wav header, %d\n", nrd);
    }
 
    // check nbps
@@ -263,7 +266,7 @@ size_t wav_write(wav_file_t *file, uint8_t *data, uint32_t nsamps)
    
    // rewrite the header
    nwrt = wav_write_header(file);
-   if(nwrt < 44) {
+   if(nwrt != 44) {
       fprintf(stdout, "wav_write: error writing wav header\n");
    }
    //wav_print_header(fp, &file->hdr);   

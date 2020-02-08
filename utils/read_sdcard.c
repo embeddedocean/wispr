@@ -134,7 +134,6 @@ int main(int argc, char **argv)
   fseek(fp, pos, SEEK_SET);
   fprintf(stdout, "Seek to file position %d (block %d)\n", pos, start_block);
 
-  dat_count = 0;
   int go = 1;
   while(go) 
   {
@@ -177,7 +176,7 @@ int main(int argc, char **argv)
 	         sprintf(out_filename,"%s/%s_DAT_%02d%02d%02d_%02d%02d%02d.wav", output_path, prefix, 
                 rtc.year, rtc.month, rtc.day, rtc.hour, rtc.minute, rtc.second);
 	         if(dat_wf != NULL) wav_close(dat_wf);
-			 dat_wf = wav_open(out_filename, "w+", hdr.sample_size*8, hdr.sampling_rate, 1, WAVE_FORMAT_PCM);
+			 dat_wf = wav_open(out_filename, "w", hdr.sample_size*8, hdr.sampling_rate, 1, WAVE_FORMAT_PCM);
              fprintf(stdout, "Open wav file %s\n", out_filename);
 		} else {
 			sprintf(out_filename,"%s/%s_%02d%02d%02d_%02d%02d%02d.dat", output_path, prefix, 
@@ -215,31 +214,32 @@ int main(int argc, char **argv)
     if(hdr.type == WISPR_WAVEFORM) {
 		if(wav_file == 1) {
 			// write just the buffer data to wav file
-			buffer_size = hdr.samples_per_block;
+			buffer_size = (int)hdr.samples_per_block;
 			nwrt = wav_write(dat_wf, buffer_data, buffer_size);
 		}
 		else if(dat_fp) {
 			// write the entire buffer (header and data) to dat file
-			buffer_size = (size_t)hdr.block_size;
+			buffer_size = (int)hdr.block_size;
 			//nwrt = write(dat_fd, buffer, buffer_size);
 			nwrt = fwrite(buffer, 1, buffer_size, dat_fp);
 			if (nwrt =! buffer_size) {
 				fprintf(stdout, "failed to write buffer: %d\n", nrd);
 			}
 		}
-		if(dat_count++ == buffers_per_file) dat_count = 0;
+		dat_count++;
+		if(dat_count == buffers_per_file) dat_count = 0;
 	}
 	
     // Write spectrum to output file
 	if(hdr.type == WISPR_SPECTRUM) {
 		if(wav_file == 1) {
 			// write just the buffer data to wav file
-			buffer_size = hdr.samples_per_block;
+			buffer_size = (int)hdr.samples_per_block;
 			nwrt = wav_write(psd_wf, buffer_data, buffer_size);
 		} 
 		else if(psd_fp) {
 			// write the entire buffer (header and data) to dat file
-			buffer_size = (size_t)hdr.block_size;
+			buffer_size = (int)hdr.block_size;
 			//nwrt = write(psd_fd, buffer, buffer_size);
 			nwrt = fwrite(buffer, 1, buffer_size, psd_fp);
 			if (nwrt =! buffer_size) {
