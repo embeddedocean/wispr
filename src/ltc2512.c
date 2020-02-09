@@ -4,81 +4,79 @@
  * Created: 1/2018 
  *  Author: chris
  */ 
+ 
+ #include <asf.h>
+ #include <stdio.h>
+ #include <stdlib.h>
 
-//----------------------------------------------------------------------------------------
-// 
-#include <asf.h>
-#include <stdio.h>
-#include <stdlib.h>
+ #include "ltc2512.h"
+ #include "wispr.h"
 
-#include "ltc2512.h"
-#include "wispr.h"
+ /* The SSC interrupt IRQ priority. */
+ #define SSC_ADC_IRQ_PRIO 1
 
-/* The SSC interrupt IRQ priority. */
-#define SSC_ADC_IRQ_PRIO 1
+ /* DMA channel */
+ //#define SSC_ADC_DMA_CH 0
 
-/* DMA channel */
-//#define SSC_ADC_DMA_CH 0
+ //COMPILER_WORD_ALIGNED uint8_t ltc_adc_test_buffer[LTC2512_DMA_BUFFER_NBYTES];
+ COMPILER_WORD_ALIGNED uint8_t *ltc_adc_test_buffer;
 
-//COMPILER_WORD_ALIGNED uint8_t ltc_adc_test_buffer[LTC2512_DMA_BUFFER_NBYTES];
-COMPILER_WORD_ALIGNED uint8_t *ltc_adc_test_buffer;
+ /* Pdc transfer buffer */
+ COMPILER_WORD_ALIGNED uint8_t ltc_adc_dma_buffer1[LTC2512_DMA_BUFFER_NBYTES];
+ COMPILER_WORD_ALIGNED uint8_t ltc_adc_dma_buffer2[LTC2512_DMA_BUFFER_NBYTES];
 
-/* Pdc transfer buffer */
-COMPILER_WORD_ALIGNED uint8_t ltc_adc_dma_buffer1[LTC2512_DMA_BUFFER_NBYTES];
-COMPILER_WORD_ALIGNED uint8_t ltc_adc_dma_buffer2[LTC2512_DMA_BUFFER_NBYTES];
+ /* PDC data packet for transfer */
+ pdc_packet_t pdc_ssc_packet1;
+ pdc_packet_t pdc_ssc_packet2;
 
-/* PDC data packet for transfer */
-pdc_packet_t pdc_ssc_packet1;
-pdc_packet_t pdc_ssc_packet2;
+ /* Pointer to SSC PDC register base */
+ Pdc *ssc_pdc;
 
-/* Pointer to SSC PDC register base */
-Pdc *ssc_pdc;
+ /* active buffer number, that is the number o the buffer being read now */
+ volatile int pdc_active_buffer_number = 1;
 
-/* active buffer number, that is the number o the buffer being read now */
-volatile int pdc_active_buffer_number = 1;
+ // finished buffer
+ uint8_t *ltc_adc_buffer;
 
-// finished buffer
-uint8_t *ltc_adc_buffer;
+ uint8_t ltc_adc_sample_size; // bytes
+ uint32_t ltc_adc_sampling_freq; // Hz
+ uint8_t ltc_down_sampling_factor;
 
-uint8_t ltc_adc_sample_size; // bytes
-uint32_t ltc_adc_sampling_freq; // Hz
-uint8_t ltc_down_sampling_factor;
+ int ltc_adc_buffer_number = 1;
 
-int ltc_adc_buffer_number = 1;
+ uint32_t ltc_adc_time = 0;
+ uint32_t ltc_adc_date = 0;
 
-uint32_t ltc_adc_time = 0;
-uint32_t ltc_adc_date = 0;
+ uint32_t ltc_adc_time1 = 0;
+ uint32_t ltc_adc_date1 = 0;
+ uint32_t ltc_adc_time2 = 0;
+ uint32_t ltc_adc_date2 = 0;
 
-uint32_t ltc_adc_time1 = 0;
-uint32_t ltc_adc_date1 = 0;
-uint32_t ltc_adc_time2 = 0;
-uint32_t ltc_adc_date2 = 0;
+ uint8_t ltc_adc_overflow = 0; // overflow flag
 
-uint8_t ltc_adc_overflow = 0; // overflow flag
+ // local instance used to update the data buffer header
+ //wispr_data_header_t adc_data_header;
 
-// local instance used to update the data buffer header
-//wispr_data_header_t adc_data_header;
-
-//
-// initialize ltc2512 hardware
-//
-uint32_t ltc2512_init(wispr_config_t *wispr, wispr_data_header_t *hdr)
-{
+ //
+ // initialize ltc2512 hardware
+ //
+ uint32_t ltc2512_init(wispr_config_t *wispr, wispr_data_header_t *hdr)
+ {
 	// pull out the needed values
 	uint32_t fs = wispr->sampling_rate;
 	uint8_t df = wispr->settings[1];
 	uint8_t gain = wispr->settings[0];
 	
-    if( (fs <= 1) || (fs > 350000) ) {
-	    printf("ltc2512_init: invalid sampling frequency\n\r");
-	    return(-1);
-    }
+	if( (fs <= 1) || (fs > 350000) ) {
+		printf("ltc2512_init: invalid sampling frequency\n\r");
+		return(-1);
+	}
 
 	if( !((df == 4)||(df == 8)||(df == 16)||(df == 32)) ) {
 		printf("ltc2512_init: invalid decimation factor %d\n\r", df);
 		df = ADC_DEFAULT_DECIMATION;
 	}
-	    
+	 
 	if( (gain < 0) || (gain > 3) ) {
 		printf("ltc2512_init: invalid gain %d\n\r", gain);
 		gain = ADC_DEFAULT_GAIN;
@@ -94,7 +92,7 @@ uint32_t ltc2512_init(wispr_config_t *wispr, wispr_data_header_t *hdr)
 	// select decimation factor using gpio
 	if( df == LTC2512_DF4 ) {
 		ioport_set_pin_level(PIN_ADC_SEL0, 0);
-		ioport_set_pin_level(PIN_ADC_SEL1, 0);	
+		ioport_set_pin_level(PIN_ADC_SEL1, 0);
 	} else if( df == LTC2512_DF8 ) {
 		ioport_set_pin_level(PIN_ADC_SEL0, 1);
 		ioport_set_pin_level(PIN_ADC_SEL1, 0);
@@ -113,80 +111,80 @@ uint32_t ltc2512_init(wispr_config_t *wispr, wispr_data_header_t *hdr)
 	ioport_set_pin_level(PIN_PREAMP_G0, (gain & 0x01));
 	ioport_set_pin_level(PIN_PREAMP_G1, (gain & 0x02));
 	//printf("pre-amp gain = 0x%d%d \n\r", (gain & 0x02), (gain & 0x01));
-	
-    /* Initialize the local variable. */
-    clock_opt_t rx_clk_option;
-    data_frame_opt_t rx_data_frame_option;
-    memset((uint8_t *)&rx_clk_option, 0, sizeof(clock_opt_t));
-    memset((uint8_t *)&rx_data_frame_option, 0, sizeof(data_frame_opt_t));
+	 
+	/* Initialize the local variable. */
+	clock_opt_t rx_clk_option;
+	data_frame_opt_t rx_data_frame_option;
+	memset((uint8_t *)&rx_clk_option, 0, sizeof(clock_opt_t));
+	memset((uint8_t *)&rx_data_frame_option, 0, sizeof(data_frame_opt_t));
 
-    /* Initialize the SSC module */
-    pmc_enable_periph_clk(ID_SSC);
-    ssc_reset(SSC);
+	/* Initialize the SSC module */
+	pmc_enable_periph_clk(ID_SSC);
+	ssc_reset(SSC);
 
 	// set serial clock rate
 	//uint32_t sclk = board_get_cpu_clock_hz(); // sysclk_get_peripheral_bus_hz(TC0);
 	uint32_t sclk = sysclk_get_peripheral_bus_hz(TC0);
-    uint32_t rsck = LTC2512_SSC_RSCK;  // bit clock freq is fixed to the max reliable rate found by testing
-    //uint32_t rsck = df * fs * 40;  // bit clock freq 
-    uint32_t rsck_div = sclk / (2 * rsck);
-    rsck = sclk / rsck_div /2;
+	uint32_t rsck = LTC2512_SSC_RSCK;  // bit clock freq is fixed to the max reliable rate found by testing
+	//uint32_t rsck = df * fs * 40;  // bit clock freq
+	uint32_t rsck_div = sclk / (2 * rsck);
+	rsck = sclk / rsck_div /2;
 
-    SSC->SSC_CMR = SSC_CMR_DIV(rsck_div);
-    
-    /* Receiver clock mode configuration. */
-    rx_clk_option.ul_cks = SSC_RCMR_CKS_MCK;  // select divided clock source
-    rx_clk_option.ul_cko = SSC_RCMR_CKO_TRANSFER; // Receive Clock only during data transfers, RK pin is an output
-    //rx_clk_option.ul_cko = SSC_RCMR_CKO_CONTINUOUS; // Receive Clock only during data transfers, RK pin is an output
-    //rx_clk_option.ul_cki = 0; // sampled on Receive Clock falling edge.
-    rx_clk_option.ul_cki = 1; // sampled on Receive Clock rising edge.
-    rx_clk_option.ul_ckg = SSC_RCMR_CKG_EN_RF_LOW; // clock gating selection, enable clock only when RF is low
-    //rx_clk_option.ul_start_sel = SSC_RCMR_START_RF_LOW; // Detection of a low level on RF signal
-    rx_clk_option.ul_start_sel = SSC_RCMR_START_RF_FALLING; // Detection of a falling edge on RF signal
-    //rx_clk_option.ul_start_sel = SSC_RCMR_START_CONTINUOUS; // receive start selection
-    rx_clk_option.ul_sttdly = 1; // num clock cycles delay between start event and reception
-    rx_clk_option.ul_period = 0; //ul_rfck_div;  // length of frame in clock cycles
-    
-    /* Receiver frame mode configuration. */
-    rx_data_frame_option.ul_datlen = LTC2512_BITS_PER_SAMPLE - 1; // number of bits per data word, should be 0 to 31
+	SSC->SSC_CMR = SSC_CMR_DIV(rsck_div);
+	 
+	/* Receiver clock mode configuration. */
+	rx_clk_option.ul_cks = SSC_RCMR_CKS_MCK;  // select divided clock source
+	rx_clk_option.ul_cko = SSC_RCMR_CKO_TRANSFER; // Receive Clock only during data transfers, RK pin is an output
+	//rx_clk_option.ul_cko = SSC_RCMR_CKO_CONTINUOUS; // Receive Clock only during data transfers, RK pin is an output
+	//rx_clk_option.ul_cki = 0; // sampled on Receive Clock falling edge.
+	rx_clk_option.ul_cki = 1; // sampled on Receive Clock rising edge.
+	rx_clk_option.ul_ckg = SSC_RCMR_CKG_EN_RF_LOW; // clock gating selection, enable clock only when RF is low
+	//rx_clk_option.ul_start_sel = SSC_RCMR_START_RF_LOW; // Detection of a low level on RF signal
+	rx_clk_option.ul_start_sel = SSC_RCMR_START_RF_FALLING; // Detection of a falling edge on RF signal
+	//rx_clk_option.ul_start_sel = SSC_RCMR_START_CONTINUOUS; // receive start selection
+	rx_clk_option.ul_sttdly = 1; // num clock cycles delay between start event and reception
+	rx_clk_option.ul_period = 0; //ul_rfck_div;  // length of frame in clock cycles
+	 
+	/* Receiver frame mode configuration. */
+	rx_data_frame_option.ul_datlen = LTC2512_BITS_PER_SAMPLE - 1; // number of bits per data word, should be 0 to 31
 
 	// read data word MSB first - although it's stored in processor memory as little-endian or LSB first
-    rx_data_frame_option.ul_msbf = SSC_RFMR_MSBF;  // MSB First
-    //rx_data_frame_option.ul_msbf = 0;  // LSB First
+	rx_data_frame_option.ul_msbf = SSC_RFMR_MSBF;  // MSB First
+	//rx_data_frame_option.ul_msbf = 0;  // LSB First
 
-    rx_data_frame_option.ul_datnb = 0;  //  number of data words per frame, should be 0 to 15. 0 = 1 word
+	rx_data_frame_option.ul_datnb = 0;  //  number of data words per frame, should be 0 to 15. 0 = 1 word
 	// 32 bit data word
-    rx_data_frame_option.ul_fslen = 15; // Frame Sync. length should be 0 to 15
-    rx_data_frame_option.ul_fslen_ext = 1; // Frame Sync. length extension field, should be 0 to 15.
-    rx_data_frame_option.ul_fsos = SSC_RFMR_FSOS_NONE; // Frame Sync. is an input
-    rx_data_frame_option.ul_fsedge = SSC_RFMR_FSEDGE_NEGATIVE; // Frame Sync. edge detection
-    
-    /* Configure the SSC receiver. */
-    ssc_set_receiver(SSC, &rx_clk_option, &rx_data_frame_option);
+	rx_data_frame_option.ul_fslen = 15; // Frame Sync. length should be 0 to 15
+	rx_data_frame_option.ul_fslen_ext = 1; // Frame Sync. length extension field, should be 0 to 15.
+	rx_data_frame_option.ul_fsos = SSC_RFMR_FSOS_NONE; // Frame Sync. is an input
+	rx_data_frame_option.ul_fsedge = SSC_RFMR_FSEDGE_NEGATIVE; // Frame Sync. edge detection
+	 
+	/* Configure the SSC receiver. */
+	ssc_set_receiver(SSC, &rx_clk_option, &rx_data_frame_option);
 
-    //ssc_enable_tx(SSC);
-    ssc_enable_rx(SSC);
+	//ssc_enable_tx(SSC);
+	ssc_enable_rx(SSC);
 
-    /* TESTING ONLY - Enable the loop mode. */
-    //ssc_set_loop_mode(SSC);
-	
+	/* TESTING ONLY - Enable the loop mode. */
+	//ssc_set_loop_mode(SSC);
+	 
 	ioport_set_pin_level(PIN_ADC_SYNC, 1);
 	ioport_set_pin_level(PIN_ADC_SYNC, 0);
-	
+	 
 	// config the adc master clock and return the actual sampling rate
 	uint32_t actual_fs = ltc2512_config_mclk(fs, df);
-	
+	 
 	// update local static variables
 	ltc_adc_sample_size = wispr->sample_size;
 	ltc_down_sampling_factor = df;
 	ltc_adc_sampling_freq = actual_fs;
 
 	//printf("init_ltc2512: fs = %d, df = %d, gain = %d\r\n", fs, df, gain);
-    printf("ltc2512: actual fs = %lu, serial clock = %lu\n\r", fs, rsck);
+	printf("ltc2512: actual fs = %lu, serial clock = %lu\n\r", fs, rsck);
 
 	// update adc data header structure with the current config
 	//wispr_update_data_header(wispr, hdr);
-	
+	 
 	// initialize the adc data header
 	// make sure to set all the fields because this is what gets written to storage
 	hdr->version[0] = wispr->version[0];
@@ -206,13 +204,13 @@ uint32_t ltc2512_init(wispr_config_t *wispr, wispr_data_header_t *hdr)
 	// reset the wispr config settings
 	wispr->settings[0] = gain;
 	wispr->settings[1] = df;
-	
+	 
 	return(actual_fs);
-}
+ }
 
 //
 // Configure TC0_TIOA to supply MCLK for the ADC
-//  
+//
 uint32_t ltc2512_config_mclk(uint32_t fs, uint8_t df)
 {
 	// Configure TC TC_CHANNEL_WAVEFORM in waveform operating mode.
@@ -224,7 +222,7 @@ uint32_t ltc2512_config_mclk(uint32_t fs, uint8_t df)
 	/* Disable IO to enable peripheral mode) */
 	ioport_disable_pin(PIN_TC0_TIOA0);
 
-	// configure PA1 as either a clock or gpio	
+	// configure PA1 as either a clock or gpio
 	//ioport_set_pin_mode(PIN_TC0_TIOB0, PIN_TC0_TIOB0_MUX);
 	//ioport_disable_pin(PIN_TC0_TIOB0);
 	ioport_set_pin_dir(PIN_TC0_TIOB0, IOPORT_DIR_OUTPUT);
@@ -235,15 +233,15 @@ uint32_t ltc2512_config_mclk(uint32_t fs, uint8_t df)
 
 	/* Init TC to waveform mode. */
 	tc_init(TC0, 0,
-	  TC_CMR_TCCLKS_TIMER_CLOCK1	//MCK/2
-	  | TC_CMR_WAVE	//waveform mode
-	  | TC_CMR_WAVSEL_UP_RC	//UP mode with automatic trigger on RC Compare
-	  | TC_CMR_ACPA_TOGGLE	//toggle TIOA on RA match
-	  | TC_CMR_ACPC_TOGGLE	//toggle TIOA on RC match
-	  //| TC_CMR_BCPB_TOGGLE	//toggle TIOB on RB match
-	  //| TC_CMR_BCPC_TOGGLE	//toggle TIOB on RC match
-	  // for TIOB to configured as an output an external event needs to be selected
-	  //| TC_CMR_EEVT_XC0 | TC_CMR_AEEVT_NONE | TC_CMR_BEEVT_NONE | TC_CMR_EEVTEDG_NONE
+	TC_CMR_TCCLKS_TIMER_CLOCK1	//MCK/2
+	| TC_CMR_WAVE	//waveform mode
+	| TC_CMR_WAVSEL_UP_RC	//UP mode with automatic trigger on RC Compare
+	| TC_CMR_ACPA_TOGGLE	//toggle TIOA on RA match
+	| TC_CMR_ACPC_TOGGLE	//toggle TIOA on RC match
+	//| TC_CMR_BCPB_TOGGLE	//toggle TIOB on RB match
+	//| TC_CMR_BCPC_TOGGLE	//toggle TIOB on RC match
+	// for TIOB to configured as an output an external event needs to be selected
+	//| TC_CMR_EEVT_XC0 | TC_CMR_AEEVT_NONE | TC_CMR_BEEVT_NONE | TC_CMR_EEVTEDG_NONE
 	);
 	
 	/* Configure waveform frequency and duty cycle. */
@@ -258,12 +256,12 @@ uint32_t ltc2512_config_mclk(uint32_t fs, uint8_t df)
 	uint32_t max_rc =  sck / 2 / LTC2512_MIN_MCLK;
 	for (rc = 2; rc < max_rc; rc++) {
 		mclk = sck / 2 / rc;
-		if( mclk <= target_mclk ) break;		
+		if( mclk <= target_mclk ) break;
 	}
 	mclk = sck / 2 / rc; // actual mclk
 
 	//mclk = *fs * (uint32_t)df; // target mclk
-	//rc = sck / 2 / mclk; // 
+	//rc = sck / 2 / mclk; //
 	//mclk = sck / 2 / rc; // actual mclk
 
 	ra = (100 - dutycycle) * rc / 100;
