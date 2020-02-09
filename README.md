@@ -1,4 +1,4 @@
-# WISPR V2.0 Atmel Studio 7 Project files
+# WISPR Version 2 Project files
 
-This project provides the source code and project files to start building applications for the WISPR board using Atmel Studio 7.
+Source code and project files to start building applications for the WISPR V2.0 board using Atmel Studio 7.
 
