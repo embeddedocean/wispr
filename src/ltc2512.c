@@ -439,7 +439,7 @@ void SSC_Handler(void)
 	// RXBUFF flag is set when both PERIPH_RCR and the PDC Receive Next Counter register (PERIPH_RNCR) reach zero.
 	if ((status & SSC_SR_RXBUFF) == SSC_SR_RXBUFF) {
 		// buffer overflow
-		//printf("SSC_Handler: buffer overflow\r\n");
+		printf("SSC_Handler: buffer overflow\r\n");
 		ltc_adc_overflow = 1;
 	} else {
 		ltc_adc_overflow = 0;
