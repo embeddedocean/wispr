@@ -346,7 +346,7 @@ void ltc2512_get_date(uint8_t *cent, uint8_t *year, uint8_t *month, uint8_t *day
 	uint32_t temp;
 
 	/* Retrieve century */
-	if (year) {
+	if (cent) {
 		temp = (date & RTC_CALR_CENT_Msk) >> RTC_CALR_CENT_Pos;
 		*cent = (uint8_t)((temp >> BCD_SHIFT) * BCD_FACTOR + (temp & BCD_MASK));
 	}
@@ -374,6 +374,45 @@ void ltc2512_get_date(uint8_t *cent, uint8_t *year, uint8_t *month, uint8_t *day
 	if (week) {
 		*week = (uint8_t)(((date & RTC_CALR_DAY_Msk) >> RTC_CALR_DAY_Pos));
 	}
+}
+
+void ltc2512_get_datetime(uint8_t *year, uint8_t *month, uint8_t *day, uint8_t *hour, uint8_t *minute, uint8_t *second, uint32_t *usec)
+{
+	uint32_t date = ltc_adc_date;
+	uint32_t time = ltc_adc_time;
+	uint32_t temp;
+
+	/* Hour */
+	temp = (time & RTC_TIMR_HOUR_Msk) >> RTC_TIMR_HOUR_Pos;
+	*hour = (uint8_t)((temp >> BCD_SHIFT) * BCD_FACTOR + (temp & BCD_MASK));
+
+	if ((time & RTC_TIMR_AMPM) == RTC_TIMR_AMPM) {
+		*hour += 12;
+	}
+
+	/* Minute */
+	temp = (time & RTC_TIMR_MIN_Msk) >> RTC_TIMR_MIN_Pos;
+	*minute = (uint8_t)((temp >> BCD_SHIFT) * BCD_FACTOR +  (temp & BCD_MASK));
+
+	/* Second */
+	temp = (time & RTC_TIMR_SEC_Msk) >> RTC_TIMR_SEC_Pos;
+	*second = (uint8_t)((temp >> BCD_SHIFT) * BCD_FACTOR + (temp & BCD_MASK));
+
+	// temporary !!!
+	*usec = 0;
+
+	/* Retrieve year 0 - 99 */
+	temp = (date & RTC_CALR_YEAR_Msk) >> RTC_CALR_YEAR_Pos;
+	*year = (uint8_t)((temp >> BCD_SHIFT) * BCD_FACTOR + (temp & BCD_MASK));
+
+	/* Retrieve month */
+	temp = (date & RTC_CALR_MONTH_Msk) >> RTC_CALR_MONTH_Pos;
+	*month = (uint8_t)((temp >> BCD_SHIFT) * BCD_FACTOR + (temp & BCD_MASK));
+
+	/* Retrieve day */
+	temp = (date & RTC_CALR_DATE_Msk) >> RTC_CALR_DATE_Pos;
+	*day = (uint8_t)((temp >> BCD_SHIFT) * BCD_FACTOR + (temp & BCD_MASK));
+
 }
 
 /**
@@ -485,6 +524,7 @@ uint8_t *ltc2512_get_dma_buffer(void)
 //  output is 
 //  -8 fffffff8 f8ffffff
 //
+
 // copy the most significant first 3 bytes of the dma buffer into the user buffer
 //
 static inline uint8_t ltc2512_copy_dma_int24(uint8_t *ibuf, uint8_t *obuf, uint16_t nsamps)
@@ -524,55 +564,13 @@ static inline uint8_t ltc2512_copy_dma_int16(uint8_t *ibuf, uint8_t *obuf, uint1
 	return(chksum);
 }
 
-uint8_t ltc_dma_test = 0;
-
 //
-// be careful with timing here because the dma buffer gets overwritten.
-//
-//uint16_t ltc2512_read_dma(uint8_t *hdr, uint8_t *data, uint16_t nsamps)
-uint16_t ltc2512_read_dma(wispr_data_header_t *hdr, uint8_t *data, uint16_t nsamps)
-{
-	// no buffer ready or buffer has already been read
-	if(ltc_adc_buffer == NULL) return(0);
-
-	if( ltc_dma_test ) ltc_adc_buffer = ltc_adc_test_buffer;
-	
-	uint8_t chksum = 0;
-		
-	if( ltc_adc_sample_size == 3) {
-		chksum = ltc2512_copy_dma_int24(ltc_adc_buffer, data, nsamps);
-	}
-	else if( ltc_adc_sample_size == 2 ) {
-		chksum = ltc2512_copy_dma_int16(ltc_adc_buffer, data, nsamps);
-	}
-
-	// update the data header info
-	uint8_t year,month,day,hour,minute,sec;
-	uint32_t usec = 0;
-
-	ltc2512_get_time(&hour, &minute, &sec, &usec);
-	ltc2512_get_date(NULL, &year, &month, &day, NULL);
-
-	hdr->type = WISPR_WAVEFORM;
-	hdr->second = time_to_epoch(year, month, day, hour, minute, sec);
-	hdr->usec = usec;
-	hdr->data_chksum = chksum; // checksum for data
-	hdr->samples_per_block = nsamps;
-	hdr->sample_size = ltc_adc_sample_size;
-	hdr->settings[3] = ltc_adc_overflow;
-
-	// indicate that the dma buffer has been read
-	ltc_adc_buffer = NULL;
-
-	return(nsamps);
-}
-
-//
-// simulate a sine wave wave input
+// TESTING ONLY - Simulate a sine wave wave input
 // load the test buffer with a 24 bit signed int value to simulate the adc.
 // the test buffer will replace the dma buffer in simulation, so it's an int32.
 // remember that the buffer data will be formatted as little-endian
-//
+/*
+uint8_t ltc_dma_test = 0;
 void ltc2512_init_test(wispr_config_t *wispr, uint16_t nsamps, uint32_t freq)
 {
 	// allocate test buffer
@@ -588,12 +586,53 @@ void ltc2512_init_test(wispr_config_t *wispr, uint16_t nsamps, uint32_t freq)
 	for(int n = 0; n < nsamps; n++) {
 		float32_t t = (float32_t)n * dt;
 		float32_t x = max_value * arm_sin_f32(w*t);
-		buf[n] = (int32_t)(x); 
+		buf[n] = (int32_t)(x);
 		if(n < 8) printf("%x ", buf[n]);
 	}
-	printf("\r\n");	
+	printf("\r\n");
 	
 	ltc_dma_test = 1;
+}
+*/
+
+//
+// be careful with timing here because the dma buffer gets overwritten.
+//
+//uint16_t ltc2512_read_dma(uint8_t *hdr, uint8_t *data, uint16_t nsamps)
+uint16_t ltc2512_read_dma(wispr_data_header_t *hdr, uint8_t *data, uint16_t nsamps)
+{
+	// no buffer ready or buffer has already been read
+	if(ltc_adc_buffer == NULL) return(0);
+
+	// testing only - removed for release
+	//if( ltc_dma_test ) ltc_adc_buffer = ltc_adc_test_buffer;
+	
+	uint8_t chksum = 0;
+		
+	if( ltc_adc_sample_size == 3) {
+		chksum = ltc2512_copy_dma_int24(ltc_adc_buffer, data, nsamps);
+	}
+	else if( ltc_adc_sample_size == 2 ) {
+		chksum = ltc2512_copy_dma_int16(ltc_adc_buffer, data, nsamps);
+	}
+
+	// update the data header info
+	uint8_t year,month,day,hour,minute,sec;
+	uint32_t usec = 0;
+	ltc2512_get_datetime(&year, &month, &day, &hour, &minute, &sec, &usec);
+
+	hdr->type = WISPR_WAVEFORM;
+	hdr->second = time_to_epoch(year, month, day, hour, minute, sec);
+	hdr->usec = usec;
+	hdr->data_chksum = chksum; // checksum for data
+	hdr->samples_per_block = nsamps;
+	hdr->sample_size = ltc_adc_sample_size;
+	hdr->settings[3] = ltc_adc_overflow;
+
+	// indicate that the dma buffer has been read
+	ltc_adc_buffer = NULL;
+
+	return(nsamps);
 }
 
 
@@ -622,6 +661,7 @@ more examples:
 */
 
 
+
 /**
  * \brief DMA driver configuration
  */
@@ -648,7 +688,6 @@ uint16_t ltc2512_init_dma(uint16_t nsamps)
 	pdc_rx_init(ssc_pdc, &pdc_ssc_packet1, &pdc_ssc_packet2);
 
 	//printf("ltc2512_adc_nsamps %u \n\r", ltc_adc_nsamps);
-	
 	//fprintf(stdout, "rx_cnt=%ld, rx_ptr=%lx, ", 
 	//	pdc_read_rx_counter(ssc_pdc), pdc_read_rx_ptr(ssc_pdc));
 	//fprintf(stdout, "rx_next_cnt=%ld, rx_next_ptr=%lx \n\r", 
@@ -708,125 +747,3 @@ void ltc2512_stop_dma(void)
 	//ssc_enable_tx(SSC);
 }
 
-
-/*  Experimental 
-
-uint16_t ltc2512_init_dma2()
-{
-	//if( nsamps > LTC2512_MAX_DMA_BUFFER_NSAMPS ) {
-	//	printf("ltc2512_dma_init: error, nsamps (%d) too large, use %lu max \n\r", nsamps, LTC2512_MAX_DMA_BUFFER_NSAMPS);
-	//	return(-1);
-	//}
-	
-	// Get pointer to UART PDC register base
-	ssc_pdc = ssc_get_pdc_base(SSC);
-
-	// Initialize PDC data packets for transfer
-	pdc_ssc_packet1.ul_addr = (uint32_t)&ltc_adc_dma_buffer1;
-	pdc_ssc_packet1.ul_size = (uint32_t)(LTC2512_NUM_SAMPLES * LTC2512_BYTES_PER_SAMPLE);
-	pdc_ssc_packet2.ul_addr = (uint32_t)&ltc_adc_dma_buffer2;
-	pdc_ssc_packet2.ul_size = (uint32_t)(LTC2512_NUM_SAMPLES * LTC2512_BYTES_PER_SAMPLE);
-
-	pdc_active_buffer_number = 1;
-	ltc_adc_buffer = NULL;  // no buffer ready
-	ltc_adc_nsamps = LTC2512_NUM_SAMPLES;
-	
-	// Configure PDC for data receive
-	pdc_rx_init(ssc_pdc, &pdc_ssc_packet1, &pdc_ssc_packet2);
-
-	printf("ltc2512_adc_nsamps %u \n\r", ltc_adc_nsamps);
-	
-//	fprintf(stdout, "rx_cnt=%ld, rx_ptr=%lx, ", 
-//		pdc_read_rx_counter(ssc_pdc), pdc_read_rx_ptr(ssc_pdc));
-//	fprintf(stdout, "rx_next_cnt=%ld, rx_next_ptr=%lx \n\r", 
-//		pdc_read_rx_next_counter(ssc_pdc), pdc_read_rx_next_ptr(ssc_pdc));
-
-	// Configure the RX End of Reception interrupt.
-	ssc_enable_interrupt(SSC, SSC_IER_ENDRX);
-
-	// Enable SSC interrupt line from the core
-	NVIC_DisableIRQ(SSC_IRQn);
-	NVIC_ClearPendingIRQ(SSC_IRQn);
-	NVIC_SetPriority(SSC_IRQn, SSC_ADC_IRQ_PRIO);
-	NVIC_EnableIRQ(SSC_IRQn);
-
-	// Enable PDC receive transfers
-	pdc_enable_transfer(ssc_pdc, PERIPH_PTCR_RXTEN);
-
-	//ioport_set_pin_dir(SSC_ADC_BUF_PIN, IOPORT_DIR_OUTPUT);
-	//ioport_set_pin_level(SSC_ADC_BUF_PIN, 0);
-	return(ltc_adc_nsamps);
-}
-
-
-int ltc2512_init2(uint32_t *fs, uint32_t df)
-{
-	
-	//    if( (*fs <= 1) || (*fs > 400000) ) {
-	//	    fprintf(stdout, "init_ltc2380: invalid sampling frequency\n\r");
-	//	    return(-1);
-	//   }
-	
-	ltc2512_down_sampling_factor = df; // this is configured in hardware
-	
-	// power up and initialize adc
-	ioport_set_pin_level(PIN_ENABLE_ADC_PWR, 1);
-	ioport_set_pin_level(PIN_ADC_SYNC, 1);
-	delay_ms(100);
-
-	// Initialize the local variable.
-	clock_opt_t rx_clk_option;
-	data_frame_opt_t rx_data_frame_option;
-	memset((uint8_t *)&rx_clk_option, 0, sizeof(clock_opt_t));
-	memset((uint8_t *)&rx_data_frame_option, 0, sizeof(data_frame_opt_t));
-
-	// Initialize the SSC module
-	pmc_enable_periph_clk(ID_SSC);
-	ssc_reset(SSC);
-
-	uint32_t sclk = sysclk_get_peripheral_bus_hz(TC0);
-	uint32_t rsck = 20000000;  // bit clock freq is fixed to the max reliable rate found by testing
-	//uint32_t rsck = df * (*fs) * 40;  // bit clock freq is fixed to the max reliable rate found by testing
-	uint32_t rsck_div = sclk / (2 * rsck);
-	rsck = sclk / rsck_div /2;
-
-	printf("sclk = %lu, rsck = %lu, rsck_div = %lu \n\r", sclk, rsck, rsck_div);
-
-	SSC->SSC_CMR = SSC_CMR_DIV(rsck_div);
-	
-	// Receiver clock mode configuration.
-	rx_clk_option.ul_cks = SSC_RCMR_CKS_MCK;  // select divided clock source
-	rx_clk_option.ul_cko = SSC_RCMR_CKO_TRANSFER; // Receive Clock only during data transfers, RK pin is an output
-	//rx_clk_option.ul_cko = SSC_RCMR_CKO_CONTINUOUS; // Receive Clock only during data transfers, RK pin is an output
-	//rx_clk_option.ul_cki = 0; // sampled on Receive Clock falling edge.
-	rx_clk_option.ul_cki = 1; // sampled on Receive Clock rising edge.
-	rx_clk_option.ul_ckg = SSC_RCMR_CKG_EN_RF_LOW; // clock gating selection, enable clock only when RF is low
-	//rx_clk_option.ul_start_sel = SSC_RCMR_START_RF_LOW; // Detection of a low level on RF signal
-	rx_clk_option.ul_start_sel = SSC_RCMR_START_RF_FALLING; // Detection of a falling edge on RF signal
-	//rx_clk_option.ul_start_sel = SSC_RCMR_START_CONTINUOUS; // receive start selection
-	rx_clk_option.ul_sttdly = 1; // num clock cycles delay between start event and reception
-	rx_clk_option.ul_period = 0; //ul_rfck_div;  // length of frame in clock cycles
-	
-	// Receiver frame mode configuration. 
-	rx_data_frame_option.ul_datlen = 7; //LTC2512_BITS_PER_SAMPLE - 1; // number of bits per data word
-	rx_data_frame_option.ul_msbf = SSC_RFMR_MSBF;  // MSB
-	rx_data_frame_option.ul_datnb = 0;  //  number of data words per frame, should be 0 to 15. 0 = 1 word
-	rx_data_frame_option.ul_fsos = SSC_RFMR_FSOS_NONE; // Frame Sync. is an input
-	rx_data_frame_option.ul_fsedge = SSC_RFMR_FSEDGE_NEGATIVE; // Frame Sync. edge detection
-	
-	// Configure the SSC receiver.
-	ssc_set_receiver(SSC, &rx_clk_option, &rx_data_frame_option);
-
-	//ssc_enable_tx(SSC);
-	ssc_enable_rx(SSC);
-
-	//ssc_set_loop_mode(SSC);
-	
-	int ret = 0;
-	
-	ret = ltc2512_config_mclk(fs);
-	
-	return(ret);
-
-}
-*/

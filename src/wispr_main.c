@@ -432,7 +432,7 @@ void initialize_sd_cards(wispr_config_t *config)
 	if( !(state & SD_CARD_FORMATED) ) {
 		printf("SD Card 2 is unformatted.\r\n");
 		if( console_prompt_int("Reformat SD Card 2?", 1, 10) ) {
-			sd_card_format(2,"Card2");
+			sd_card_format(2, "Card2");
 		}
 		set_default_config(&config2);
 		sd_card_write_config(2, &config2);
@@ -449,7 +449,7 @@ void initialize_sd_cards(wispr_config_t *config)
 	if( !(state & SD_CARD_FORMATED) ) {
 		printf("SD Card 1 is unformatted.\r\n");
 		if( console_prompt_int("Reformat SD Card 1?", 1, 10) ) {
-			sd_card_format(1,"Card1");
+			sd_card_format(1, "Card1");
 		}
 		set_default_config(&config1);
 		sd_card_write_config(1, &config1);
