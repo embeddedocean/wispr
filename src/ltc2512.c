@@ -62,7 +62,6 @@ uint8_t ltc_adc_overflow = 0; // overflow flag
 //
 // initialize ltc2512 hardware
 //
-//int ltc2512_init(uint32_t *fs, uint8_t df, uint8_t gain)
 uint32_t ltc2512_init(wispr_config_t *wispr, wispr_data_header_t *hdr)
 {
 	// pull out the needed values
@@ -478,7 +477,7 @@ void SSC_Handler(void)
 	// RXBUFF flag is set when both PERIPH_RCR and the PDC Receive Next Counter register (PERIPH_RNCR) reach zero.
 	if ((status & SSC_SR_RXBUFF) == SSC_SR_RXBUFF) {
 		// buffer overflow
-		printf("SSC_Handler: buffer overflow\r\n");
+		//printf("SSC_Handler: buffer overflow\r\n");
 		ltc_adc_overflow = 1;
 	} else {
 		ltc_adc_overflow = 0;
@@ -598,7 +597,6 @@ void ltc2512_init_test(wispr_config_t *wispr, uint16_t nsamps, uint32_t freq)
 //
 // be careful with timing here because the dma buffer gets overwritten.
 //
-//uint16_t ltc2512_read_dma(uint8_t *hdr, uint8_t *data, uint16_t nsamps)
 uint16_t ltc2512_read_dma(wispr_data_header_t *hdr, uint8_t *data, uint16_t nsamps)
 {
 	// no buffer ready or buffer has already been read
