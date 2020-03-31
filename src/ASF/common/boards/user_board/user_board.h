@@ -18,6 +18,7 @@
 #define USER_BOARD_H
 
 #include <conf_board.h>
+#include "board_v2.0.h"
 
 // External oscillator settings.
 // Uncomment and set correct values if external oscillator is used.

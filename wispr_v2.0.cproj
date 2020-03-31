@@ -368,6 +368,7 @@
       <Value>NDEBUG</Value>
       <Value>scanf=iscanf</Value>
       <Value>ARM_MATH_CM4=true</Value>
+      <Value>BOARD=USER_BOARD</Value>
     </ListValues>
   </armgcc.compiler.symbols.DefSymbols>
   <armgcc.compiler.directories.IncludePaths>
@@ -789,6 +790,9 @@
     <None Include="src\ASF\sam\drivers\supc\supc.h">
       <SubType>compile</SubType>
     </None>
+    <Compile Include="src\board.h">
+      <SubType>compile</SubType>
+    </Compile>
     <Compile Include="src\com.c">
       <SubType>compile</SubType>
     </Compile>
@@ -1587,9 +1591,6 @@
     <None Include="src\ASF\sam\drivers\pdc\pdc.h">
       <SubType>compile</SubType>
     </None>
-    <Compile Include="src\board.h">
-      <SubType>compile</SubType>
-    </Compile>
     <Compile Include="src\board_v2.0.c">
       <SubType>compile</SubType>
     </Compile>
