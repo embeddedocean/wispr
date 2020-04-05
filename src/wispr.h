@@ -13,9 +13,9 @@
 #define WISPR_VERSION 2
 #define WISPR_SUBVERSION 0
 
-#define WISPR_SD_CARD_HEADER_BLOCK (30)
-#define WISPR_SD_CARD_CONFIG_BLOCK (31)
-#define WISPR_SD_CARD_START_BLOCK (32)
+#define WISPR_SD_CARD_HEADER_BLOCK (128)
+#define WISPR_SD_CARD_CONFIG_BLOCK (129)
+#define WISPR_SD_CARD_START_BLOCK (130)
 
 // sd cards only read in blocks, not bytes, 
 // so reads and writes must be done in blocks of this size
