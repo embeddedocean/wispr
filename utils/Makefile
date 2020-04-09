@@ -5,12 +5,12 @@
 CC=gcc
 
 LIBS = 
-INCS = -I..\atmel\wispr_v2.0\wispr_v2.0\src
+INCS = -I..\src
 CFLAGS = -W -O2 
 
 SRCS = wav_file.c \
- ..\atmel\wispr_v2.0\wispr_v2.0\src\wispr.c \
- ..\atmel\wispr_v2.0\wispr_v2.0\src\epoch.c
+ ..\src\wispr.c \
+ ..\src\epoch.c
 
 OBJS = $(SRCS:.c=.o)
 
@@ -23,6 +23,9 @@ all:
 	
 dat_dump_sdcard: dat_dump_sdcard.c $(OBJS)
 	$(CC) dat_dump_sdcard.c -o dat_dump_sdcard $(CFLAGS) $(INCS) $(OBJS)
+
+psd_dump_sdcard: psd_dump_sdcard.c $(OBJS)
+	$(CC) psd_dump_sdcard.c -o psd_dump_sdcard $(CFLAGS) $(INCS) $(OBJS)
 
 wav_dump_sdcard:  wav_dump_sdcard.c $(OBJS)
 	$(CC) wav_dump_sdcard.c -o wav_dump_sdcard $(CFLAGS) $(INCS) $(OBJS)

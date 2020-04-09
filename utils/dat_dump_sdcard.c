@@ -218,7 +218,7 @@ int main(int argc, char **argv)
     // open new output file
     if(open_new_file == 1) {
 
-       //wispr_print_data_header(&hdr);
+       wispr_print_data_header(&hdr);
     
 	   open_new_file = 0;
     

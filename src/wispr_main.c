@@ -30,11 +30,11 @@
 // But using the COMPILER_WORD_ALIGNED macro will avoid any memory alignment problem,
 // although the compiler will still give the warning.
 
-COMPILER_WORD_ALIGNED uint8_t adc_buffer[ADC_MAX_BUFFER_SIZE];
+COMPILER_WORD_ALIGNED uint8_t adc_buffer[ADC_MAX_BUFFER_SIZE+1];
 uint8_t *adc_data = &adc_buffer[WISPR_DATA_HEADER_SIZE]; // data follows header
 wispr_data_header_t adc_header;
 
-COMPILER_WORD_ALIGNED uint8_t psd_buffer[PSD_MAX_BUFFER_SIZE];
+COMPILER_WORD_ALIGNED uint8_t psd_buffer[PSD_MAX_BUFFER_SIZE+1];
 uint8_t *psd_data = &psd_buffer[WISPR_DATA_HEADER_SIZE]; // data follows header
 wispr_data_header_t psd_header;
 
@@ -171,7 +171,9 @@ int main (void)
 	printf("\n\rStart read loop: %.2f second windows (%d block) at %d second intervals\n\r", 
 		actual_sampling_time, adc_blocks_per_window, wakeup_interval);
 
-	//ltc2512_init_test(&wispr, samples_per_adc_block, wispr.sampling_rate/10);
+// FOR TESTING ONLY
+	uint32_t fc = console_prompt_uint32("Enter test signal center freq", wispr.sampling_rate/10, 10);
+	ltc2512_init_test(&wispr, samples_per_adc_block, fc, 1.0);
 	
 	// initialize the uart com communications port
 	wispr_com_msg_t com_msg;
@@ -271,6 +273,14 @@ int main (void)
 
 			uint32_t now;
 			rtc_get_epoch(&now);
+
+			// dump the psd to the console
+			float32_t *psd_f32 = (float *)psd_data;
+			printf("psd = [\r\n");
+			for(int n = 0; n < psd_nbins; n++) {
+				printf("%f ", psd_f32[n]);
+			}
+			printf("];\r\n");
 			
 			// save the latest config
 			// update the config time so the last active card number can be determined on wakeup

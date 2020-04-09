@@ -27,9 +27,13 @@
 #define HAMMING_WINDOW 1
 #define HANN_WINDOW 2
 #define BLACKMAN_WINDOW 3
+#define RECT_WINDOW 4
 
 extern int spectrum_init_f32(wispr_config_t *wispr, wispr_data_header_t *psd, uint16_t *nbins, uint16_t nfft, uint16_t overlap, uint8_t bps, uint8_t wintype);
 extern int spectrum_f32(wispr_data_header_t *psd, uint8_t *psd_data, wispr_data_header_t *adc, uint8_t *adc_data, uint16_t nsamps);
+
+extern int spectrum_init_q31(wispr_config_t *wispr, wispr_data_header_t *psd, uint16_t *nbins, uint16_t nfft, uint16_t overlap, uint8_t bps, uint8_t wintype);
+extern int spectrum_q31(wispr_data_header_t *psd, uint8_t *psd_data, wispr_data_header_t *adc, uint8_t *adc_data, uint16_t nsamps);
 
 extern void spectrum_window(float32_t *w, uint8_t type, uint16_t size);
 

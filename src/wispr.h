@@ -13,9 +13,9 @@
 #define WISPR_VERSION 2
 #define WISPR_SUBVERSION 0
 
-#define WISPR_SD_CARD_HEADER_BLOCK (128)
-#define WISPR_SD_CARD_CONFIG_BLOCK (129)
-#define WISPR_SD_CARD_START_BLOCK (130)
+#define WISPR_SD_CARD_HEADER_BLOCK (30)
+#define WISPR_SD_CARD_CONFIG_BLOCK (31)
+#define WISPR_SD_CARD_START_BLOCK (32)
 
 // sd cards only read in blocks, not bytes, 
 // so reads and writes must be done in blocks of this size
@@ -40,14 +40,17 @@
 #define ADC_DEFAULT_GAIN 0
 #define ADC_DEFAULT_DECIMATION 4
 
+#define ADC_DMA_OVERFLOW 0x01
+#define ADC_DMA_BUFFER_OVERRUN 0x02
+
 // adc reference voltage
 #define ADC_VREF 5.0
 #define ADC_SCALING 5.0
 
 // spectrum max values
 // spectrum uses float32_t ffts, so each freq bin is a float32
-#define PSD_MAX_FFT_SIZE (512)
-#define PSD_MAX_BLOCKS_PER_BUFFER (2) 
+#define PSD_MAX_FFT_SIZE (1024)
+#define PSD_MAX_BLOCKS_PER_BUFFER (4) 
 #define PSD_MAX_BUFFER_SIZE (PSD_MAX_BLOCKS_PER_BUFFER * WISPR_SD_CARD_BLOCK_SIZE) 
 #define PSD_MAX_BINS_PER_BUFFER ((PSD_MAX_BUFFER_SIZE - WISPR_DATA_HEADER_SIZE) / 4)
 
@@ -132,6 +135,7 @@ extern int wispr_parse_data_header(uint8_t *buf, wispr_data_header_t *hdr);
 extern int wispr_serialize_data_header(wispr_data_header_t *hdr, uint8_t *buf);
 extern void wispr_print_data_header(wispr_data_header_t *header);
 extern void wispr_print_config(wispr_config_t *hdr);
+extern void wispr_print_sd_card_header(wispr_sd_card_t *hdr);
 extern int wispr_parse_config(uint8_t *buf, wispr_config_t *hdr);
 extern int wispr_serialize_config(wispr_config_t *hdr, uint8_t *buf);
 extern void wispr_update_data_header(wispr_config_t *wispr, wispr_data_header_t *hdr);

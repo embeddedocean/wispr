@@ -9,6 +9,7 @@
 #include <stdio.h>
 #include <stdint.h>
 #include "rtc_time.h"
+#include "epoch.h"
 
 /**
  * Calculate week from year, month, day.

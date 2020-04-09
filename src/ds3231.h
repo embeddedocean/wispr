@@ -9,6 +9,8 @@
 #ifndef DS3231_H_
 #define DS3231_H_
 
+#include "rtc_time.h"
+
 /*
  * Responses from RTCReadSignature()
  */

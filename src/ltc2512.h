@@ -76,7 +76,7 @@ extern uint16_t ltc2512_init_dma(uint16_t nsamps);
 extern void ltc2512_start_dma(void);
 extern void ltc2512_stop_dma(void);
 
-//extern void ltc2512_init_test(wispr_config_t *wispr, uint16_t nsamps, uint32_t freq);
+extern void ltc2512_init_test(wispr_config_t *wispr, uint16_t nsamps, uint32_t freq, float32_t amp);
 
 extern void ltc2512_get_date(uint8_t *cent, uint8_t *year, uint8_t *month, uint8_t *day, uint8_t *week);
 extern void ltc2512_get_time(uint8_t *hour, uint8_t *minute, uint8_t *second, uint32_t *usec);

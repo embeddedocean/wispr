@@ -52,7 +52,7 @@
  uint32_t ltc_adc_time2 = 0;
  uint32_t ltc_adc_date2 = 0;
 
- uint8_t ltc_adc_overflow = 0; // overflow flag
+ uint8_t ltc_adc_status = 0; // status flag
 
  // local instance used to update the data buffer header
  //wispr_data_header_t adc_data_header;
@@ -178,6 +178,7 @@
 	ltc_adc_sample_size = wispr->sample_size;
 	ltc_down_sampling_factor = df;
 	ltc_adc_sampling_freq = actual_fs;
+	ltc_adc_status = 0;
 
 	//printf("init_ltc2512: fs = %d, df = %d, gain = %d\r\n", fs, df, gain);
 	printf("ltc2512: actual fs = %lu, serial clock = %lu\n\r", fs, rsck);
@@ -197,7 +198,7 @@
 	hdr->settings[0] = gain;
 	hdr->settings[1] = df;
 	hdr->settings[2] = 0;
-	hdr->settings[3] = ltc_adc_overflow;
+	hdr->settings[3] = ltc_adc_status;
 	hdr->second = 0;
 	hdr->usec = 0;
 
@@ -206,7 +207,7 @@
 	wispr->settings[1] = df;
 	 
 	return(actual_fs);
- }
+}
 
 //
 // Configure TC0_TIOA to supply MCLK for the ADC
@@ -216,7 +217,7 @@ uint32_t ltc2512_config_mclk(uint32_t fs, uint8_t df)
 	// Configure TC TC_CHANNEL_WAVEFORM in waveform operating mode.
 	//see: http://www.allaboutcircuits.com/projects/dma-digital-to-analog-conversion-with-a-sam4s-microcontroller-the-timer-cou/
 
-	/* Configure PIO Pins for TC */
+	/* Configure PA0 Pin for TC TIOA */
 	ioport_set_pin_mode(PIN_TC0_TIOA0, PIN_TC0_TIOA0_MUX);
 
 	/* Disable IO to enable peripheral mode) */
@@ -234,14 +235,14 @@ uint32_t ltc2512_config_mclk(uint32_t fs, uint8_t df)
 	/* Init TC to waveform mode. */
 	tc_init(TC0, 0,
 	TC_CMR_TCCLKS_TIMER_CLOCK1	//MCK/2
-	| TC_CMR_WAVE	//waveform mode
-	| TC_CMR_WAVSEL_UP_RC	//UP mode with automatic trigger on RC Compare
-	| TC_CMR_ACPA_TOGGLE	//toggle TIOA on RA match
-	| TC_CMR_ACPC_TOGGLE	//toggle TIOA on RC match
-	//| TC_CMR_BCPB_TOGGLE	//toggle TIOB on RB match
-	//| TC_CMR_BCPC_TOGGLE	//toggle TIOB on RC match
-	// for TIOB to configured as an output an external event needs to be selected
-	//| TC_CMR_EEVT_XC0 | TC_CMR_AEEVT_NONE | TC_CMR_BEEVT_NONE | TC_CMR_EEVTEDG_NONE
+		| TC_CMR_WAVE	//waveform mode
+		| TC_CMR_WAVSEL_UP_RC	//UP mode with automatic trigger on RC Compare
+		| TC_CMR_ACPA_TOGGLE	//toggle TIOA on RA match
+		| TC_CMR_ACPC_TOGGLE	//toggle TIOA on RC match
+		//| TC_CMR_BCPB_TOGGLE	//toggle TIOB on RB match
+		//| TC_CMR_BCPC_TOGGLE	//toggle TIOB on RC match
+		// for TIOB to configured as an output an external event needs to be selected
+		//| TC_CMR_EEVT_XC0 | TC_CMR_AEEVT_NONE | TC_CMR_BEEVT_NONE | TC_CMR_EEVTEDG_NONE
 	);
 	
 	/* Configure waveform frequency and duty cycle. */
@@ -249,7 +250,7 @@ uint32_t ltc2512_config_mclk(uint32_t fs, uint8_t df)
 	//uint32_t rb;
 	uint32_t dutycycle = 10; /** Duty cycle in percent (positive).*/
 	uint32_t mclk;
-
+	
 	uint32_t sck = sysclk_get_peripheral_bus_hz(TC0);
 	//sck = board_get_cpu_clock_hz();
 	uint32_t target_mclk = fs * (uint32_t)df;
@@ -259,11 +260,11 @@ uint32_t ltc2512_config_mclk(uint32_t fs, uint8_t df)
 		if( mclk <= target_mclk ) break;
 	}
 	mclk = sck / 2 / rc; // actual mclk
-
+	
 	//mclk = *fs * (uint32_t)df; // target mclk
 	//rc = sck / 2 / mclk; //
 	//mclk = sck / 2 / rc; // actual mclk
-
+	
 	ra = (100 - dutycycle) * rc / 100;
 	//rb = ra;
 	
@@ -282,6 +283,7 @@ uint32_t ltc2512_config_mclk(uint32_t fs, uint8_t df)
 
 void ltc2512_start_conversion(void)
 {
+	ioport_set_pin_level(PIN_ADC_SYNC, 1);
 	ioport_set_pin_level(PIN_ADC_SYNC, 0);
 	/* Enable TC0 Channel 0. */
 	tc_start(TC0, 0);
@@ -289,6 +291,7 @@ void ltc2512_start_conversion(void)
 
 void ltc2512_stop_conversion(void)
 {
+	ioport_set_pin_level(PIN_ADC_SYNC, 1);
 	/* Disable TC0 Channel 0. */
 	tc_stop(TC0, 0);
 }
@@ -476,9 +479,9 @@ void SSC_Handler(void)
 	if ((status & SSC_SR_RXBUFF) == SSC_SR_RXBUFF) {
 		// buffer overflow
 		//printf("SSC_Handler: buffer overflow\r\n");
-		ltc_adc_overflow = 1;
+		ltc_adc_status != ADC_DMA_OVERFLOW;
 	} else {
-		ltc_adc_overflow = 0;
+		ltc_adc_status &= ~ADC_DMA_OVERFLOW;
 	}
 
 }
@@ -566,16 +569,16 @@ static inline uint8_t ltc2512_copy_dma_int16(uint8_t *ibuf, uint8_t *obuf, uint1
 // load the test buffer with a 24 bit signed int value to simulate the adc.
 // the test buffer will replace the dma buffer in simulation, so it's an int32.
 // remember that the buffer data will be formatted as little-endian
-/*
+
 uint8_t ltc_dma_test = 0;
-void ltc2512_init_test(wispr_config_t *wispr, uint16_t nsamps, uint32_t freq)
+void ltc2512_init_test(wispr_config_t *wispr, uint16_t nsamps, uint32_t freq, float32_t amp)
 {
 	// allocate test buffer
 	uint32_t nbytes = (uint32_t)nsamps * 4;
 	ltc_adc_test_buffer = (uint8_t *)malloc(nbytes);
 	if(ltc_adc_test_buffer == NULL) return;
 	
-	float32_t max_value = 8388608.0; // 2^23
+	float32_t max_value = amp * 8388607.0 / ADC_SCALING; // 2^23
 	int32_t *buf = (int32_t *)ltc_adc_test_buffer;
 	float32_t w = 2.0 * PI * (float32_t)freq;
 	float32_t dt = 1.0 / (float32_t)wispr->sampling_rate;
@@ -584,13 +587,13 @@ void ltc2512_init_test(wispr_config_t *wispr, uint16_t nsamps, uint32_t freq)
 		float32_t t = (float32_t)n * dt;
 		float32_t x = max_value * arm_sin_f32(w*t);
 		buf[n] = (int32_t)(x);
-		if(n < 8) printf("%x ", buf[n]);
+		//if(n < 8) printf("%d ", buf[n]);
 	}
-	printf("\r\n");
+	//printf("\r\n");
 	
 	ltc_dma_test = 1;
 }
-*/
+
 
 //
 // be careful with timing here because the dma buffer gets overwritten.
@@ -600,18 +603,44 @@ uint16_t ltc2512_read_dma(wispr_data_header_t *hdr, uint8_t *data, uint16_t nsam
 	// no buffer ready or buffer has already been read
 	if(ltc_adc_buffer == NULL) return(0);
 
+	// use the latest buffer
+	uint8_t *buffer = ltc_adc_buffer;
+
 	// testing only - removed for release
-	//if( ltc_dma_test ) ltc_adc_buffer = ltc_adc_test_buffer;
+	if( ltc_dma_test ) buffer = ltc_adc_test_buffer;
 	
 	uint8_t chksum = 0;
 		
 	if( ltc_adc_sample_size == 3) {
-		chksum = ltc2512_copy_dma_int24(ltc_adc_buffer, data, nsamps);
+		chksum = ltc2512_copy_dma_int24(buffer, data, nsamps);
+		//int m = 0;
+		//for(int n = 0; n < 16; n++, m++) {
+		//	uint32_t uv = ((uint32_t)data[3*n+0] << 8) | ((uint32_t)data[3*n+1] << 16) | ((uint32_t)data[3*n+2] << 24);
+		//	int32_t v = (int32_t)uv >> 8; // this shift preserves the sign bit
+		//	printf("%d ", v);
+		//}
+		//printf("\r\n");
 	}
 	else if( ltc_adc_sample_size == 2 ) {
-		chksum = ltc2512_copy_dma_int16(ltc_adc_buffer, data, nsamps);
+		chksum = ltc2512_copy_dma_int16(buffer, data, nsamps);
+		//int m = 0;
+		//for(int n = 0; n < 16; n++, m++) {
+		//	int16_t v = (int16_t)( ((uint16_t)data[2*n+0] << 0) | ((uint16_t)data[2*n+1] << 8) );
+		//	printf("%d ", v);
+		//}
+		//printf("\r\n");
 	}
 
+	// check to see if the buffer pointer has changed during copy
+	// this could mean that the data is corrupted.
+	uint8_t status = ltc_adc_status;
+	if( !ltc_dma_test && (ltc_adc_buffer != buffer) ) {
+		status |= ADC_DMA_BUFFER_OVERRUN;
+		printf("ltc2512_read_dma: buffer overrun\r\n");
+	} else {
+		status &= ~ADC_DMA_BUFFER_OVERRUN;
+	}
+	
 	// update the data header info
 	uint8_t year,month,day,hour,minute,sec;
 	uint32_t usec = 0;
@@ -623,7 +652,7 @@ uint16_t ltc2512_read_dma(wispr_data_header_t *hdr, uint8_t *data, uint16_t nsam
 	hdr->data_chksum = chksum; // checksum for data
 	hdr->samples_per_block = nsamps;
 	hdr->sample_size = ltc_adc_sample_size;
-	hdr->settings[3] = ltc_adc_overflow;
+	hdr->settings[3] = status;
 
 	// indicate that the dma buffer has been read
 	ltc_adc_buffer = NULL;
