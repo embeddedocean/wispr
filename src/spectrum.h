@@ -29,29 +29,19 @@
 #define BLACKMAN_WINDOW 3
 #define RECT_WINDOW 4
 
-extern int spectrum_init_f32(wispr_config_t *wispr, wispr_data_header_t *psd, uint16_t *nbins, uint16_t nfft, uint16_t overlap, uint8_t bps, uint8_t wintype);
-extern int spectrum_f32(wispr_data_header_t *psd, uint8_t *psd_data, wispr_data_header_t *adc, uint8_t *adc_data, uint16_t nsamps);
+extern void spectrum_update_header(wispr_data_header_t *psd, wispr_data_header_t *adc);
 
-extern int spectrum_init_q31(wispr_config_t *wispr, wispr_data_header_t *psd, uint16_t *nbins, uint16_t nfft, uint16_t overlap, uint8_t bps, uint8_t wintype);
-extern int spectrum_q31(wispr_data_header_t *psd, uint8_t *psd_data, wispr_data_header_t *adc, uint8_t *adc_data, uint16_t nsamps);
+extern int spectrum_init_f32(uint16_t *nbins, uint16_t nfft, uint16_t overlap, uint32_t fs, uint8_t nbps, uint8_t wintype);
+extern int spectrum_f32(wispr_data_header_t *psd, float32_t *psd_data, wispr_data_header_t *adc, uint8_t *adc_data, uint16_t nsamps);
+
+extern int spectrum_init_q31(uint16_t *nbins, uint16_t nfft, uint16_t overlap, uint32_t fs, uint8_t nbps, uint8_t wintype);
+extern int spectrum_q31(wispr_data_header_t *psd, float32_t *psd_data, wispr_data_header_t *adc, uint8_t *adc_data, uint16_t nsamps);
 
 extern void spectrum_window(float32_t *w, uint8_t type, uint16_t size);
 
+//extern int spectrum_q31(q31_t *input, float32_t *output, uint16_t nsamps, uint16_t nbins, uint16_t nfft, uint16_t overlap );
+//extern int init_spectrum_q31(uint16_t nfft, uint8_t win_type );
 
-/*
-typedef struct {
-	uint16_t nfft;      // size of fft
-	uint16_t overlap;   // data overlap for each fft
-	uint16_t navg;      // num of time bins to average
-	uint32_t fs;        // sampling freq [hz]
-	float32_t dtime;        // size of time bin in seconds.
-	float32_t dfreq;        // size of frequency bins in Hz.
-	float32_t *magnitude;
-	float32_t *window;
-	uint16_t num_time_bins;  // ((nsamps - nfft)/(nfft - overlap)) / navg
-	uint16_t num_freq_bins;  // nfft/2 +1
-} spectrum_f32_t;
-*/
 
 #endif /* _SPECTRUM_H */
 

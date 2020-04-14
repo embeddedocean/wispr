@@ -18,9 +18,6 @@
  /* DMA channel */
  //#define SSC_ADC_DMA_CH 0
 
- //COMPILER_WORD_ALIGNED uint8_t ltc_adc_test_buffer[LTC2512_DMA_BUFFER_NBYTES];
- COMPILER_WORD_ALIGNED uint8_t *ltc_adc_test_buffer;
-
  /* Pdc transfer buffer */
  COMPILER_WORD_ALIGNED uint8_t ltc_adc_dma_buffer1[LTC2512_DMA_BUFFER_NBYTES];
  COMPILER_WORD_ALIGNED uint8_t ltc_adc_dma_buffer2[LTC2512_DMA_BUFFER_NBYTES];
@@ -479,7 +476,7 @@ void SSC_Handler(void)
 	if ((status & SSC_SR_RXBUFF) == SSC_SR_RXBUFF) {
 		// buffer overflow
 		//printf("SSC_Handler: buffer overflow\r\n");
-		ltc_adc_status != ADC_DMA_OVERFLOW;
+		ltc_adc_status |= ADC_DMA_OVERFLOW;
 	} else {
 		ltc_adc_status &= ~ADC_DMA_OVERFLOW;
 	}
@@ -537,7 +534,7 @@ static inline uint8_t ltc2512_copy_dma_int24(uint8_t *ibuf, uint8_t *obuf, uint1
 		obuf[m++] = ibuf[n]; // LSB
 		obuf[m++] = ibuf[n+1];
 		obuf[m++] = ibuf[n+2]; // MSB
-		chksum = ibuf[n] + ibuf[n+1] + ibuf[n+2];
+		chksum += ibuf[n] + ibuf[n+1] + ibuf[n+2];
 		//if(n < 32) printf("%x%x%x ", ibuf[n+2], ibuf[n+1], ibuf[n]);
 	}
 	//printf("\r\n");
@@ -557,7 +554,7 @@ static inline uint8_t ltc2512_copy_dma_int16(uint8_t *ibuf, uint8_t *obuf, uint1
 		//obuf[m++] = ibuf[n]; // LSB
 		obuf[m++] = ibuf[n+1]; // 
 		obuf[m++] = ibuf[n+2]; // MSB
-		chksum = ibuf[n+1] + ibuf[n+2];
+		chksum += ibuf[n+1] + ibuf[n+2];
 		//if(n < 32) printf("%x%x ", ibuf[n+2], ibuf[n+1]);
 	}
 	//printf("\r\n");
@@ -571,29 +568,45 @@ static inline uint8_t ltc2512_copy_dma_int16(uint8_t *ibuf, uint8_t *obuf, uint1
 // remember that the buffer data will be formatted as little-endian
 
 uint8_t ltc_dma_test = 0;
-void ltc2512_init_test(wispr_config_t *wispr, uint16_t nsamps, uint32_t freq, float32_t amp)
+COMPILER_WORD_ALIGNED uint8_t *ltc_adc_test_buffer;
+
+//
+// Generate a sine wave test signal of amplitude (amp) in volts
+// with additive uniform random noise with standard deviation (noise)
+// 
+void ltc2512_init_test(wispr_config_t *wispr, uint16_t nsamps, uint32_t freq, float32_t amp, float32_t noise)
 {
 	// allocate test buffer
 	uint32_t nbytes = (uint32_t)nsamps * 4;
 	ltc_adc_test_buffer = (uint8_t *)malloc(nbytes);
-	if(ltc_adc_test_buffer == NULL) return;
+	if(ltc_adc_test_buffer == NULL) {
+		printf("\r\nltc_init_test: malloc failed\r\n");
+		return;
+	}
 	
-	float32_t max_value = amp * 8388607.0 / ADC_SCALING; // 2^23
 	int32_t *buf = (int32_t *)ltc_adc_test_buffer;
+	
+	float32_t max_value = 8388607.0 / ADC_SCALING; // 2^23
 	float32_t w = 2.0 * PI * (float32_t)freq;
 	float32_t dt = 1.0 / (float32_t)wispr->sampling_rate;
-	printf("\r\nltc_init_test: \r\n");
+	float32_t A = 1.73205080; // sqrt(12/4)
 	for(int n = 0; n < nsamps; n++) {
+		float32_t rv = noise * A * (2.0 *((float32_t)rand() / (float32_t)RAND_MAX) - 1.0f);
 		float32_t t = (float32_t)n * dt;
-		float32_t x = max_value * arm_sin_f32(w*t);
-		buf[n] = (int32_t)(x);
-		//if(n < 8) printf("%d ", buf[n]);
+		float32_t x =  (rv + amp*arm_sin_f32(w*t));
+		buf[n] = (int32_t)(max_value * x);
 	}
-	//printf("\r\n");
 	
+	printf("\r\nltc_init_test: test signal will replace adc data.\r\n");
+	printf("test_sig = [\r\n");
+	for(int n = 0; n < 1024; n++) {
+		//printf("%f ", (float32_t)buf[n] / max_value);
+		printf("%d ", buf[n]);
+	}
+	printf("];\r\n");
+
 	ltc_dma_test = 1;
 }
-
 
 //
 // be careful with timing here because the dma buffer gets overwritten.
@@ -606,29 +619,16 @@ uint16_t ltc2512_read_dma(wispr_data_header_t *hdr, uint8_t *data, uint16_t nsam
 	// use the latest buffer
 	uint8_t *buffer = ltc_adc_buffer;
 
-	// testing only - removed for release
+	// for testing only 
 	if( ltc_dma_test ) buffer = ltc_adc_test_buffer;
 	
 	uint8_t chksum = 0;
 		
 	if( ltc_adc_sample_size == 3) {
 		chksum = ltc2512_copy_dma_int24(buffer, data, nsamps);
-		//int m = 0;
-		//for(int n = 0; n < 16; n++, m++) {
-		//	uint32_t uv = ((uint32_t)data[3*n+0] << 8) | ((uint32_t)data[3*n+1] << 16) | ((uint32_t)data[3*n+2] << 24);
-		//	int32_t v = (int32_t)uv >> 8; // this shift preserves the sign bit
-		//	printf("%d ", v);
-		//}
-		//printf("\r\n");
 	}
 	else if( ltc_adc_sample_size == 2 ) {
 		chksum = ltc2512_copy_dma_int16(buffer, data, nsamps);
-		//int m = 0;
-		//for(int n = 0; n < 16; n++, m++) {
-		//	int16_t v = (int16_t)( ((uint16_t)data[2*n+0] << 0) | ((uint16_t)data[2*n+1] << 8) );
-		//	printf("%d ", v);
-		//}
-		//printf("\r\n");
 	}
 
 	// check to see if the buffer pointer has changed during copy
@@ -664,14 +664,28 @@ uint16_t ltc2512_read_dma(wispr_data_header_t *hdr, uint8_t *data, uint16_t nsam
 /*
 // example of how to copy 24 bit data into a 32 bit signed int
 
-	uint32_t *buf = (uint32_t *)adc_buffer_data;
-	for (m = 0; m < LTC2512_NUM_SAMPLES; m++) {
-		// load the 24 bit word into a 32 bit word, preserving the sign bit
-		uint32_t uv = ((uint32_t)adc_buffer_data[3*m+0] << 8) | ((uint32_t)adc_buffer_data[3*m+1] << 16) | ((uint32_t)adc_buffer_data[3*m+2] << 24);
-		int32_t v = (int32_t)uv >> 8;
+	if( ltc_adc_sample_size == 3) {
+		int m = 0;
+		for(int n = 0; n < 16; n++, m++) {
+			// load the 24 bit word into a 32 bit word, preserving the sign bit
+			uint32_t uv = ((uint32_t)data[3*n+0] << 8) | ((uint32_t)data[3*n+1] << 16) | ((uint32_t)data[3*n+2] << 24);
+			int32_t v = (int32_t)uv >> 8; // this shifts back to the first 24 bits and preserves the sign bit
+			printf("%d ", v);
+		}
+		printf("\r\n");
+	}
+	else if( ltc_adc_sample_size == 2 ) {
+		int m = 0;
+		for(int n = 0; n < 16; n++, m++) {
+			// load the 16 bit word into a 32 bit word
+			// the sign bit is preserved as is
+			int16_t v = (int16_t)( ((uint16_t)data[2*n+0] << 0) | ((uint16_t)data[2*n+1] << 8) );
+			printf("%d ", v);
+		}
+		printf("\r\n");
 	}
 
-more examples:
+example showing how memory is little endian but words are not
 
 	int m, n;
 	uint8_t buf[16*4];
@@ -683,8 +697,27 @@ more examples:
 		int32_t n24 = (int32_t)temp >> 8;
 		printf("%d %08x %02x%02x%02x%02x %d\r\n", n32[n], n32[n], buf[n*4+0], buf[n*4+1], buf[n*4+2], buf[n*4+3], n24);
 	}
+	
+	this is the output:
+	
+	-8 fffffff8 f8ffffff -8
+	-7 fffffff9 f9ffffff -7
+	-6 fffffffa faffffff -6
+	-5 fffffffb fbffffff -5
+	-4 fffffffc fcffffff -4
+	-3 fffffffd fdffffff -3
+	-2 fffffffe feffffff -2
+	-1 ffffffff ffffffff -1
+	0 00000000 00000000 0
+	1 00000001 01000000 1
+	2 00000002 02000000 2
+	3 00000003 03000000 3
+	4 00000004 04000000 4
+	5 00000005 05000000 5
+	6 00000006 06000000 6
+	7 00000007 07000000 7
+	
 */
-
 
 
 /**

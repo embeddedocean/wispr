@@ -131,7 +131,7 @@ char *epoch_time_string(uint32_t epoch)
 {
 	rtc_time_t tme;
 	epoch_to_rtc_time(&tme, epoch);
-	sprintf(time_string, "%02d/%02d/%02d %02d-%02d-%02d",
+	sprintf(time_string, "%02d/%02d/%02d %02d:%02d:%02d",
 		tme.year,tme.month,tme.day,tme.hour,tme.minute,tme.second);
 	//	uint8_t yr, mn, dy, hr, mi, se;
 	//	epoch_to_time(epoch, &yr, &mn, &dy, &hr, &mi, &se);

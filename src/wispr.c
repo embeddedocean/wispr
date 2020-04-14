@@ -149,18 +149,28 @@ void wispr_print_config(wispr_config_t *hdr)
 	float buffer_duration =  (float)hdr->samples_per_block / (float)hdr->sampling_rate;
 
 	fprintf(stdout, "\r\nWISPR %d.%d configuration\r\n", hdr->version[1], hdr->version[0]);
-	fprintf(stdout, "- time last changed %s\r\n", epoch_time_string(hdr->epoch));
 	fprintf(stdout, "- state %02x, mode %02x\r\n", hdr->state, hdr->mode);
-	//fprintf(stdout, "- epoch: %lu\r\n", hdr->epoch);
-	fprintf(stdout, "- bytes per sample: %d\r\n", hdr->sample_size);
-	fprintf(stdout, "- block size: %d\r\n", hdr->block_size);
-	fprintf(stdout, "- samples per block: %d\r\n", hdr->samples_per_block);
-	fprintf(stdout, "- sampling rate: %d\r\n", hdr->sampling_rate);
-	fprintf(stdout, "- buffer duration: %lu msec\n\r", (uint32_t)(1000.0*buffer_duration));
-	fprintf(stdout, "- settings: %02x %02x %02x %02x %02x %02x %02x %02x\r\n", 
+	fprintf(stdout, "- time last changed            %s\r\n", epoch_time_string(hdr->epoch));
+	fprintf(stdout, "- bytes per sample:            %d\r\n", hdr->sample_size);
+	fprintf(stdout, "- block size:                  %d\r\n", hdr->block_size);
+	fprintf(stdout, "- samples per block:           %d\r\n", hdr->samples_per_block);
+	fprintf(stdout, "- sampling rate:               %d\r\n", hdr->sampling_rate);
+	fprintf(stdout, "- buffer duration:             %lu msec\n\r", (uint32_t)(1000.0*buffer_duration));
+	fprintf(stdout, "- settings:                    %02x %02x %02x %02x %02x %02x %02x %02x\r\n", 
 		hdr->settings[0], hdr->settings[1],hdr->settings[2], hdr->settings[3],
 		hdr->settings[4], hdr->settings[5],hdr->settings[6], hdr->settings[7]);
-	fprintf(stdout, "- active sd card: %d\r\n", hdr->active_sd_card);
+	fprintf(stdout, "- active sd card:              %d\r\n", hdr->active_sd_card);
+}
+
+
+void wispr_print_sd_card_header(wispr_sd_card_t *hdr)
+{
+	fprintf(stdout, "\r\nWISPR %d.%d Card Header\r\n", hdr->version[1], hdr->version[0]);
+	fprintf(stdout, "- addr of start block:          %d\r\n", hdr->start_block);
+	fprintf(stdout, "- addr of end block:            %d\r\n", hdr->end_block);
+	fprintf(stdout, "- addr of current write block:  %d\r\n", hdr->write_addr);
+	fprintf(stdout, "- addr of current read block:   %d\r\n", hdr->read_addr);
+	fprintf(stdout, "- time last header was written: %s\r\n", epoch_time_string(hdr->epoch));
 }
 
 

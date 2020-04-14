@@ -55,6 +55,14 @@ while( go )
     figure(1); clf;
     plot(t, data,'.-');
     
+    nfft = 1024;
+    window = hamming(nfft);
+    overlap = 256;
+    fs = hdr.sampling_rate;
+    [Spec, freq] = psd(data,nfft,fs,window,overlap);
+    figure(2); clf;
+    plot(freq, 10*log10(Spec),'.-');
+    
     if(input('quit: ') == 1) 
         go = 0;
         break; 

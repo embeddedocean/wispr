@@ -200,88 +200,61 @@ int main(int argc, char **argv)
        return -1;
     }
 
-    // check the data buffer time to determine total duration of data written to file
-    duration += ((float)hdr.samples_per_block / (float)hdr.sampling_rate);
-    if( duration >= (float)seconds_per_file ) {
-        open_new_file = 1;
-        duration = 0.0;
-    }
-    // check the gap time between buffer
-    // if it's larger than threshold then make a new file
-    if( (hdr.second - prev_sec) > data_gap ) {
-        open_new_file = 1;
-        duration = 0.0;
-        fprintf(stdout, "Data gap of %u seconds found\n", hdr.second - prev_sec);
-    }
-    prev_sec = hdr.second;
-    
-    // open new output file
-    if(open_new_file == 1) {
+    if(hdr.type == WISPR_WAVEFORM) {
 
-       wispr_print_data_header(&hdr);
+		if(prev_sec == 0) prev_sec = hdr.second;
+
+		// check the data buffer time to determine total duration of data written to file
+		duration += ((float)hdr.samples_per_block / (float)hdr.sampling_rate);
+		if( duration >= (float)seconds_per_file ) {
+			open_new_file = 1;
+			duration = 0.0;
+		}
+		// check the gap time between buffer
+		// if it's larger than threshold then make a new file
+		if( (hdr.second - prev_sec) > data_gap ) {
+			open_new_file = 1;
+			duration = 0.0;
+			fprintf(stdout, "Data gap of %u seconds found\n", hdr.second - prev_sec);
+		}
+		prev_sec = hdr.second;
     
-	   open_new_file = 0;
+		// open new output file
+		if(open_new_file == 1) {
+
+			wispr_print_data_header(&hdr);
     
-       rtc_time_t rtc;
-       epoch_to_rtc_time(&rtc, hdr.second);
+			open_new_file = 0;
+    
+			rtc_time_t rtc;
+			epoch_to_rtc_time(&rtc, hdr.second);
        
-       // Open file to write raw data
-       if(hdr.type == WISPR_WAVEFORM) {
-          if(dat_fp != NULL) {
+			// Open file to write raw data
+			if(dat_fp != NULL) {
 		      fprintf(stdout, "Closing raw data file %s, %d buffers written\n\n", out_filename, dat_buffer_count);
 			  fclose(dat_fp);
 			  dat_buffer_count = 0;
-		  }
-          sprintf(out_filename,"%s/%s_%02d%02d%02d_%02d%02d%02d.dat", output_path, prefix, 
-             rtc.year, rtc.month, rtc.day, rtc.hour, rtc.minute, rtc.second);
-          if(dat_fp != NULL) fclose(dat_fp);
-          dat_fp = fopen(out_filename, "w");
-          fprintf(stdout, "Opening raw data file %s\n", out_filename);
-          if(dat_fp == NULL) {
-             fprintf(stdout, "Failed to open output file\n");
-             return -1;
-          }
-       }
-       else if(hdr.type == WISPR_SPECTRUM) {
-          if(psd_fp != NULL) {
-		      fprintf(stdout, "Closing psd file %s, %d buffers written\n\n", out_filename, psd_buffer_count);
-			  fclose(psd_fp);
-			  psd_buffer_count = 0;
-		  }
-          sprintf(out_filename,"%s/%s_%02d%02d%02d_%02d%02d%02d.psd", output_path, prefix, 
-             rtc.year, rtc.month, rtc.day, rtc.hour, rtc.minute, rtc.second);
-          if(psd_fp != NULL) fclose(psd_fp);
-          psd_fp = fopen(out_filename, "w");
-          fprintf(stdout, "Opening psd data file %s\n", out_filename);
-          if(psd_fp == NULL) {
-             fprintf(stdout, "Failed to open output file\n");
-             return -1;
-          }
-       }
-    
-    }
-      
-    // Write the whole buffer (header and data) to output file
-    if(hdr.type == WISPR_WAVEFORM) {
-       if(dat_fp != NULL) {
-          buffer_size = (size_t)hdr.block_size;
-          nwrt = fwrite(buffer, 1, buffer_size, dat_fp);
-          if (nwrt != buffer_size) {
+			}
+			sprintf(out_filename,"%s/%s_%02d%02d%02d_%02d%02d%02d.dat", output_path, prefix, 
+               rtc.year, rtc.month, rtc.day, rtc.hour, rtc.minute, rtc.second);
+			dat_fp = fopen(out_filename, "w");
+			fprintf(stdout, "Opening raw data file %s\n", out_filename);
+			if(dat_fp == NULL) {
+              fprintf(stdout, "Failed to open output file\n");
+              return -1;
+			}
+		}
+          
+		// Write the whole buffer (header and data) to output file
+		if(dat_fp != NULL) {
+           buffer_size = (size_t)hdr.block_size;
+           nwrt = fwrite(buffer, 1, buffer_size, dat_fp);
+           if (nwrt != buffer_size) {
              fprintf(stdout, "failed to write buffer: %d\n", nwrt);
              //continue;
-          }
-          dat_buffer_count++;
-       }
-    }
-    else if(hdr.type == WISPR_SPECTRUM) {
-       if(psd_fp != NULL) {
-          buffer_size = (size_t)hdr.block_size;
-          nwrt = fwrite(buffer, 1, buffer_size, psd_fp);
-          if (nwrt != buffer_size) {
-             fprintf(stdout, "failed to write psd buffer: %d\n", nwrt);
-          }
-          psd_buffer_count++;
-       }
+           }
+           dat_buffer_count++;
+        }
     }
 
     // leave read loop if the last block has been read
@@ -295,7 +268,6 @@ int main(int argc, char **argv)
 
   fclose(input_fp);
   if(dat_fp != NULL) fclose(dat_fp);
-  if(psd_fp != NULL) fclose(psd_fp);
 
   return 1;
 }

@@ -73,8 +73,8 @@ int board_init(void)
 {
   // initialize PLL and main clock with the settings in confog_clock.h 
   sysclk_init();
-  board_current_cpu_hz = sysclk_get_cpu_hz(); // uses hardwired values
-  board_current_main_hz = sysclk_get_main_hz(); // uses hardwired values
+  board_current_cpu_hz = sysclk_get_cpu_hz(); 
+  board_current_main_hz = sysclk_get_main_hz();
 
   //board_init_clocks(mck);
   // need to figure out how to get sysclk_get_cpu_hz() to return a variable value

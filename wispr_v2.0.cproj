@@ -38,6 +38,7 @@
           <option id="common.services.basic.serial" value="Add" config="" content-id="Atmel.ASF" />
           <option id="common.services.basic.sleepmgr" value="Add" config="" content-id="Atmel.ASF" />
           <option id="common.utils.stdio.stdio_serial" value="Add" config="" content-id="Atmel.ASF" />
+          <option id="sam.drivers.gpbr" value="Add" config="" content-id="Atmel.ASF" />
           <option id="sam.drivers.hsmci" value="Add" config="" content-id="Atmel.ASF" />
           <option id="sam.drivers.pdc" value="Add" config="" content-id="Atmel.ASF" />
           <option id="sam.drivers.pio" value="Add" config="" content-id="Atmel.ASF" />
@@ -50,7 +51,7 @@
           <option id="sam.drivers.twi" value="Add" config="" content-id="Atmel.ASF" />
           <option id="sam.drivers.wdt" value="Add" config="" content-id="Atmel.ASF" />
           <option id="common.services.fs.fatfs" value="Add" config="" content-id="Atmel.ASF" />
-          <option id="sam.drivers.gpbr" value="Add" config="" content-id="Atmel.ASF" />
+          <option id="common.services.basic.clock" value="Add" config="" content-id="Atmel.ASF" />
           <option id="sam.utils.linker_scripts#atsam4sd32" value="Add" config="" content-id="Atmel.ASF" />
         </options>
         <configurations>
@@ -339,7 +340,7 @@
       </framework-data>
     </AsfFrameworkConfig>
     <avrtool>com.atmel.avrdbg.tool.atmelice</avrtool>
-    <avrtoolserialnumber>J41800060228</avrtoolserialnumber>
+    <avrtoolserialnumber>J41800029647</avrtoolserialnumber>
     <avrdeviceexpectedsignature>0x29970EE0</avrdeviceexpectedsignature>
     <com_atmel_avrdbg_tool_atmelice>
       <ToolOptions>
@@ -349,7 +350,7 @@
         <InterfaceName>SWD</InterfaceName>
       </ToolOptions>
       <ToolType>com.atmel.avrdbg.tool.atmelice</ToolType>
-      <ToolNumber>J41800060228</ToolNumber>
+      <ToolNumber>J41800029647</ToolNumber>
       <ToolName>Atmel-ICE</ToolName>
     </com_atmel_avrdbg_tool_atmelice>
     <avrtoolinterface>SWD</avrtoolinterface>
@@ -418,7 +419,7 @@
   <armgcc.compiler.optimization.OtherFlags>-fdata-sections</armgcc.compiler.optimization.OtherFlags>
   <armgcc.compiler.optimization.PrepareFunctionsForGarbageCollection>True</armgcc.compiler.optimization.PrepareFunctionsForGarbageCollection>
   <armgcc.compiler.warnings.AllWarnings>True</armgcc.compiler.warnings.AllWarnings>
-  <armgcc.compiler.miscellaneous.OtherFlags>-pipe -fno-strict-aliasing -Wall -Wstrict-prototypes -Wmissing-prototypes -Werror-implicit-function-declaration -Wpointer-arith -std=gnu99 -ffunction-sections -fdata-sections -Wchar-subscripts -Wcomment -Wformat=0 -Wimplicit-int -Wmain -Wparentheses -Wsequence-point -Wreturn-type -Wswitch -Wtrigraphs -Wunused -Wuninitialized -Wunknown-pragmas -Wfloat-equal -Wundef -Wshadow -Wbad-function-cast -Wwrite-strings -Wsign-compare -Waggregate-return  -Wmissing-declarations -Wmissing-format-attribute -Wno-deprecated-declarations -Wpacked -Wredundant-decls -Wnested-externs -Wlong-long -Wunreachable-code -Wcast-align --param max-inline-insns-single=500</armgcc.compiler.miscellaneous.OtherFlags>
+  <armgcc.compiler.miscellaneous.OtherFlags>-pipe -fno-strict-aliasing -Wall -Wstrict-prototypes -Wmissing-prototypes -Werror-implicit-function-declaration -Wpointer-arith -std=gnu99 -ffunction-sections -fdata-sections -Wchar-subscripts -Wcomment -Wformat=0 -Wimplicit-int -Wmain -Wparentheses -Wsequence-point -Wreturn-type -Wswitch -Wtrigraphs -Wunused -Wuninitialized -Wunknown-pragmas -Wfloat-equal -Wundef -Wshadow -Wbad-function-cast -Wwrite-strings -Wsign-compare -Waggregate-return  -Wmissing-declarations -Wmissing-format-attribute -Wno-deprecated-declarations -Wpacked -Wredundant-decls -Wnested-externs -Wunreachable-code -Wcast-align --param max-inline-insns-single=500</armgcc.compiler.miscellaneous.OtherFlags>
   <armgcc.linker.libraries.Libraries>
     <ListValues>
       <Value>libarm_cortexM4l_math</Value>
@@ -781,6 +782,15 @@
     <Compile Include="src\ASF\sam\drivers\gpbr\gpbr.c">
       <SubType>compile</SubType>
     </Compile>
+    <Compile Include="src\spectrum.c">
+      <SubType>compile</SubType>
+    </Compile>
+    <Compile Include="src\spectrum.h">
+      <SubType>compile</SubType>
+    </Compile>
+    <Compile Include="src\wispr_main.c">
+      <SubType>compile</SubType>
+    </Compile>
     <None Include="src\ASF\sam\drivers\gpbr\gpbr.h">
       <SubType>compile</SubType>
     </None>
@@ -790,9 +800,6 @@
     <None Include="src\ASF\sam\drivers\supc\supc.h">
       <SubType>compile</SubType>
     </None>
-    <Compile Include="src\board.h">
-      <SubType>compile</SubType>
-    </Compile>
     <Compile Include="src\com.c">
       <SubType>compile</SubType>
     </Compile>
@@ -803,15 +810,6 @@
       <SubType>compile</SubType>
     </Compile>
     <Compile Include="src\epoch.h">
-      <SubType>compile</SubType>
-    </Compile>
-    <Compile Include="src\spectrum.c">
-      <SubType>compile</SubType>
-    </Compile>
-    <Compile Include="src\spectrum.h">
-      <SubType>compile</SubType>
-    </Compile>
-    <Compile Include="src\wispr_main.c">
       <SubType>compile</SubType>
     </Compile>
     <None Include="src\ASF\common\boards\user_board\user_board.h">

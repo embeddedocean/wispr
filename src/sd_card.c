@@ -536,6 +536,7 @@ uint32_t sd_card_get_epoch(uint8_t card_num)
 //
 // FAT Utils
 //
+/*
 #include <ff.h>
 FATFS fat_fs;
 FIL file_object;
@@ -576,5 +577,7 @@ int sd_card_write_file(uint8_t *buffer, uint16_t nblocks)
 	return(nwrt);
 	
 }
+
+*/
 
 

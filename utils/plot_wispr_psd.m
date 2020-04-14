@@ -37,9 +37,12 @@ while( go )
 
     fprintf('time = %d\n', hdr.sec);
     
+    % normalization
+    psd = psd / (hdr.nfft * hdr.sampling_rate );   
+
     % plot buffers to make sure data is not lost between buffers
-    figure(1); clf;
-    plot(freq/1000, 10*log10(psd), '.-');
+    figure(3); clf;
+    plot(freq/1000, 10*log10(double(psd)), '.-');
     ylabel('dB');
     xlabel('kHz');
     

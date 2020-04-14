@@ -42,7 +42,8 @@ elseif (hdr.sample_size == 3)
     raw = fread(fp, hdr.samples_per_block, 'bit24' ); % data block
 elseif (hdr.sample_size == 4)
     if(hdr.type == 2) 
-        raw = fread(fp, hdr.samples_per_block, 'real*4=>double' ); % data block
+        %raw = fread(fp, hdr.samples_per_block, 'real*4=>double' ); % data block
+        raw = fread(fp, hdr.samples_per_block, 'real*4' ); % data block
     else
         raw = fread(fp, hdr.samples_per_block, 'int32' ); % data block
     end
@@ -56,6 +57,6 @@ if( npad > 0)
     junk = fread(fp, npad, 'int8' );
 end
 
-data = double(raw - mean(raw));
+data = double(raw);
 
 return;

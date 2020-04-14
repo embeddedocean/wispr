@@ -34,14 +34,14 @@ COMPILER_WORD_ALIGNED uint8_t adc_buffer[ADC_MAX_BUFFER_SIZE+1];
 uint8_t *adc_data = &adc_buffer[WISPR_DATA_HEADER_SIZE]; // data follows header
 wispr_data_header_t adc_header;
 
-COMPILER_WORD_ALIGNED uint8_t psd_buffer[PSD_MAX_BUFFER_SIZE+1];
-uint8_t *psd_data = &psd_buffer[WISPR_DATA_HEADER_SIZE]; // data follows header
-wispr_data_header_t psd_header;
-
 uint16_t psd_nfft;
 uint16_t psd_nbins;
 uint16_t psd_overlap;
-uint8_t psd_sample_size;
+
+COMPILER_WORD_ALIGNED uint8_t psd_buffer[PSD_MAX_BUFFER_SIZE+1];
+float32_t *psd_data = (float32_t *)&psd_buffer[WISPR_DATA_HEADER_SIZE]; // data follows header
+wispr_data_header_t psd_header;
+
 
 #define WISPR_I2C_SPEED 100000UL
 
@@ -147,9 +147,8 @@ int main (void)
 		psd_nfft = wispr.fft_size;
 		psd_nbins = psd_nfft/2;
 		psd_overlap = wispr.fft_overlap;
-		psd_sample_size = wispr.sample_size;
-		spectrum_init_f32(&wispr, &psd_header, &psd_nbins, psd_nfft, psd_overlap, psd_sample_size, HAMMING_WINDOW);
-		//spectrum_init_q31(&wispr, &psd_nbins, psd_nfft, psd_overlap, psd_sample_size, HAMMING_WINDOW);
+		//spectrum_init_f32(&psd_nbins, psd_nfft, psd_overlap, wispr.sampling_rate, wispr.sample_size, HANN_WINDOW);
+		spectrum_init_q31(&psd_nbins, psd_nfft, psd_overlap, wispr.sampling_rate, wispr.sample_size, HANN_WINDOW);
 	}
 	
 	// Define the variables that control the window and interval timing.
@@ -171,9 +170,12 @@ int main (void)
 	printf("\n\rStart read loop: %.2f second windows (%d block) at %d second intervals\n\r", 
 		actual_sampling_time, adc_blocks_per_window, wakeup_interval);
 
-// FOR TESTING ONLY
+	float32_t amp = 1.0; // test sig amp
+	float32_t noise = 0.2; // noise std dev
 	uint32_t fc = console_prompt_uint32("Enter test signal center freq", wispr.sampling_rate/10, 10);
-	ltc2512_init_test(&wispr, samples_per_adc_block, fc, 1.0);
+	amp = console_prompt_f32("Enter test signal amplitude", amp, 10);
+	noise = console_prompt_f32("Enter test signal noise std dev", noise, 10);
+	ltc2512_init_test(&wispr, samples_per_adc_block, fc, amp, noise);		
 	
 	// initialize the uart com communications port
 	wispr_com_msg_t com_msg;
@@ -207,7 +209,7 @@ int main (void)
 			
 			// if a new buffer is available
 			if( nsamps == samples_per_adc_block ) {
-				
+				 
 				// reset the wdt every time a buffer is read
 				wdt_restart(WDT);
 				
@@ -221,8 +223,8 @@ int main (void)
 					}
 					
 					// call spectrum function
-					spectrum_f32(&psd_header, psd_data, &adc_header, adc_data, nsamps);
-					//spectrum_q31(psd_buffer, adc_buffer, nsamps);
+					//spectrum_f32(&psd_header, psd_data, &adc_header, adc_data, nsamps);
+					spectrum_q31(&psd_header, psd_data, &adc_header, adc_data, nsamps);
 					
 					// serialize the buffer header - write the latest header onto the front of the buffer
 					wispr_serialize_data_header(&psd_header, psd_buffer);
@@ -250,7 +252,7 @@ int main (void)
 					// write the adc buffer - both header and data
 					if( sd_card_write(wispr.active_sd_card, adc_buffer, adc_write_size) == 0 ) {
 						printf("sd_card_write: failed\n\r");
-					}	
+					}
 					//printf("adc_write_size: %d\n\r", adc_write_size);
 				
 				}
@@ -271,16 +273,16 @@ int main (void)
 		// else go to deep sleep 
 		else if( wispr.sleep_time > 0 ) {
 
-			uint32_t now;
-			rtc_get_epoch(&now);
-
-			// dump the psd to the console
-			float32_t *psd_f32 = (float *)psd_data;
+			// for testing only
+			printf("nbins = %d\r\n", psd_nbins);
 			printf("psd = [\r\n");
 			for(int n = 0; n < psd_nbins; n++) {
-				printf("%f ", psd_f32[n]);
+				printf("%f ", psd_data[n]);
 			}
-			printf("];\r\n");
+			printf("];\r\n");				
+
+			uint32_t now;
+			rtc_get_epoch(&now);
 			
 			// save the latest config
 			// update the config time so the last active card number can be determined on wakeup
@@ -302,7 +304,7 @@ int main (void)
 		
 		} 
 
-		// esle sleep interval, just start new sampling window
+		// else sleep interval, just start new sampling window
 		else { 
 			count = 0; // reset block counter			
 		}
@@ -342,8 +344,8 @@ void go_to_sleep(void)
 	//pmc_switch_mck_to_mainck(PMC_PCK_PRES_CLK_64);
 
 	// Configure all PIOs as inputs to save power
-	pio_set_input(PIOA, 0xFFFFFFFF, PIO_PULLUP);
-	pio_set_input(PIOB, 0xFFFFFFFF, PIO_PULLUP);
+	//pio_set_input(PIOA, 0xFFFFFFFF, PIO_PULLUP);
+	//pio_set_input(PIOB, 0xFFFFFFFF, PIO_PULLUP);
 
 	/* Disable unused clock to save power */
 	pmc_osc_disable_xtal(1);
@@ -618,13 +620,12 @@ void prompt_config_menu(wispr_config_t *config, int timeout)
 		psd_nfft = console_prompt_uint16("Enter fft size (32, 64, 126, 512 or 1024)", psd_nfft, timeout);
 		psd_overlap = config->fft_overlap;
 		psd_overlap = console_prompt_uint16("Enter fft overlap size", psd_overlap, timeout);	
-		//psd_nbins = psd_nfft / 2;	
 		config->fft_size = psd_nfft;
 		config->fft_overlap = psd_overlap;
 		mode |= WISPR_SPECTRUM;
 	} 	
-	psd_sample_size = config->sample_size;
 	psd_nfft = config->fft_size;
+	psd_nbins = psd_nfft / 2;
 	psd_overlap = config->fft_overlap;
 
 	// set the new mode

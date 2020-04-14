@@ -7,6 +7,8 @@ function [Spec, freq] = psd(x,nfft,fs,window,noverlap)
 
 % compute PSD
 window = window(:);
+data = data(:);
+
 n = length(x);		    % Number of data points
 nwind = length(window); % length of window
 if n < nwind            % zero-pad x if it has length less than the window length
