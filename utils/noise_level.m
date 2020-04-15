@@ -1,5 +1,5 @@
 %
-% matlab script to plot rockhopper noise level
+% matlab script to plot wispr noise level
 % based on a script that Haru made for Wispr
 % - cjones Jan 2018
 %

@@ -1,8 +1,8 @@
 /*
  * wav_dump_sdcard.c
  *
- * Reads the contents of a WISPR SD card and dumps the data into wav files.
- * The contents of the card are written to multiple wav files with a specified length.
+ * Reads the contents of a WISPR SD card and dumps the data to a WAV data (.wav) files.
+ * The contents of the card are written to multiple data files with a specified length.
  * The length of the output data files is specific in seconds.
  * The size in seconds of the output data file is specified by the -t command line option. 
  * Data files can also be separated by time gaps in the data.
@@ -11,10 +11,9 @@
  * to be created if a data gap is found that exceeds the set threshold.
  * The size in seconds of the max data gap is specified by the -g command line option.
  *
- * Waveform data is written to files with .dat.wav file extensions.
- * Spectrum data is written to files with .psd.wav file extensions.
+ * Waveform data is written to files with .dat file extensions.
  * The names of the output files are created using a file prefix and the data timestamp.
- * For example, an output file with name WISPR_200325_151711.dat.wav contains waveform data 
+ * For example, an output file with name WISPR_200325_151711.wav contains waveform data 
  * starting at date 20/03/25 and time 15:17:11. 
  *
  * The program will read all the valid data on the card, starting with the first data block 
@@ -22,7 +21,7 @@
  * The first and last data block on the card are read from the card header. 
  *
  * TODO: Add start and stop times for data dump.
- *
+ *  
  * cjones, April 2020
  *
  */
@@ -57,7 +56,6 @@ int main(int argc, char **argv)
 
   char out_filename[128];
   int c = 0;
-  int buffers_per_file = 100;
   size_t buffer_size = 0;
   size_t nrd = 0;
   size_t nwrt = 0;
@@ -65,9 +63,7 @@ int main(int argc, char **argv)
   uint32_t pos = 0;
 
   FILE *input_fp;
-
   wav_file_t *dat_wav = NULL;
-  wav_file_t *psd_wav = NULL;
 
   int open_new_file = 1;
   uint32_t seconds_per_file = 60;
@@ -76,7 +72,6 @@ int main(int argc, char **argv)
   float duration = 0.0;
 
   int dat_buffer_count = 0;
-  int psd_buffer_count = 0;
 
   // Parse command line args
   while ((c = getopt(argc, argv, "b:s:i:o:p:t:g:h")) != -1) 
@@ -115,7 +110,7 @@ int main(int argc, char **argv)
       }
       case 'h':
       {
-        fprintf(stdout, "\nRead SD Card and write data to WAV file\n");
+        fprintf(stdout, "\nRead SD Card and write data to file\n");
         fprintf(stdout, "  Usage %s [options]\n", argv[0]);
         fprintf(stdout, "  Optional command line arguments [defaults]\n");
         fprintf(stdout, "    -i input path raw data [%s]\n", input_path);
@@ -142,7 +137,7 @@ int main(int argc, char **argv)
   pos = (WISPR_SD_CARD_BLOCK_SIZE * WISPR_SD_CARD_HEADER_BLOCK);
   fseek(input_fp, pos, SEEK_SET);
   nrd = fread(buffer, 1, WISPR_SD_CARD_BLOCK_SIZE, input_fp);
-  if (nrd != WISPR_SD_CARD_BLOCK_SIZE) {
+  if (nrd =! WISPR_SD_CARD_BLOCK_SIZE) {
      fprintf(stdout, "Failed to read card header block: %d\n", nrd);
      return -1;
   }
@@ -154,7 +149,7 @@ int main(int argc, char **argv)
   pos = (WISPR_SD_CARD_BLOCK_SIZE * WISPR_SD_CARD_CONFIG_BLOCK);
   fseek(input_fp, pos, SEEK_SET);
   nrd = fread(buffer, 1, WISPR_SD_CARD_BLOCK_SIZE, input_fp);
-  if (nrd != WISPR_SD_CARD_BLOCK_SIZE) {
+  if (nrd =! WISPR_SD_CARD_BLOCK_SIZE) {
      fprintf(stdout, "Failed to read card configuration block: %d\n", nrd);
      return -1;
   }
@@ -205,89 +200,63 @@ int main(int argc, char **argv)
        return -1;
     }
 
-    // check the data buffer time to determine total duration of data written to file
-    duration += ((float)hdr.samples_per_block / (float)hdr.sampling_rate);
-    if( duration >= (float)seconds_per_file ) {
-        open_new_file = 1;
-        duration = 0.0;
-    }
-    // check the gap time between buffer
-    // if it's larger than threshold then make a new file
-    if( (hdr.second - prev_sec) > data_gap ) {
-        open_new_file = 1;
-        duration = 0.0;
-        fprintf(stdout, "Data gap of %u seconds found\n", hdr.second - prev_sec);
-    }
-    prev_sec = hdr.second;
-    
-    // open new output file
-    if(open_new_file == 1) {
+    if(hdr.type == WISPR_WAVEFORM) {
 
-       //wispr_print_data_header(&hdr);
-    
-	   open_new_file = 0;
+		if(prev_sec == 0) prev_sec = hdr.second;
 
-       rtc_time_t rtc;
-       epoch_to_rtc_time(&rtc, hdr.second);
+		// check the data buffer time to determine total duration of data written to file
+		duration += ((float)hdr.samples_per_block / (float)hdr.sampling_rate);
+		if( duration >= (float)seconds_per_file ) {
+			open_new_file = 1;
+			duration = 0.0;
+		}
+		// check the gap time between buffer
+		// if it's larger than threshold then make a new file
+		if( (hdr.second - prev_sec) > data_gap ) {
+			open_new_file = 1;
+			duration = 0.0;
+			fprintf(stdout, "Data gap of %u seconds found\n", hdr.second - prev_sec);
+		}
+		prev_sec = hdr.second;
+    
+		// open new output file
+		if(open_new_file == 1) {
+
+			//wispr_print_data_header(&hdr);
+    
+			open_new_file = 0;
+    
+			rtc_time_t rtc;
+			epoch_to_rtc_time(&rtc, hdr.second);
        
-       // Open file to write data
-       if(hdr.type == WISPR_WAVEFORM) {
-		  //  close the current file
-          if(dat_wav != NULL) {
-		      fprintf(stdout, "Closing wav data file %s, %d samples written\n\n", out_filename, dat_wav->nsamps);
+			// Open file to write raw data
+			if(dat_wav != NULL) {
+		      fprintf(stdout, "Closing wav data file %s, %d buffers written\n\n", out_filename, dat_buffer_count);
 			  wav_close(dat_wav);
 			  dat_buffer_count = 0;
-		  }
-          // Open dat file
-          sprintf(out_filename,"%s/%s_%02d%02d%02d_%02d%02d%02d.dat.wav", output_path, prefix, 
-             rtc.year, rtc.month, rtc.day, rtc.hour, rtc.minute, rtc.second);
-          fprintf(stdout, "Opening wav data file %s\n", out_filename);
-          dat_wav = wav_open(out_filename, "w+", nbps, fs, nchans);
-          if(dat_wav == NULL) {
-             fprintf(stdout, "Failed to open output file\n");
-             return -1;
-          }
-       }
-       else if(hdr.type == WISPR_SPECTRUM) {
-          if(psd_wav != NULL) {
-		      fprintf(stdout, "Closing wav spectrum data file %s, %d samples written\n\n", out_filename, psd_wav->nsamps);
-			  wav_close(psd_wav);
-			  psd_buffer_count = 0;
-		  }
-          // Open psd file
-          sprintf(out_filename,"%s/%s_%02d%02d%02d_%02d%02d%02d.psd.wav", output_path, prefix, 
-             rtc.year, rtc.month, rtc.day, rtc.hour, rtc.minute, rtc.second);
-          psd_wav = wav_open(out_filename, "w+", nbps, fs, nchans);
-          fprintf(stdout, "Opening wav spectrum data file %s\n", out_filename);
-          if(psd_wav == NULL) {
-             fprintf(stdout, "Failed to open output file\n");
-             return -1;
-          }
-       }
-
-    }
-      
-    // Write data buffer (no header) to output file
-    if(hdr.type == WISPR_WAVEFORM) {
-       if(dat_wav != NULL) {
-          buffer_size = (size_t)hdr.samples_per_block;
-          nwrt = wav_write(dat_wav, buffer_data, buffer_size);
-          if (nwrt != buffer_size) {
-             fprintf(stdout, "Failed to write buffer: %d\n", nwrt);
+			}
+			sprintf(out_filename,"%s/%s_%02d%02d%02d_%02d%02d%02d.wav", output_path, prefix, 
+               rtc.year, rtc.month, rtc.day, rtc.hour, rtc.minute, rtc.second);
+            dat_wav = wav_open(out_filename, "w+", nbps, fs, nchans);
+			fprintf(stdout, "Opening wav data file %s\n", out_filename);
+            if(dat_wav == NULL) {
+              fprintf(stdout, "Failed to open output file\n");
+              return -1;
+			}
+		}
+          
+		// Write the whole buffer (header and data) to output file
+		if(dat_wav != NULL) {
+           //buffer_size = (size_t)hdr.block_size;
+           //nwrt = fwrite(buffer, 1, buffer_size, dat_fp);
+           buffer_size = (size_t)hdr.samples_per_block;
+           nwrt = wav_write(dat_wav, buffer_data, buffer_size);
+           if (nwrt != buffer_size) {
+             fprintf(stdout, "failed to write buffer: %d\n", nwrt);
              //continue;
-          }
-          dat_buffer_count++;
-       }
-    }
-    else if(hdr.type == WISPR_SPECTRUM) {
-       if(psd_wav != NULL) {
-          buffer_size = (size_t)hdr.samples_per_block;
-          nwrt = wav_write(psd_wav, buffer_data, buffer_size);
-          if (nwrt != buffer_size) {
-             fprintf(stdout, "failed to write psd buffer: %d\n", nwrt);
-          }
-          psd_buffer_count++;
-       }
+           }
+           dat_buffer_count++;
+        }
     }
 
     // leave read loop if the last block has been read
@@ -299,12 +268,8 @@ int main(int argc, char **argv)
 
   }
 
-//  close(dat_fd);
-//  close(psd_fd);
-//  close(input_fd);
   fclose(input_fp);
-  wav_close(dat_wav);
-  wav_close(psd_wav);
+  if(dat_wav != NULL) wav_close(dat_wav);
 
   return 1;
 }

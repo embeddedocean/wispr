@@ -19,6 +19,7 @@ OBJS = $(SRCS:.c=.o)
 
 all:
 	make dat_dump_sdcard
+	make psd_dump_sdcard
 	make wav_dump_sdcard
 	
 dat_dump_sdcard: dat_dump_sdcard.c $(OBJS)
@@ -33,6 +34,7 @@ wav_dump_sdcard:  wav_dump_sdcard.c $(OBJS)
 clean:
 	rm $(OBJS)
 	rm dat_dump_sdcard
+	rm psd_dump_sdcard
 	rm wav_dump_sdcard
 
 
