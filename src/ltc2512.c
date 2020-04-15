@@ -511,12 +511,14 @@ uint8_t *ltc2512_get_dma_buffer(void)
 //
 // Copy finished dma buffer into user buffer and update data header.
 // The processor stores the data in memory in little-endian order
+// but when a data word is loaded into a register it is big endian.
 // Note that printf displays the word as big endian, so be careful with the data word order
-// See figure 12-5 in SAM4S Datasheet.
+// See section 12.4.2.6 in SAM4S Datasheet.
 // Here's an example showing this
 //	uint8_t buf[4];
 //	int *n = (int *)buf;
 //	*n = -8;
+//  int32_t m = -8;
 //	printf("%d %x %02x%02x%02x%02x\r\n", m, m, buf[0], buf[1], buf[2], buf[3]);
 //  output is 
 //  -8 fffffff8 f8ffffff
@@ -574,7 +576,7 @@ COMPILER_WORD_ALIGNED uint8_t *ltc_adc_test_buffer;
 // Generate a sine wave test signal of amplitude (amp) in volts
 // with additive uniform random noise with standard deviation (noise)
 // 
-void ltc2512_init_test(wispr_config_t *wispr, uint16_t nsamps, uint32_t freq, float32_t amp, float32_t noise)
+void ltc2512_init_test(wispr_config_t *wispr, uint16_t nsamps, uint32_t freq, float32_t amp, float32_t stdev)
 {
 	// allocate test buffer
 	uint32_t nbytes = (uint32_t)nsamps * 4;
@@ -591,9 +593,11 @@ void ltc2512_init_test(wispr_config_t *wispr, uint16_t nsamps, uint32_t freq, fl
 	float32_t dt = 1.0 / (float32_t)wispr->sampling_rate;
 	float32_t A = 1.73205080; // sqrt(12/4)
 	for(int n = 0; n < nsamps; n++) {
-		float32_t rv = noise * A * (2.0 *((float32_t)rand() / (float32_t)RAND_MAX) - 1.0f);
+		// uniform random noise with zero mean and variance = sqrt(stdev)
+		int rv = rand();
+		float32_t noise = stdev * A * (2.0 *((float32_t)rv / (float32_t)RAND_MAX) - 1.0f);
 		float32_t t = (float32_t)n * dt;
-		float32_t x =  (rv + amp*arm_sin_f32(w*t));
+		float32_t x =  (noise + amp*arm_sin_f32(w*t));
 		buf[n] = (int32_t)(max_value * x);
 	}
 	
@@ -623,14 +627,14 @@ uint16_t ltc2512_read_dma(wispr_data_header_t *hdr, uint8_t *data, uint16_t nsam
 	if( ltc_dma_test ) buffer = ltc_adc_test_buffer;
 	
 	uint8_t chksum = 0;
-		
+	
 	if( ltc_adc_sample_size == 3) {
 		chksum = ltc2512_copy_dma_int24(buffer, data, nsamps);
 	}
 	else if( ltc_adc_sample_size == 2 ) {
 		chksum = ltc2512_copy_dma_int16(buffer, data, nsamps);
 	}
-
+	
 	// check to see if the buffer pointer has changed during copy
 	// this could mean that the data is corrupted.
 	uint8_t status = ltc_adc_status;

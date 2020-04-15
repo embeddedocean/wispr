@@ -788,9 +788,6 @@
     <Compile Include="src\spectrum.h">
       <SubType>compile</SubType>
     </Compile>
-    <Compile Include="src\wispr_main.c">
-      <SubType>compile</SubType>
-    </Compile>
     <None Include="src\ASF\sam\drivers\gpbr\gpbr.h">
       <SubType>compile</SubType>
     </None>
@@ -1659,6 +1656,9 @@
       <SubType>compile</SubType>
     </Compile>
     <Compile Include="src\sd_card.h">
+      <SubType>compile</SubType>
+    </Compile>
+    <Compile Include="src\spectrum_test_main.c">
       <SubType>compile</SubType>
     </Compile>
     <Compile Include="src\uart_queue.c">

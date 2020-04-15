@@ -196,10 +196,10 @@ int spectrum_init_f32(uint16_t *nbins, uint16_t nfft, uint16_t overlap, uint32_t
 	//for(int n = 0; n < psd_fft_size; n++) printf("%.2f ", psd_fft_window_f32[n]);
 	//printf("\r\n");
 
-	psd_fft_scaling = (float32_t)nfft; // * ADC_SCALING / max_value; // 2^23
+	psd_fft_scaling = (float32_t)nfft;; // * ADC_SCALING / max_value; // 2^23
 
-	printf("spectrum_init_f32:  nfft=%d, nbins=%d, overlap=%d, bps=%d, win_power=%f\r\n",
-	psd_fft_size, psd_num_freq_bins, psd_fft_overlap, nbps, psd_window_power);
+	//printf("spectrum_init_f32:  nfft=%d, nbins=%d, overlap=%d, bps=%d, win_power=%f\r\n",
+	//	psd_fft_size, psd_num_freq_bins, psd_fft_overlap, nbps, psd_window_power);
 
 	return(status);
 
@@ -314,7 +314,7 @@ int spectrum_f32(wispr_data_header_t *psd, float32_t *psd_data, wispr_data_heade
 		for(n = 0; n < nbins; n++) {
 			float32_t re = buf1[m++] * psd_fft_scaling;
 			float32_t im = buf1[m++] * psd_fft_scaling;
-			// could check values with FLT_EPSILON for underflow
+			// could check values against FLT_EPSILON for underflow
 			output[n] += (re*re + im*im);
 		}
 		
@@ -410,8 +410,8 @@ int spectrum_init_q31(uint16_t *nbins, uint16_t nfft, uint16_t overlap, uint32_t
 	
 	psd_fft_scaling = (float32_t)nfft * ADC_SCALING / max_value; // 2^23
 	
-	printf("spectrum_init_q31:  nfft=%d, nbins=%d, overlap=%d, bps=%d, win_power=%f\r\n",
-		psd_fft_size, psd_num_freq_bins, psd_fft_overlap, nbps, psd_window_power);
+	//printf("spectrum_init_q31:  nfft=%d, nbins=%d, overlap=%d, bps=%d, win_power=%f\r\n",
+	//	psd_fft_size, psd_num_freq_bins, psd_fft_overlap, nbps, psd_window_power);
 
 	return(status);
 }
@@ -483,7 +483,7 @@ int spectrum_q31(wispr_data_header_t *psd, float32_t *psd_data, wispr_data_heade
 				buf1[m] = (q31_t)(win[m] * (float32_t)uv);
 				m++;
 			}
-			} else if ( sample_size == 3 ) {
+		} else if ( sample_size == 3 ) {
 			// load the 24 bit word into a 32 bit float, preserving the sign bit
 			for(n = istart; n < iend; n++) {
 				uint32_t uv = ((uint32_t)input[3*n+0] << 8) | ((uint32_t)input[3*n+1] << 16) | ((uint32_t)input[3*n+2] << 24);
@@ -491,7 +491,7 @@ int spectrum_q31(wispr_data_header_t *psd, float32_t *psd_data, wispr_data_heade
 				buf1[m] = (q31_t)( win[m] * (float32_t)((int32_t)uv >> 8) );
 				m++;
 			}
-			} else {
+		} else {
 			printf("spectrum_q31: unsupported sample size\r\n");
 			return(0);
 		}
