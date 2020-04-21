@@ -170,12 +170,12 @@ int main (void)
 	printf("\n\rStart read loop: %.2f second windows (%d block) at %d second intervals\n\r", 
 		actual_sampling_time, adc_blocks_per_window, wakeup_interval);
 
-	float32_t amp = 1.0; // test sig amp
-	float32_t noise = 0.2; // noise std dev
-	uint32_t fc = console_prompt_uint32("Enter test signal center freq", wispr.sampling_rate/10, 10);
-	amp = console_prompt_f32("Enter test signal amplitude", amp, 10);
-	noise = console_prompt_f32("Enter test signal noise std dev", noise, 10);
-	ltc2512_init_test(&wispr, samples_per_adc_block, fc, amp, noise);		
+	//float32_t amp = 1.0; // test sig amp
+	//float32_t noise = 0.2; // noise std dev
+	//uint32_t fc = console_prompt_uint32("Enter test signal center freq", wispr.sampling_rate/10, 10);
+	//amp = console_prompt_f32("Enter test signal amplitude", amp, 10);
+	//noise = console_prompt_f32("Enter test signal noise std dev", noise, 10);
+	//ltc2512_init_test(&wispr, samples_per_adc_block, fc, amp, noise);		
 	
 	// initialize the uart com communications port
 	wispr_com_msg_t com_msg;
@@ -274,12 +274,12 @@ int main (void)
 		else if( wispr.sleep_time > 0 ) {
 
 			// for testing only
-			printf("nbins = %d\r\n", psd_nbins);
-			printf("psd = [\r\n");
-			for(int n = 0; n < psd_nbins; n++) {
-				printf("%f ", psd_data[n]);
-			}
-			printf("];\r\n");				
+			//printf("nbins = %d\r\n", psd_nbins);
+			//printf("psd = [\r\n");
+			//for(int n = 0; n < psd_nbins; n++) {
+			//	printf("%f ", psd_data[n]);
+			//}
+			//printf("];\r\n");				
 
 			uint32_t now;
 			rtc_get_epoch(&now);

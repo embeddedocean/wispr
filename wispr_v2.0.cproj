@@ -367,7 +367,6 @@
   <armgcc.compiler.symbols.DefSymbols>
     <ListValues>
       <Value>NDEBUG</Value>
-      <Value>scanf=iscanf</Value>
       <Value>ARM_MATH_CM4=true</Value>
       <Value>BOARD=USER_BOARD</Value>
     </ListValues>
@@ -535,10 +534,8 @@
   <armgcc.compiler.symbols.DefSymbols>
     <ListValues>
       <Value>DEBUG</Value>
-      <Value>scanf=iscanf</Value>
       <Value>BOARD=USER_BOARD</Value>
       <Value>ARM_MATH_CM4=true</Value>
-      <Value>printf=iprintf</Value>
     </ListValues>
   </armgcc.compiler.symbols.DefSymbols>
   <armgcc.compiler.directories.IncludePaths>

@@ -57,6 +57,7 @@ void com_stop(int port)
 *  msg = GPS,1420070460,19.000000,19.000000
 *        0123456789012345678901234567890123456
 */
+//int com_read_msg (int port, char *msg, int timeout)
 int com_read_msg (int port, char *msg)
 {
   int nrd = 0;
@@ -72,11 +73,17 @@ int com_read_msg (int port, char *msg)
   
   // read the message from the port
   enum status_code stat;
+//  while(1) {
+//	  stat =  uart_read_message_queue(port, (uint8_t *)tmp, COM_MAX_MESSAGE_SIZE);
+//	  if(stat == STATUS_OK || timeout <= 0 ) break;
+//	  delay_ms(1);
+//	  timeout--;
+//  };
   stat =  uart_read_message_queue(port, (uint8_t *)tmp, COM_MAX_MESSAGE_SIZE);
   if(stat != STATUS_OK) return(0);
   
   nrd = strlen(tmp);
-
+  
   // otherwise something was read, so
   // check if it's a valid message 
   if(nrd > 0) {
@@ -92,7 +99,7 @@ int com_read_msg (int port, char *msg)
        msg[len] = 0x00;
     }
   }
-	
+  
   // return the length of the message, 
   // which will be 0 if it's not valid
   nrd = strlen(msg);
@@ -100,6 +107,7 @@ int com_read_msg (int port, char *msg)
 	printf( "com_read_msg: %s, %d bytes\r\n", msg, nrd);
   }
   return (nrd);
+
 }
 
 //---------------------------------------------------------------------

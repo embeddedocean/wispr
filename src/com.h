@@ -36,6 +36,7 @@ typedef struct {
 // prototypes
 extern int com_init(int port, uint32_t baud);
 extern void com_stop(int port);
+//extern int com_read_msg(int port, char *buf, int timeout);
 extern int com_read_msg(int port, char *buf);
 extern int com_write_msg(int port, char *buf);
 extern int com_parse_msg(wispr_com_msg_t *msg, char *buf, int len);
