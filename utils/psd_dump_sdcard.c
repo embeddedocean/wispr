@@ -35,8 +35,7 @@
 
 #include "wispr.h"
 #include "wav_file.h"                                                                                                                                                                                                                           
-
-#define SD_CARD_BLOCK_SIZE  512U
+#include "sd_card_lite.h"
 
 uint8_t buffer[ADC_MAX_BUFFER_SIZE];
 uint8_t *buffer_header = buffer;  // header is at start of buffer
@@ -44,10 +43,9 @@ uint8_t *buffer_data = &buffer[WISPR_DATA_HEADER_SIZE]; // data follows header
 
 wispr_data_header_t hdr;
 wispr_config_t cfg;
-wispr_sd_card_t sd;
+sd_card_t sd;
 
 int write_data_header(wispr_data_header_t *hdr, FILE *fp);
-void print_card_header(wispr_sd_card_t *hdr);
 uint32_t find_header(int fd);
 
 int main(int argc, char **argv)
@@ -143,7 +141,7 @@ int main(int argc, char **argv)
      fprintf(stdout, "Failed to read card header block: %d\n", nrd);
      return -1;
   }
-  if( wispr_sd_card_parse_header(buffer, &sd) == 0 ) {
+  if( sd_card_parse_header(buffer, &sd) == 0 ) {
      fprintf(stdout, "Failed to parse card header\n");
   }
 
@@ -160,12 +158,12 @@ int main(int argc, char **argv)
   }
 
   // print the card header info
-  print_card_header(&sd);
+  sd_card_print_header(&sd);
 
   //wispr_print_config(&cfg);
   
   // seek to start of data    
-  start_block = sd.start_block; //WISPR_SD_CARD_START_BLOCK;
+  start_block = sd.start; //WISPR_SD_CARD_START_BLOCK;
   pos = (WISPR_SD_CARD_BLOCK_SIZE * start_block);
   fseek(input_fp, pos, SEEK_SET);
   pos = ftell(input_fp) / WISPR_SD_CARD_BLOCK_SIZE;
@@ -299,16 +297,6 @@ int write_data_header(wispr_data_header_t *hdr, FILE *fp)
 	nwrt += fwrite(&hdr->header_chksum, 1, 1, fp);
 	nwrt += fwrite(&hdr->data_chksum, 1, 1, fp);
 	return(nwrt);
-}
-
-void print_card_header(wispr_sd_card_t *hdr)
-{
-    fprintf(stdout, "\r\nWISPR %d.%d Card Header\r\n", hdr->version[0], hdr->version[1]);
-    fprintf(stdout, "- addr of start block:          %d\r\n", hdr->start_block);
-    fprintf(stdout, "- addr of end block:            %d\r\n", hdr->end_block);
-    fprintf(stdout, "- addr of current write block:  %d\r\n", hdr->write_addr);
-    fprintf(stdout, "- addr of current read block:   %d\r\n", hdr->read_addr);
-    fprintf(stdout, "- time last header was written: %s\r\n", epoch_time_string(hdr->epoch));
 }
 
 

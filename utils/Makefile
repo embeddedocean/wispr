@@ -8,9 +8,9 @@ LIBS =
 INCS = -I..\src
 CFLAGS = -W -O2 
 
-SRCS = wav_file.c \
+SRCS = wav_file.c sd_card_lite.c \
  ..\src\wispr.c \
- ..\src\epoch.c
+ ..\src\epoch.c \
 
 OBJS = $(SRCS:.c=.o)
 
