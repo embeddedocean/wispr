@@ -1,12 +1,11 @@
 /**
- * sd_card.h
+ * sd_card_lite.h
  */
 #ifndef _SD_CARD_H_
 #define _SD_CARD_H_
 
 #include <string.h>
 
-//#include "conf_sd_mmc.h"
 #include "wispr.h"
 #include "rtc_time.h"
 

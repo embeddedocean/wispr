@@ -1,18 +1,17 @@
 /**
- * sd_card.c: sd card utility functions
- * 
- * There is no file system on the card, reads and writes access the card memory directly.
+ * sd_card_lite.c: sd card utility functions
  * 
  Notes:
  *
  */
 
 #include <string.h>
+#include <stdio.h>
 
-#include "sd_card.h"
+#include "sd_card_lite.h"
 #include "rtc_time.h"
 
-void sd_card_print_header(wispr_sd_card_t *hdr)
+void sd_card_print_header(sd_card_t *hdr)
 {
     fprintf(stdout, "\r\nWISPR %d.%d Card Header\r\n", hdr->version[0], hdr->version[1]);
     fprintf(stdout, "- addr of start block:          %d\r\n", hdr->start);
