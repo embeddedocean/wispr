@@ -61,8 +61,8 @@
  {
 	// pull out the needed values
 	uint32_t fs = wispr->sampling_rate;
-	uint8_t df = wispr->settings[1];
-	uint8_t gain = wispr->settings[0];
+	uint8_t df = wispr->adc_decimation;
+	uint8_t gain = wispr->gain;
 	
 	if( (fs <= 1) || (fs > 350000) ) {
 		printf("ltc2512_init: invalid sampling frequency\n\r");
@@ -200,8 +200,8 @@
 	hdr->usec = 0;
 
 	// reset the wispr config settings
-	wispr->settings[0] = gain;
-	wispr->settings[1] = df;
+	wispr->gain = gain;
+	wispr->adc_decimation = df;
 	 
 	return(actual_fs);
 }
@@ -213,23 +213,23 @@ uint32_t ltc2512_config_mclk(uint32_t fs, uint8_t df)
 {
 	// Configure TC TC_CHANNEL_WAVEFORM in waveform operating mode.
 	//see: http://www.allaboutcircuits.com/projects/dma-digital-to-analog-conversion-with-a-sam4s-microcontroller-the-timer-cou/
-
-	/* Configure PA0 Pin for TC TIOA */
+	
+	// Configure PA0 Pin for TC TIOA 
 	ioport_set_pin_mode(PIN_TC0_TIOA0, PIN_TC0_TIOA0_MUX);
-
-	/* Disable IO to enable peripheral mode) */
+	
+	// Disable IO to enable peripheral mode) 
 	ioport_disable_pin(PIN_TC0_TIOA0);
-
+	
 	// configure PA1 as either a clock or gpio
 	//ioport_set_pin_mode(PIN_TC0_TIOB0, PIN_TC0_TIOB0_MUX);
 	//ioport_disable_pin(PIN_TC0_TIOB0);
 	ioport_set_pin_dir(PIN_TC0_TIOB0, IOPORT_DIR_OUTPUT);
 	ioport_set_pin_level(PIN_TC0_TIOB0, 0);
-
-	/* Configure the PMC to enable the TC module. */
+	
+	// Configure the PMC to enable the TC module.
 	sysclk_enable_peripheral_clock(ID_TC0);
-
-	/* Init TC to waveform mode. */
+	
+	// Init TC to waveform mode. 
 	tc_init(TC0, 0,
 	TC_CMR_TCCLKS_TIMER_CLOCK1	//MCK/2
 		| TC_CMR_WAVE	//waveform mode
@@ -242,10 +242,10 @@ uint32_t ltc2512_config_mclk(uint32_t fs, uint8_t df)
 		//| TC_CMR_EEVT_XC0 | TC_CMR_AEEVT_NONE | TC_CMR_BEEVT_NONE | TC_CMR_EEVTEDG_NONE
 	);
 	
-	/* Configure waveform frequency and duty cycle. */
+	// Configure waveform frequency and duty cycle. 
 	uint32_t ra, rc;
 	//uint32_t rb;
-	uint32_t dutycycle = 10; /** Duty cycle in percent (positive).*/
+	uint32_t dutycycle = 10; // Duty cycle in percent (positive).
 	uint32_t mclk;
 	
 	uint32_t sck = sysclk_get_peripheral_bus_hz(TC0);

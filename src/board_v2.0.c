@@ -111,10 +111,7 @@ int board_init(void)
   board_reset_reason(&reset_type, &nrst, &user_reset);
   fprintf(stdout, "-- %s\r\n", reset_message );
   fprintf(stdout, "\r\n" );
-
-  // Initialize the WDT
-  board_wdt_init(0);
-
+  
   return(reset_type);
 }
 
@@ -316,9 +313,11 @@ uint32_t board_console_init(int port, uint32_t baud)
 */
   
 //
-// initialize WDT to the max timeout value (~15 seconds)
+// Initialize WDT to the max timeout value (~15 seconds)
+// WDT_MR can be written only once. Only a processor reset resets it. 
+// Writing WDT_MR reloads the timer with the newly programmed mode parameters.
 //
-uint32_t board_wdt_init(uint32_t wdt_msec)
+uint32_t board_wdt_init(void)
 {
 	uint32_t timeout_value = 4095; //max timeout value;
 	//uint32_t timeout_value = wdt_get_timeout_value(1000*wdt_msec, BOARD_FREQ_SLCK_XTAL);
@@ -333,7 +332,8 @@ uint32_t board_wdt_init(uint32_t wdt_msec)
 	wdt_init(WDT, wdt_mode, timeout_value, timeout_value);
 	
 	msecs = wdt_get_us_timeout_period(WDT, BOARD_FREQ_SLCK_XTAL) / 1000;
-	printf("Enable watchdog with %d msec period (status %x)\n\r", msecs, wdt_get_status(WDT));
+
+	//printf("Enable watchdog with %d msec period (status %x)\n\r", msecs, wdt_get_status(WDT));
 
 	return(msecs);
 }

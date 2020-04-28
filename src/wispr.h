@@ -9,6 +9,7 @@
 #define WISPR_H_
 
 #include "epoch.h"
+//#include "sd_card.h"
 
 #define WISPR_VERSION 2
 #define WISPR_SUBVERSION 0
@@ -21,6 +22,8 @@
 // so reads and writes must be done in blocks of this size
 // fixed at 512 bytes for standard SD cards
 #define WISPR_SD_CARD_BLOCK_SIZE (512)
+
+#define WISPR_FILE_SIZE (512)
 
 // The header size should be a multiple of a word size (4 bytes)
 // to avoid issues with word alignment when casting
@@ -88,7 +91,7 @@ typedef struct {
 	uint16_t  block_size; // number of bytes in an adc data block
 	uint16_t  samples_per_block;  // number of samples in a block
 	uint32_t  sampling_rate; // samples per second
-	//uint8_t   channels;  // number of channels
+	uint8_t   channels;  // number of channels
 	uint8_t   header_chksum;
 	uint8_t   data_chksum;
 } wispr_data_header_t;
@@ -102,12 +105,14 @@ typedef struct {
 	uint8_t  state;
 	uint8_t  mode;
 	uint32_t epoch; // linux time in seconds
-	uint8_t  settings[8]; // various system and adc settings
 	uint8_t  sample_size; // number of bytes per sample
+	uint16_t block_size;  // number of bytes in a block, this can be different than samples_per_block*sample_size
 	uint16_t samples_per_block; // number of samples in a block
 	uint32_t sampling_rate; // samples per second
-	//uint8_t   channels;  // number of channels
-	uint16_t block_size;  // number of bytes in a block, this can be different than samples_per_block*sample_size
+	//uint8_t  settings[8]; // various system and adc settings
+	uint8_t  channels;  // number of channels
+	uint8_t  gain;  // preamp gain
+	uint8_t  adc_decimation;  // 4, 8, 13, or 32
 	uint16_t blocks_per_window; // number of adc record blocks in a sampling window
 	uint16_t awake_time; // time in seconds of the adc record block
 	uint16_t sleep_time; // time in seconds between adc records (must be >= window)
@@ -116,33 +121,39 @@ typedef struct {
 	uint8_t active_sd_card; // last card written to
 } wispr_config_t;
 
-typedef struct {
-	char     name[8];      // user set identifier
-	uint8_t  number;       // card number
-	uint8_t  version[2];   // wispr version
-	uint8_t  hw_ver;       // card hardware version
-	uint8_t  state;        // current state (OPEN, ENABLED, ..)
-	uint8_t  type;         // hardware type
-	uint32_t capacity;     // card capacity in KBytes
-	uint32_t start_block;  // addr of start block
-	uint32_t end_block;    // addr of end block
-	uint32_t write_addr;   // addr of current write block
-	uint32_t read_addr;    // addr of current read block
-	uint32_t epoch;        // time last header was written
-} wispr_sd_card_t;
 
 extern int wispr_parse_data_header(uint8_t *buf, wispr_data_header_t *hdr);
 extern int wispr_serialize_data_header(wispr_data_header_t *hdr, uint8_t *buf);
 extern void wispr_print_data_header(wispr_data_header_t *header);
 extern void wispr_print_config(wispr_config_t *hdr);
-extern void wispr_print_sd_card_header(wispr_sd_card_t *hdr);
 extern int wispr_parse_config(uint8_t *buf, wispr_config_t *hdr);
 extern int wispr_serialize_config(wispr_config_t *hdr, uint8_t *buf);
 extern void wispr_update_data_header(wispr_config_t *wispr, wispr_data_header_t *hdr);
-extern int wispr_sd_card_parse_header(uint8_t *buf, wispr_sd_card_t *hdr);
-extern int wispr_sd_card_serialize_header(wispr_sd_card_t *hdr, uint8_t *buf);
 
-extern int wispr_gpbr_write_config(wispr_config_t *hdr);
-extern int wispr_gpbr_read_config(wispr_config_t *hdr);
+#ifdef WINDOWS
+typedef struct {
+	char     label[16];     // user set identifier
+	uint8_t  number;        // card number
+	uint8_t  version[2];    // wispr version
+	uint8_t  hw_ver;        // card hardware version
+	uint8_t  state;         // current state (OPEN, ENABLED, ..)
+	uint8_t  type;          // hardware type
+	uint32_t capacity;      // total card capacity in KBytes
+	uint32_t start;         // addr of start block
+	uint32_t end;           // addr of end block
+	uint32_t write_addr;    // addr of current write block
+	uint32_t read_addr;     // addr of current read block
+	uint32_t total;         // total number of sectors KBytes
+	uint32_t free;          // available sectors in KBytes
+	uint32_t epoch;         // mod time
+} wispr_sd_card_t;
+
+extern void wispr_print_sd_card_header(wispr_sd_card_t *hdr);
+extern int wispr_sd_card_parse_header(uint8_t *buf, wispr_sd_card_t *hdr);
+extern int wispr_sd_card_serialize_header(sd_card_t *hdr, uint8_t *buf);
+#endif
+
+//extern int wispr_gpbr_write_config(wispr_config_t *hdr);
+//extern int wispr_gpbr_read_config(wispr_config_t *hdr);
 
 #endif /* WISPR_H_ */

@@ -202,6 +202,11 @@ int com_parse_msg (wispr_com_msg_t *msg, char *buf, int len)
 	  sscanf (args, "%d", &msg->gain);
   }
 
+  // report SD card memory usage
+  if (strncmp (buf, "SDF", 4) == 0) {
+	  msg->type = COM_SDF;
+  }
+
   if (verbose_level > 2) {
     printf("com_parse_msg: type=%d\r\n", msg->type);
   }

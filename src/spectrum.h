@@ -31,10 +31,10 @@
 
 extern void spectrum_update_header(wispr_data_header_t *psd, wispr_data_header_t *adc);
 
-extern int spectrum_init_f32(uint16_t *nbins, uint16_t nfft, uint16_t overlap, uint32_t fs, uint8_t nbps, uint8_t wintype);
+extern int spectrum_init_f32(uint16_t *nbins, uint16_t nfft, uint16_t overlap, uint8_t nbps, uint8_t wintype);
 extern int spectrum_f32(wispr_data_header_t *psd, float32_t *psd_data, wispr_data_header_t *adc, uint8_t *adc_data, uint16_t nsamps);
 
-extern int spectrum_init_q31(uint16_t *nbins, uint16_t nfft, uint16_t overlap, uint32_t fs, uint8_t nbps, uint8_t wintype);
+extern int spectrum_init_q31(uint16_t *nbins, uint16_t nfft, uint16_t overlap, uint8_t nbps, uint8_t wintype);
 extern int spectrum_q31(wispr_data_header_t *psd, float32_t *psd_data, wispr_data_header_t *adc, uint8_t *adc_data, uint16_t nsamps);
 
 extern void spectrum_window(float32_t *w, uint8_t type, uint16_t size);

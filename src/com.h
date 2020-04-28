@@ -21,6 +21,7 @@
 #define COM_TIME 7
 #define COM_GAIN 8
 #define COM_STATUS 9
+#define COM_SDF 10
 
 // this contains all information sent in all the message types
 typedef struct {

@@ -148,7 +148,7 @@ int main (void)
 		psd_nbins = psd_nfft/2;
 		psd_overlap = wispr.fft_overlap;
 		//spectrum_init_f32(&psd_nbins, psd_nfft, psd_overlap, wispr.sampling_rate, wispr.sample_size, HANN_WINDOW);
-		spectrum_init_q31(&psd_nbins, psd_nfft, psd_overlap, wispr.sampling_rate, wispr.sample_size, HANN_WINDOW);
+		spectrum_init_q31(&psd_nbins, psd_nfft, psd_overlap, wispr.sample_size, HANN_WINDOW);
 	}
 	
 	// Define the variables that control the window and interval timing.

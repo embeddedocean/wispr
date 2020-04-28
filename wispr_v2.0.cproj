@@ -33,6 +33,7 @@
         <options>
           <option id="common.boards" value="Add" config="" content-id="Atmel.ASF" />
           <option id="common.components.memory.sd_mmc" value="Add" config="mci" content-id="Atmel.ASF" />
+          <option id="common.services.basic.clock" value="Add" config="" content-id="Atmel.ASF" />
           <option id="common.services.basic.gpio" value="Add" config="" content-id="Atmel.ASF" />
           <option id="common.services.ioport" value="Add" config="" content-id="Atmel.ASF" />
           <option id="common.services.basic.serial" value="Add" config="" content-id="Atmel.ASF" />
@@ -51,14 +52,13 @@
           <option id="sam.drivers.twi" value="Add" config="" content-id="Atmel.ASF" />
           <option id="sam.drivers.wdt" value="Add" config="" content-id="Atmel.ASF" />
           <option id="common.services.fs.fatfs" value="Add" config="" content-id="Atmel.ASF" />
-          <option id="common.services.basic.clock" value="Add" config="" content-id="Atmel.ASF" />
           <option id="sam.utils.linker_scripts#atsam4sd32" value="Add" config="" content-id="Atmel.ASF" />
         </options>
         <configurations>
           <configuration key="config.compiler.armgcc.printf" value="iprintf" default="iprintf" content-id="Atmel.ASF" />
           <configuration key="config.compiler.armgcc.scanf" value="iscanf" default="iscanf" content-id="Atmel.ASF" />
           <configuration key="config.sam.pio.pio_handler" value="yes" default="yes" content-id="Atmel.ASF" />
-          <configuration key="config.common.components.memory.sd_mmc.ctrl_access" value="disable" default="disable" content-id="Atmel.ASF" />
+          <configuration key="config.common.components.memory.sd_mmc.ctrl_access" value="enable" default="disable" content-id="Atmel.ASF" />
           <configuration key="config.common.services.fs.fatfs.codepage" value="sbcs" default="sbcs" content-id="Atmel.ASF" />
         </configurations>
         <files>
@@ -251,6 +251,10 @@
           <file path="src/ASF/common/services/delay/sam/cycle_counter.c" framework="" version="3.47.0" source="common\services\delay\sam\cycle_counter.c" changed="False" content-id="Atmel.ASF" />
           <file path="src/ASF/common/services/delay/sam/cycle_counter.h" framework="" version="3.47.0" source="common\services\delay\sam\cycle_counter.h" changed="False" content-id="Atmel.ASF" />
           <file path="src/ASF/common/services/delay/delay.h" framework="" version="3.47.0" source="common\services\delay\delay.h" changed="False" content-id="Atmel.ASF" />
+          <file path="src/ASF/sam/drivers/supc/supc.c" framework="" version="3.47.0" source="sam\drivers\supc\supc.c" changed="False" content-id="Atmel.ASF" />
+          <file path="src/ASF/sam/drivers/supc/supc.h" framework="" version="3.47.0" source="sam\drivers\supc\supc.h" changed="False" content-id="Atmel.ASF" />
+          <file path="src/ASF/sam/drivers/gpbr/gpbr.c" framework="" version="3.47.0" source="sam\drivers\gpbr\gpbr.c" changed="False" content-id="Atmel.ASF" />
+          <file path="src/ASF/sam/drivers/gpbr/gpbr.h" framework="" version="3.47.0" source="sam\drivers\gpbr\gpbr.h" changed="False" content-id="Atmel.ASF" />
           <file path="src/ASF/common/services/storage/ctrl_access/ctrl_access.c" framework="" version="3.47.0" source="common\services\storage\ctrl_access\ctrl_access.c" changed="False" content-id="Atmel.ASF" />
           <file path="src/ASF/common/services/storage/ctrl_access/ctrl_access.h" framework="" version="3.47.0" source="common\services\storage\ctrl_access\ctrl_access.h" changed="False" content-id="Atmel.ASF" />
           <file path="src/Config/conf_access.h" framework="" version="3.47.0" source="common\services\storage\ctrl_access\module_config\conf_access.h" changed="False" content-id="Atmel.ASF" />
@@ -321,14 +325,12 @@
           <file path="src/ASF/thirdparty/fatfs/fatfs-r0.09/src/diskio.h" framework="" version="3.47.0" source="thirdparty\fatfs\fatfs-r0.09\src\diskio.h" changed="False" content-id="Atmel.ASF" />
           <file path="src/ASF/thirdparty/fatfs/fatfs-r0.09/src/ff.h" framework="" version="3.47.0" source="thirdparty\fatfs\fatfs-r0.09\src\ff.h" changed="False" content-id="Atmel.ASF" />
           <file path="src/ASF/thirdparty/fatfs/fatfs-r0.09/src/integer.h" framework="" version="3.47.0" source="thirdparty\fatfs\fatfs-r0.09\src\integer.h" changed="False" content-id="Atmel.ASF" />
+          <file path="src/ASF/common/components/memory/sd_mmc/sd_mmc_mem.c" framework="" version="3.47.0" source="common\components\memory\sd_mmc\sd_mmc_mem.c" changed="False" content-id="Atmel.ASF" />
+          <file path="src/ASF/common/components/memory/sd_mmc/sd_mmc_mem.h" framework="" version="3.47.0" source="common\components\memory\sd_mmc\sd_mmc_mem.h" changed="False" content-id="Atmel.ASF" />
           <file path="src/ASF/thirdparty/fatfs/fatfs-port-r0.09/diskio.c" framework="" version="3.47.0" source="thirdparty\fatfs\fatfs-port-r0.09\diskio.c" changed="False" content-id="Atmel.ASF" />
           <file path="src/ASF/thirdparty/fatfs/fatfs-port-r0.09/sam/fattime_rtc.c" framework="" version="3.47.0" source="thirdparty\fatfs\fatfs-port-r0.09\sam\fattime_rtc.c" changed="False" content-id="Atmel.ASF" />
           <file path="src/ASF/thirdparty/fatfs/fatfs-r0.09/src/option/ccsbcs.c" framework="" version="3.47.0" source="thirdparty\fatfs\fatfs-r0.09\src\option\ccsbcs.c" changed="False" content-id="Atmel.ASF" />
           <file path="src/Config/conf_fatfs.h" framework="" version="3.47.0" source="thirdparty\fatfs\fatfs-r0.09\src\module_config_sbcs\conf_fatfs.h" changed="False" content-id="Atmel.ASF" />
-          <file path="src/ASF/sam/drivers/supc/supc.c" framework="" version="3.47.0" source="sam\drivers\supc\supc.c" changed="False" content-id="Atmel.ASF" />
-          <file path="src/ASF/sam/drivers/supc/supc.h" framework="" version="3.47.0" source="sam\drivers\supc\supc.h" changed="False" content-id="Atmel.ASF" />
-          <file path="src/ASF/sam/drivers/gpbr/gpbr.c" framework="" version="3.47.0" source="sam\drivers\gpbr\gpbr.c" changed="False" content-id="Atmel.ASF" />
-          <file path="src/ASF/sam/drivers/gpbr/gpbr.h" framework="" version="3.47.0" source="sam\drivers\gpbr\gpbr.h" changed="False" content-id="Atmel.ASF" />
         </files>
         <documentation help="http://asf.atmel.com/docs/3.47.0/common.applications.user_application.user_board.sam4s/html/index.html" />
         <offline-documentation help="" />
@@ -369,6 +371,7 @@
       <Value>NDEBUG</Value>
       <Value>ARM_MATH_CM4=true</Value>
       <Value>BOARD=USER_BOARD</Value>
+      <Value>SD_MMC_ENABLE</Value>
     </ListValues>
   </armgcc.compiler.symbols.DefSymbols>
   <armgcc.compiler.directories.IncludePaths>
@@ -407,11 +410,10 @@
       <Value>../src</Value>
       <Value>../src/config</Value>
       <Value>../src/ASF/common/services/delay</Value>
-      <Value>../src/ASF/common/services/storage/ctrl_access</Value>
-      <Value>../src/ASF/thirdparty/fatfs/fatfs-r0.09/src</Value>
-      <Value>../src/ASF/thirdparty/fatfs/fatfs-port-r0.09/sam</Value>
       <Value>../src/ASF/sam/drivers/supc</Value>
       <Value>../src/ASF/sam/drivers/gpbr</Value>
+      <Value>../src/ASF/common/services/storage/ctrl_access</Value>
+      <Value>../src/fatfs</Value>
     </ListValues>
   </armgcc.compiler.directories.IncludePaths>
   <armgcc.compiler.optimization.level>Optimize for size (-Os)</armgcc.compiler.optimization.level>
@@ -469,14 +471,14 @@
       <Value>../src</Value>
       <Value>../src/config</Value>
       <Value>../src/ASF/common/services/delay</Value>
+      <Value>../src/ASF/sam/drivers/supc</Value>
+      <Value>../src/ASF/sam/drivers/gpbr</Value>
       <Value>../src/ASF/common/services/storage/ctrl_access</Value>
       <Value>../src/ASF/thirdparty/fatfs/fatfs-r0.09/src</Value>
       <Value>../src/ASF/thirdparty/fatfs/fatfs-port-r0.09/sam</Value>
-      <Value>../src/ASF/sam/drivers/supc</Value>
-      <Value>../src/ASF/sam/drivers/gpbr</Value>
     </ListValues>
   </armgcc.assembler.general.IncludePaths>
-  <armgcc.preprocessingassembler.general.AssemblerFlags>-DARM_MATH_CM4=true -DBOARD=USER_BOARD -Dprintf=iprintf -Dscanf=iscanf</armgcc.preprocessingassembler.general.AssemblerFlags>
+  <armgcc.preprocessingassembler.general.AssemblerFlags>-DARM_MATH_CM4=true -DBOARD=USER_BOARD -Dprintf=iprintf -Dscanf=iscanf -DSD_MMC_ENABLE</armgcc.preprocessingassembler.general.AssemblerFlags>
   <armgcc.preprocessingassembler.general.IncludePaths>
     <ListValues>
       <Value>../src/ASF/sam/drivers/pdc</Value>
@@ -513,11 +515,11 @@
       <Value>../src</Value>
       <Value>../src/config</Value>
       <Value>../src/ASF/common/services/delay</Value>
+      <Value>../src/ASF/sam/drivers/supc</Value>
+      <Value>../src/ASF/sam/drivers/gpbr</Value>
       <Value>../src/ASF/common/services/storage/ctrl_access</Value>
       <Value>../src/ASF/thirdparty/fatfs/fatfs-r0.09/src</Value>
       <Value>../src/ASF/thirdparty/fatfs/fatfs-port-r0.09/sam</Value>
-      <Value>../src/ASF/sam/drivers/supc</Value>
-      <Value>../src/ASF/sam/drivers/gpbr</Value>
     </ListValues>
   </armgcc.preprocessingassembler.general.IncludePaths>
 </ArmGcc>
@@ -536,6 +538,7 @@
       <Value>DEBUG</Value>
       <Value>BOARD=USER_BOARD</Value>
       <Value>ARM_MATH_CM4=true</Value>
+      <Value>SD_MMC_ENABLE</Value>
     </ListValues>
   </armgcc.compiler.symbols.DefSymbols>
   <armgcc.compiler.directories.IncludePaths>
@@ -574,11 +577,11 @@
       <Value>../src</Value>
       <Value>../src/config</Value>
       <Value>../src/ASF/common/services/delay</Value>
+      <Value>../src/ASF/sam/drivers/supc</Value>
+      <Value>../src/ASF/sam/drivers/gpbr</Value>
       <Value>../src/ASF/common/services/storage/ctrl_access</Value>
       <Value>../src/ASF/thirdparty/fatfs/fatfs-r0.09/src</Value>
       <Value>../src/ASF/thirdparty/fatfs/fatfs-port-r0.09/sam</Value>
-      <Value>../src/ASF/sam/drivers/supc</Value>
-      <Value>../src/ASF/sam/drivers/gpbr</Value>
     </ListValues>
   </armgcc.compiler.directories.IncludePaths>
   <armgcc.compiler.optimization.level>Optimize (-O1)</armgcc.compiler.optimization.level>
@@ -637,15 +640,15 @@
       <Value>../src</Value>
       <Value>../src/config</Value>
       <Value>../src/ASF/common/services/delay</Value>
+      <Value>../src/ASF/sam/drivers/supc</Value>
+      <Value>../src/ASF/sam/drivers/gpbr</Value>
       <Value>../src/ASF/common/services/storage/ctrl_access</Value>
       <Value>../src/ASF/thirdparty/fatfs/fatfs-r0.09/src</Value>
       <Value>../src/ASF/thirdparty/fatfs/fatfs-port-r0.09/sam</Value>
-      <Value>../src/ASF/sam/drivers/supc</Value>
-      <Value>../src/ASF/sam/drivers/gpbr</Value>
     </ListValues>
   </armgcc.assembler.general.IncludePaths>
   <armgcc.assembler.debugging.DebugLevel>Default (-g)</armgcc.assembler.debugging.DebugLevel>
-  <armgcc.preprocessingassembler.general.AssemblerFlags>-DARM_MATH_CM4=true -DBOARD=USER_BOARD -Dprintf=iprintf -Dscanf=iscanf</armgcc.preprocessingassembler.general.AssemblerFlags>
+  <armgcc.preprocessingassembler.general.AssemblerFlags>-DARM_MATH_CM4=true -DBOARD=USER_BOARD -Dprintf=iprintf -Dscanf=iscanf -DSD_MMC_ENABLE</armgcc.preprocessingassembler.general.AssemblerFlags>
   <armgcc.preprocessingassembler.general.IncludePaths>
     <ListValues>
       <Value>../src/ASF/sam/drivers/pdc</Value>
@@ -682,11 +685,11 @@
       <Value>../src</Value>
       <Value>../src/config</Value>
       <Value>../src/ASF/common/services/delay</Value>
+      <Value>../src/ASF/sam/drivers/supc</Value>
+      <Value>../src/ASF/sam/drivers/gpbr</Value>
       <Value>../src/ASF/common/services/storage/ctrl_access</Value>
       <Value>../src/ASF/thirdparty/fatfs/fatfs-r0.09/src</Value>
       <Value>../src/ASF/thirdparty/fatfs/fatfs-port-r0.09/sam</Value>
-      <Value>../src/ASF/sam/drivers/supc</Value>
-      <Value>../src/ASF/sam/drivers/gpbr</Value>
     </ListValues>
   </armgcc.preprocessingassembler.general.IncludePaths>
   <armgcc.preprocessingassembler.debugging.DebugLevel>Default (-Wa,-g)</armgcc.preprocessingassembler.debugging.DebugLevel>
@@ -764,28 +767,62 @@
     <Folder Include="src\ASF\thirdparty\CMSIS\Include\" />
     <Folder Include="src\ASF\thirdparty\CMSIS\Lib\" />
     <Folder Include="src\ASF\thirdparty\CMSIS\Lib\GCC\" />
-    <Folder Include="src\ASF\thirdparty\fatfs\" />
-    <Folder Include="src\ASF\thirdparty\fatfs\fatfs-port-r0.09\" />
-    <Folder Include="src\ASF\thirdparty\fatfs\fatfs-port-r0.09\sam\" />
-    <Folder Include="src\ASF\thirdparty\fatfs\fatfs-r0.09\" />
-    <Folder Include="src\ASF\thirdparty\fatfs\fatfs-r0.09\doc\" />
-    <Folder Include="src\ASF\thirdparty\fatfs\fatfs-r0.09\doc\en\" />
-    <Folder Include="src\ASF\thirdparty\fatfs\fatfs-r0.09\doc\img\" />
-    <Folder Include="src\ASF\thirdparty\fatfs\fatfs-r0.09\src\" />
-    <Folder Include="src\ASF\thirdparty\fatfs\fatfs-r0.09\src\option\" />
     <Folder Include="src\config\" />
+    <Folder Include="src\fatfs" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="src\ASF\common\boards\board.h">
+      <SubType>compile</SubType>
+    </Compile>
+    <Compile Include="src\ASF\common\components\memory\sd_mmc\sd_mmc_mem.c">
+      <SubType>compile</SubType>
+    </Compile>
+    <Compile Include="src\wispr_main_fat.c">
+      <SubType>compile</SubType>
+    </Compile>
+    <None Include="src\ASF\common\components\memory\sd_mmc\sd_mmc_mem.h">
+      <SubType>compile</SubType>
+    </None>
+    <Compile Include="src\ASF\common\services\storage\ctrl_access\ctrl_access.c">
+      <SubType>compile</SubType>
+    </Compile>
+    <None Include="src\ASF\common\services\storage\ctrl_access\ctrl_access.h">
+      <SubType>compile</SubType>
+    </None>
     <Compile Include="src\ASF\sam\drivers\gpbr\gpbr.c">
+      <SubType>compile</SubType>
+    </Compile>
+    <None Include="src\config\conf_access.h">
+      <SubType>compile</SubType>
+    </None>
+    <Compile Include="src\fatfs\diskio.c">
+      <SubType>compile</SubType>
+    </Compile>
+    <Compile Include="src\fatfs\diskio.h">
+      <SubType>compile</SubType>
+    </Compile>
+    <Compile Include="src\fatfs\fattime_rtc.c">
+      <SubType>compile</SubType>
+    </Compile>
+    <Compile Include="src\fatfs\ff.c">
+      <SubType>compile</SubType>
+    </Compile>
+    <Compile Include="src\fatfs\ff.h">
+      <SubType>compile</SubType>
+    </Compile>
+    <Compile Include="src\fatfs\ffconf.h">
+      <SubType>compile</SubType>
+    </Compile>
+    <Compile Include="src\fatfs\ffunicode.c">
+      <SubType>compile</SubType>
+    </Compile>
+    <Compile Include="src\fatfs\integer.h">
       <SubType>compile</SubType>
     </Compile>
     <Compile Include="src\spectrum.c">
       <SubType>compile</SubType>
     </Compile>
     <Compile Include="src\spectrum.h">
-      <SubType>compile</SubType>
-    </Compile>
-    <Compile Include="src\wispr_main.c">
       <SubType>compile</SubType>
     </Compile>
     <None Include="src\ASF\sam\drivers\gpbr\gpbr.h">
@@ -828,12 +865,6 @@
       <SubType>compile</SubType>
     </Compile>
     <None Include="src\ASF\common\services\delay\sam\cycle_counter.h">
-      <SubType>compile</SubType>
-    </None>
-    <Compile Include="src\ASF\common\services\storage\ctrl_access\ctrl_access.c">
-      <SubType>compile</SubType>
-    </Compile>
-    <None Include="src\ASF\common\services\storage\ctrl_access\ctrl_access.h">
       <SubType>compile</SubType>
     </None>
     <Compile Include="src\ASF\common\utils\interrupt\interrupt_sam_nvic.c">
@@ -1193,192 +1224,6 @@
     <None Include="src\ASF\thirdparty\CMSIS\README.txt">
       <SubType>compile</SubType>
     </None>
-    <None Include="src\ASF\thirdparty\fatfs\ATMEL-disclaimer.txt">
-      <SubType>compile</SubType>
-    </None>
-    <None Include="src\ASF\thirdparty\fatfs\fatfs-r0.09\doc\00index_e.html">
-      <SubType>compile</SubType>
-    </None>
-    <None Include="src\ASF\thirdparty\fatfs\fatfs-r0.09\doc\00index_j.html">
-      <SubType>compile</SubType>
-    </None>
-    <None Include="src\ASF\thirdparty\fatfs\fatfs-r0.09\doc\css_e.css">
-      <SubType>compile</SubType>
-    </None>
-    <None Include="src\ASF\thirdparty\fatfs\fatfs-r0.09\doc\css_j.css">
-      <SubType>compile</SubType>
-    </None>
-    <None Include="src\ASF\thirdparty\fatfs\fatfs-r0.09\doc\en\appnote.html">
-      <SubType>compile</SubType>
-    </None>
-    <None Include="src\ASF\thirdparty\fatfs\fatfs-r0.09\doc\en\chdir.html">
-      <SubType>compile</SubType>
-    </None>
-    <None Include="src\ASF\thirdparty\fatfs\fatfs-r0.09\doc\en\chdrive.html">
-      <SubType>compile</SubType>
-    </None>
-    <None Include="src\ASF\thirdparty\fatfs\fatfs-r0.09\doc\en\chmod.html">
-      <SubType>compile</SubType>
-    </None>
-    <None Include="src\ASF\thirdparty\fatfs\fatfs-r0.09\doc\en\close.html">
-      <SubType>compile</SubType>
-    </None>
-    <None Include="src\ASF\thirdparty\fatfs\fatfs-r0.09\doc\en\dinit.html">
-      <SubType>compile</SubType>
-    </None>
-    <None Include="src\ASF\thirdparty\fatfs\fatfs-r0.09\doc\en\dioctl.html">
-      <SubType>compile</SubType>
-    </None>
-    <None Include="src\ASF\thirdparty\fatfs\fatfs-r0.09\doc\en\dread.html">
-      <SubType>compile</SubType>
-    </None>
-    <None Include="src\ASF\thirdparty\fatfs\fatfs-r0.09\doc\en\dstat.html">
-      <SubType>compile</SubType>
-    </None>
-    <None Include="src\ASF\thirdparty\fatfs\fatfs-r0.09\doc\en\dwrite.html">
-      <SubType>compile</SubType>
-    </None>
-    <None Include="src\ASF\thirdparty\fatfs\fatfs-r0.09\doc\en\eof.html">
-      <SubType>compile</SubType>
-    </None>
-    <None Include="src\ASF\thirdparty\fatfs\fatfs-r0.09\doc\en\error.html">
-      <SubType>compile</SubType>
-    </None>
-    <None Include="src\ASF\thirdparty\fatfs\fatfs-r0.09\doc\en\fattime.html">
-      <SubType>compile</SubType>
-    </None>
-    <None Include="src\ASF\thirdparty\fatfs\fatfs-r0.09\doc\en\fdisk.html">
-      <SubType>compile</SubType>
-    </None>
-    <None Include="src\ASF\thirdparty\fatfs\fatfs-r0.09\doc\en\filename.html">
-      <SubType>compile</SubType>
-    </None>
-    <None Include="src\ASF\thirdparty\fatfs\fatfs-r0.09\doc\en\forward.html">
-      <SubType>compile</SubType>
-    </None>
-    <None Include="src\ASF\thirdparty\fatfs\fatfs-r0.09\doc\en\getcwd.html">
-      <SubType>compile</SubType>
-    </None>
-    <None Include="src\ASF\thirdparty\fatfs\fatfs-r0.09\doc\en\getfree.html">
-      <SubType>compile</SubType>
-    </None>
-    <None Include="src\ASF\thirdparty\fatfs\fatfs-r0.09\doc\en\gets.html">
-      <SubType>compile</SubType>
-    </None>
-    <None Include="src\ASF\thirdparty\fatfs\fatfs-r0.09\doc\en\lseek.html">
-      <SubType>compile</SubType>
-    </None>
-    <None Include="src\ASF\thirdparty\fatfs\fatfs-r0.09\doc\en\mkdir.html">
-      <SubType>compile</SubType>
-    </None>
-    <None Include="src\ASF\thirdparty\fatfs\fatfs-r0.09\doc\en\mkfs.html">
-      <SubType>compile</SubType>
-    </None>
-    <None Include="src\ASF\thirdparty\fatfs\fatfs-r0.09\doc\en\mount.html">
-      <SubType>compile</SubType>
-    </None>
-    <None Include="src\ASF\thirdparty\fatfs\fatfs-r0.09\doc\en\open.html">
-      <SubType>compile</SubType>
-    </None>
-    <None Include="src\ASF\thirdparty\fatfs\fatfs-r0.09\doc\en\opendir.html">
-      <SubType>compile</SubType>
-    </None>
-    <None Include="src\ASF\thirdparty\fatfs\fatfs-r0.09\doc\en\printf.html">
-      <SubType>compile</SubType>
-    </None>
-    <None Include="src\ASF\thirdparty\fatfs\fatfs-r0.09\doc\en\putc.html">
-      <SubType>compile</SubType>
-    </None>
-    <None Include="src\ASF\thirdparty\fatfs\fatfs-r0.09\doc\en\puts.html">
-      <SubType>compile</SubType>
-    </None>
-    <None Include="src\ASF\thirdparty\fatfs\fatfs-r0.09\doc\en\rc.html">
-      <SubType>compile</SubType>
-    </None>
-    <None Include="src\ASF\thirdparty\fatfs\fatfs-r0.09\doc\en\read.html">
-      <SubType>compile</SubType>
-    </None>
-    <None Include="src\ASF\thirdparty\fatfs\fatfs-r0.09\doc\en\readdir.html">
-      <SubType>compile</SubType>
-    </None>
-    <None Include="src\ASF\thirdparty\fatfs\fatfs-r0.09\doc\en\rename.html">
-      <SubType>compile</SubType>
-    </None>
-    <None Include="src\ASF\thirdparty\fatfs\fatfs-r0.09\doc\en\sdir.html">
-      <SubType>compile</SubType>
-    </None>
-    <None Include="src\ASF\thirdparty\fatfs\fatfs-r0.09\doc\en\sfatfs.html">
-      <SubType>compile</SubType>
-    </None>
-    <None Include="src\ASF\thirdparty\fatfs\fatfs-r0.09\doc\en\sfile.html">
-      <SubType>compile</SubType>
-    </None>
-    <None Include="src\ASF\thirdparty\fatfs\fatfs-r0.09\doc\en\sfileinfo.html">
-      <SubType>compile</SubType>
-    </None>
-    <None Include="src\ASF\thirdparty\fatfs\fatfs-r0.09\doc\en\size.html">
-      <SubType>compile</SubType>
-    </None>
-    <None Include="src\ASF\thirdparty\fatfs\fatfs-r0.09\doc\en\stat.html">
-      <SubType>compile</SubType>
-    </None>
-    <None Include="src\ASF\thirdparty\fatfs\fatfs-r0.09\doc\en\sync.html">
-      <SubType>compile</SubType>
-    </None>
-    <None Include="src\ASF\thirdparty\fatfs\fatfs-r0.09\doc\en\tell.html">
-      <SubType>compile</SubType>
-    </None>
-    <None Include="src\ASF\thirdparty\fatfs\fatfs-r0.09\doc\en\truncate.html">
-      <SubType>compile</SubType>
-    </None>
-    <None Include="src\ASF\thirdparty\fatfs\fatfs-r0.09\doc\en\unlink.html">
-      <SubType>compile</SubType>
-    </None>
-    <None Include="src\ASF\thirdparty\fatfs\fatfs-r0.09\doc\en\utime.html">
-      <SubType>compile</SubType>
-    </None>
-    <None Include="src\ASF\thirdparty\fatfs\fatfs-r0.09\doc\en\write.html">
-      <SubType>compile</SubType>
-    </None>
-    <None Include="src\ASF\thirdparty\fatfs\fatfs-r0.09\doc\img\f1.png">
-      <SubType>compile</SubType>
-    </None>
-    <None Include="src\ASF\thirdparty\fatfs\fatfs-r0.09\doc\img\f2.png">
-      <SubType>compile</SubType>
-    </None>
-    <None Include="src\ASF\thirdparty\fatfs\fatfs-r0.09\doc\img\f3.png">
-      <SubType>compile</SubType>
-    </None>
-    <None Include="src\ASF\thirdparty\fatfs\fatfs-r0.09\doc\img\f4.png">
-      <SubType>compile</SubType>
-    </None>
-    <None Include="src\ASF\thirdparty\fatfs\fatfs-r0.09\doc\img\f5.png">
-      <SubType>compile</SubType>
-    </None>
-    <None Include="src\ASF\thirdparty\fatfs\fatfs-r0.09\doc\img\f6.png">
-      <SubType>compile</SubType>
-    </None>
-    <None Include="src\ASF\thirdparty\fatfs\fatfs-r0.09\doc\img\layers.png">
-      <SubType>compile</SubType>
-    </None>
-    <None Include="src\ASF\thirdparty\fatfs\fatfs-r0.09\doc\img\layers3.png">
-      <SubType>compile</SubType>
-    </None>
-    <None Include="src\ASF\thirdparty\fatfs\fatfs-r0.09\doc\img\rwtest.png">
-      <SubType>compile</SubType>
-    </None>
-    <None Include="src\ASF\thirdparty\fatfs\fatfs-r0.09\doc\img\rwtest2.png">
-      <SubType>compile</SubType>
-    </None>
-    <None Include="src\ASF\thirdparty\fatfs\fatfs-r0.09\doc\img\rwtest3.png">
-      <SubType>compile</SubType>
-    </None>
-    <None Include="src\ASF\thirdparty\fatfs\fatfs-r0.09\doc\updates.txt">
-      <SubType>compile</SubType>
-    </None>
-    <None Include="src\ASF\thirdparty\fatfs\fatfs-r0.09\src\00readme.txt">
-      <SubType>compile</SubType>
-    </None>
     <None Include="src\config\conf_board.h">
       <SubType>compile</SubType>
     </None>
@@ -1392,36 +1237,6 @@
       <SubType>compile</SubType>
     </None>
     <None Include="src\config\conf_sd_mmc.h">
-      <SubType>compile</SubType>
-    </None>
-    <None Include="src\config\conf_access.h">
-      <SubType>compile</SubType>
-    </None>
-    <None Include="src\ASF\thirdparty\fatfs\fatfs-r0.09\src\diskio.h">
-      <SubType>compile</SubType>
-    </None>
-    <Compile Include="src\ASF\thirdparty\fatfs\fatfs-port-r0.09\diskio.c">
-      <SubType>compile</SubType>
-    </Compile>
-    <Compile Include="src\ASF\thirdparty\fatfs\fatfs-port-r0.09\sam\fattime_rtc.c">
-      <SubType>compile</SubType>
-    </Compile>
-    <Compile Include="src\ASF\thirdparty\fatfs\fatfs-r0.09\src\ff.c">
-      <SubType>compile</SubType>
-    </Compile>
-    <None Include="src\ASF\thirdparty\fatfs\fatfs-r0.09\src\ffconf.h">
-      <SubType>compile</SubType>
-    </None>
-    <None Include="src\ASF\thirdparty\fatfs\fatfs-r0.09\src\ff.h">
-      <SubType>compile</SubType>
-    </None>
-    <None Include="src\ASF\thirdparty\fatfs\fatfs-r0.09\src\integer.h">
-      <SubType>compile</SubType>
-    </None>
-    <Compile Include="src\ASF\thirdparty\fatfs\fatfs-r0.09\src\option\ccsbcs.c">
-      <SubType>compile</SubType>
-    </Compile>
-    <None Include="src\config\conf_fatfs.h">
       <SubType>compile</SubType>
     </None>
     <None Include="src\ASF\sam\drivers\rstc\rstc.h">

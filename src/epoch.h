@@ -16,6 +16,6 @@ extern void epoch_to_time(uint32_t epoch, uint8_t *yr, uint8_t *mn, uint8_t *dy,
 extern void epoch_to_rtc_time(rtc_time_t *t, uint32_t epoch);
 extern void epoch_to_time_string(uint32_t epoch, char *str);
 extern char *epoch_time_string(uint32_t epoch);
-
+extern uint32_t time_string_to_epoch(char *str);
 
 #endif /* EOPCH_H_ */

@@ -14,6 +14,6 @@
 /** Enable SD MMC interface pins through HSMCI */
 #define CONF_BOARD_SD_MMC_HSMCI
 
-#define CONF_BOARD_KEEP_WATCHDOG_AT_INIT
+//#define CONF_BOARD_KEEP_WATCHDOG_AT_INIT
 
 #endif // CONF_BOARD_H

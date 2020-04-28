@@ -53,7 +53,7 @@ extern uint32_t board_get_main_clock_hz(void);
 extern void board_set_clock(enum board_cpu_freq_hz mck);
 extern void board_gpio_init(void);
 extern uint32_t board_uart_init(int port, uint32_t baud);
-extern uint32_t board_wdt_init(uint32_t wdt_msec);
+extern uint32_t board_wdt_init(void);
 extern void board_reset_reason(uint8_t *reason, uint8_t *nrst, uint8_t *user);
 
 

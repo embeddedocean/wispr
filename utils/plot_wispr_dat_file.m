@@ -16,6 +16,7 @@ N = 4; % number of buffer to concatenate
 
 count = 0;
 go = 1;
+t0 = 0;
 while( go )
 
     data = [];
@@ -39,7 +40,11 @@ while( go )
         end
 
         % concatenate raw data buffer into one dat vector
-        data = [data; double(raw)*q]; 
+        %data = [data; double(raw)*q]; 
+        data(:,n) = double(raw)*q;
+        dt = 1.0 / hdr.sampling_rate;
+        t(:,n) = t0 + (1:length(raw)) * dt;
+        t0 = t(end,n);
     
     end
     
@@ -47,7 +52,7 @@ while( go )
         break; 
     end;
     
-    t = (1:length(data)) / hdr.sampling_rate;
+    %t = (1:length(data)) / hdr.sampling_rate;
 
     fprintf('time = %d\n', hdr.sec);
     
@@ -57,14 +62,16 @@ while( go )
     ylabel('Volts');
     xlabel('Seconds');
     
-    %nfft = 1024;
-    %window = hann(nfft);
-    %overlap = 256;
-    %fs = hdr.sampling_rate;
-    %[Spec, freq] = psd(data,nfft,fs,window,overlap);
-    %figure(2); clf;
-    %plot(freq, 10*log10(Spec),'.-');
-    
+    nfft = 1024;
+    window = hann(nfft);
+    overlap = 256;
+    fs = hdr.sampling_rate;
+    [Spec, freq] = my_psd(data(:),fs,window,overlap);
+    figure(2); clf;
+    plot(freq, 10*log10(Spec),'.-');
+    grid on;
+    xlabel('Frequency'), ylabel('Power Spectrum Magnitude (dB)');
+
     if(input('quit: ') == 1) 
         go = 0;
         break; 
