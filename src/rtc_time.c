@@ -79,6 +79,14 @@ void rtc_get_datetime_asf( rtc_time_t *dt )
 	//printf("RTC set to %d/%02d/%02d %02d:%02d:%02d\r\n", year, month, day, hour, minute, sec);
 }
 
+//
+// Get the RTC data and time
+// Returns the RTC Valid Entry Register NVTIM: Non-valid Time
+// 0 = No invalid data has been detected in RTC_TIMR or RTC_CALR.
+// 1 = RTC_TIMR has contained invalid data since it was last programmed.
+// 2 = RTC_CALR has contained invalid data since it was last programmed.
+// 3 = Both contained invalid data.
+//
 uint32_t rtc_get_datetime( rtc_time_t *dt )
 {
 	Rtc *p_rtc = RTC;
@@ -169,10 +177,16 @@ static uint32_t calculate_week(uint32_t ul_year, uint32_t ul_month, uint32_t ul_
 }
 
 //
-// Set RTC data and time
-// return 0 for OK, else invalid setting.
+// Set RTC date and time
+// The hardware checks if one of the time fields is not correct, the data is not loaded into the register/counter 
+// and a flag is set in the validity register.
+// Returns the RTC Valid Entry Register NVTIM: Non-valid Time
+// 0 = No invalid data has been detected in RTC_TIMR or RTC_CALR.
+// 1 = RTC_TIMR has contained invalid data since it was last programmed.
+// 2 = RTC_CALR has contained invalid data since it was last programmed.
+// 3 = Both contained invalid data.
 //
- uint32_t rtc_set_datetime(rtc_time_t *dt )
+uint32_t rtc_set_datetime(rtc_time_t *dt )
 {
 	Rtc *p_rtc = RTC;
 	uint32_t year = (uint32_t)(dt->century*100 + dt->year);
@@ -220,7 +234,7 @@ static uint32_t calculate_week(uint32_t ul_year, uint32_t ul_month, uint32_t ul_
 	p_rtc->RTC_CR &= (~RTC_CR_UPDCAL);
 
 	if(timeout <= 0) {
-		printf("rtc set date timeout!\r\n");
+		printf("rtc_set_datetime: set date timeout!\r\n");
 		return(0);
 	}
 
@@ -260,10 +274,74 @@ static uint32_t calculate_week(uint32_t ul_year, uint32_t ul_month, uint32_t ul_
 	p_rtc->RTC_CR &= (~RTC_CR_UPDTIM);
 
 	if(timeout <= 0) {
-		printf("rtc set time timeout!\r\n");
+		printf("rtc_set_datetime: set time timeout!\r\n");
 	}
 
+	// return the RTC Valid Entry Register NVTIM: Non-valid Time
 	return ( p_rtc->RTC_VER & (RTC_VER_NVTIM | RTC_VER_NVCAL) );
+}
+
+static uint16_t daysPerMonth[12] = {31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
+
+uint8_t rtc_valid_datetime(const rtc_time_t *dt)
+{
+	uint16_t	days;
+
+	// Seconds are 0 to 59
+	if (dt->second > 59) {
+		return(0);
+	}
+
+	// Minutes are 0 to 59
+	if (dt->minute > 59) {
+		return(0);
+	}
+
+	// Hours are 0 to 23
+	if (dt->hour > 23) {
+		return(0);
+	}
+
+	// Months are 1 to 12
+	if ((dt->month == 0) || (dt->month > 12)) {
+		return(0);
+	}
+
+	// The day of the month is based on the number of days in the month and whether or not the year is a leap year
+	if (dt->month == 2) {	// February
+		if ((dt->year % 400) == 0)	{		// Years which are multiples of 400 are leap years
+			days = 29;
+		} 
+		else if ((dt->year % 100) == 0) {	// Years which are multiples of 100 (but not 400) are not leap years
+			days = 28;
+		}
+		else if ((dt->year % 4) == 0) {		// "Normal" leap years
+			days = 29;
+		} else {							// The only case left is non leap years
+			days = 28;
+		}
+
+		if ((dt->day == 0) || (dt->day > days)) {
+			return(0);
+		}
+	}
+	// All months other than February can use the lookup table
+	else if ((dt->day == 0) || (dt->day > daysPerMonth[dt->month - 1])) {
+		return(0);
+	}
+
+	// year < 99
+	if (dt->year > 99){
+		return(0);
+	}
+
+	// century should always be 20
+	if (dt->century != 20){
+		return(0);
+	}
+
+	return(1);
+
 }
 
 

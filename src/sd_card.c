@@ -775,30 +775,52 @@ FRESULT sd_card_umount_fat(uint8_t card_num)
 	return(res);
 }
 
-FRESULT sd_card_open_fat(fat_file_t *ff, char *prefix, char *suffix, unsigned char mode, uint8_t card_num)
+FRESULT sd_card_open_fat(fat_file_t *ff, char *name, unsigned char mode, uint8_t card_num)
 {	
 	if( card_num < 1 || card_num > NUMBER_SD_CARDS ) {
 		//printf("Unknown SD number: enable SD Card Failed\n\r");
 		return(FR_INVALID_PARAMETER);
 	}
 
-	rtc_get_datetime(&ff->time);
-
-	sprintf(ff->name, "%s_%02d%02d%02d_%02d%02d%02d.%s",
-		prefix, ff->time.year, ff->time.month, ff->time.day, ff->time.hour, ff->time.minute, ff->time.second, suffix);
+	ff->state = 0;
+	ff->card_num = card_num;
+	ff->size = WISPR_MAX_FILE_SIZE;
 
 	FRESULT res;
-	res = f_open(&ff->file, ff->name, mode); 
+	res = f_open(&ff->file, name, mode); 
 	if( res == FR_OK ) {
 		ff->state = SD_FILE_OPEN;
-		ff->card_num = card_num;
+		strncpy(ff->name, name, sizeof(ff->name));
 	} else {
-		printf("sd_card_f_open: f_open error %d\r\n", res);	
+		printf("sd_card_f_open: f_open error %d with %s\r\n", res, name);	
 	}
 	
 	return(res);
 }
 
+FRESULT sd_card_close_fat(fat_file_t *ff)
+{
+	if( !(ff->state & SD_FILE_OPEN) ) {
+		return(FR_NOT_READY);
+	}
+
+	FRESULT res;
+	res = f_close(&ff->file);
+	if( res != FR_OK ) {
+		printf("f_close FAILED: res %d\r\n", res);
+	}
+
+	ff->state == SD_FILE_CLOSED;
+	
+	return(res);
+}
+
+//
+// Write a buffer of size nblocks to the open file.
+// If the write fills the file (count >= size) the file full bit is set in the file state. 
+// It's up the user to handle the file full state, such as closing the file and opening a new one
+// because subsequent writes will just overfill the file. 
+//
 FRESULT sd_card_write_fat(fat_file_t *ff, uint8_t *buffer, uint16_t nblocks)
 {
 	if( !(ff->state & SD_FILE_OPEN) ) {
@@ -806,12 +828,6 @@ FRESULT sd_card_write_fat(fat_file_t *ff, uint8_t *buffer, uint16_t nblocks)
 		return(FR_NOT_READY);
 	}
 	
-	// check if this write will overfill the file
-	if( (ff->count + nblocks) > ff->size ) {
-		ff->state |= SD_FILE_FULL;
-		return(FR_DENIED);
-	}
-
 	// write to file on SD card
 	size_t nwrt = 0;
 	UINT nbytes = nblocks * SD_MMC_BLOCK_SIZE;
@@ -823,23 +839,15 @@ FRESULT sd_card_write_fat(fat_file_t *ff, uint8_t *buffer, uint16_t nblocks)
 	
 	// update the current file block count
 	ff->count += nblocks;
+
+	// check if this write filled the file
+	if( ff->count >= ff->size ) {
+		ff->state |= SD_FILE_FULL;
+	}
 	
 	// update the sd card total write count used to determine if card is full
 	sd_card_instance[ff->card_num-1].write_addr += nblocks;
 
-	return(res);
-}
-
-FRESULT sd_card_close_fat(fat_file_t *ff)
-{
-	FRESULT res;
-	res = f_close(&ff->file);
-	if( res != FR_OK ) {
-		printf("f_close FAILED: res %d\r\n", res);
-	}
-
-	ff->state &= ~SD_FILE_OPEN;
-	
 	return(res);
 }
 

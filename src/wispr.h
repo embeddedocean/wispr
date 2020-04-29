@@ -77,6 +77,8 @@
 #define WISPR_FLOAT16 0x10
 #define WISPR_FLOAT32 0x20
 
+// Max file size is in units of 512 blocks
+#define WISPR_MAX_FILE_SIZE (ADC_MAX_BLOCKS_PER_BUFFER * 4096)
 //
 // Data header object written to the front of each data buffer
 //

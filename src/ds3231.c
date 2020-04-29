@@ -802,7 +802,7 @@ uint32_t ds3231_set_alarm( ds3231_datetime *dt )
 /****************************************************************************************************************************/
 //
 // Epoch functions
-
+/*
 
 // 01 Jan 2000 00:00:00 GMT
 #define DS3231_EPOCH_OFFSET 946684800  
@@ -859,3 +859,4 @@ void ds3231_epoch_to_datetime(ds3231_datetime *dt, unsigned int epoch)
 	dt->month = (uint16_t)(month+1);
 	dt->day   = (uint16_t)(epoch-LEAP_DAYS[year][month]+1);
 }
+*/

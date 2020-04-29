@@ -29,8 +29,9 @@
 #define SD_CARD_SELECTED  0x20
 
 // file states
-#define SD_FILE_OPEN	  0x40
-#define SD_FILE_FULL      0x80
+#define SD_FILE_CLOSED	  0x00
+#define SD_FILE_OPEN	  0x01
+#define SD_FILE_FULL      0x02
 
 // file systems types
 #define SD_FS_RAW	  0x01
@@ -100,7 +101,7 @@ extern int sd_card_read_config(uint8_t card_num, wispr_config_t *hdr);
 extern FRESULT sd_card_format_fat(uint8_t card_num);
 extern FRESULT sd_card_mount_fat(uint8_t card_num);
 extern FRESULT sd_card_umount_fat(uint8_t card_num);
-extern FRESULT sd_card_open_fat(fat_file_t *ff, char *prefix, char *suffix, unsigned char mode, uint8_t card_num);
+extern FRESULT sd_card_open_fat(fat_file_t *ff, char *name, unsigned char mode, uint8_t card_num);
 extern FRESULT sd_card_close_fat(fat_file_t *ff);
 extern FRESULT sd_card_write_fat(fat_file_t *ff, uint8_t *buffer, uint16_t nblocks);
 extern FRESULT sd_card_write_config_fat(char *filename, wispr_config_t *hdr);
