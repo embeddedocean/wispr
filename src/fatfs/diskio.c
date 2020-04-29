@@ -43,7 +43,7 @@ extern "C" {
 #include "ctrl_access.h"
 #include "sd_mmc.h"
 
-#include "sd_mmc_mem.h"
+//#include "sd_mmc_mem.h"
 
 #include <string.h>
 #include <stdio.h>
@@ -90,8 +90,8 @@ DSTATUS disk_initialize(BYTE drv)
 
 	/* Check LUN ready (USB disk report CTRL_BUSY then CTRL_GOOD) */
 	for (i = 0; i < 2; i ++) {
-		mem_status = mem_test_unit_ready(drv);
-		//mem_status = sd_mmc_test_unit_ready(0);
+		//mem_status = mem_test_unit_ready(drv);
+		mem_status = sd_mmc_test_unit_ready(0);
 		if (CTRL_BUSY != mem_status) {
 			break;
 		}
@@ -101,9 +101,9 @@ DSTATUS disk_initialize(BYTE drv)
 	}
 
 	/* Check Write Protection Status */
-	if (mem_wr_protect(drv)) {
-		return STA_PROTECT;
-	}
+	//if (mem_wr_protect(drv)) {
+	//	return STA_PROTECT;
+	//}
 
 	// cj - speed up
 	sd_mmc_read_capacity(drv, &sd_card_last_sector_num);
@@ -122,7 +122,8 @@ DSTATUS disk_initialize(BYTE drv)
  */
 DSTATUS disk_status(BYTE drv)
 {
-	switch (mem_test_unit_ready(drv)) {
+	//switch (mem_test_unit_ready(drv)) {
+	switch (sd_mmc_test_unit_ready(0)) {
 	case CTRL_GOOD:
 		return 0;
 	case CTRL_NO_PRESENT:

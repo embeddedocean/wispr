@@ -777,12 +777,12 @@
     <Compile Include="src\ASF\common\components\memory\sd_mmc\sd_mmc_mem.c">
       <SubType>compile</SubType>
     </Compile>
+    <Compile Include="src\ASF\common\components\memory\sd_mmc\sd_mmc_mem.h">
+      <SubType>compile</SubType>
+    </Compile>
     <Compile Include="src\wispr_main_fat.c">
       <SubType>compile</SubType>
     </Compile>
-    <None Include="src\ASF\common\components\memory\sd_mmc\sd_mmc_mem.h">
-      <SubType>compile</SubType>
-    </None>
     <Compile Include="src\ASF\common\services\storage\ctrl_access\ctrl_access.c">
       <SubType>compile</SubType>
     </Compile>
