@@ -47,7 +47,7 @@ void console_init(int port, uint32_t baud)
 // this is like a gets with a timeout 
 // and it resets the WDT as it waits for input
 // 
-static int console_input(char *str, int size, int timeout)
+int console_input(char *str, int size, int timeout)
 {
 	uint8_t c;
 	int n = 0;

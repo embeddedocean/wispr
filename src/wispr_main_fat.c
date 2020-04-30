@@ -72,12 +72,10 @@ fat_file_t psd_file;
 //
 int main (void)
 {
-	
 	// initialize global variables
 	wispr.active_sd_card = 0; // no active sd card number yet
 	dat_file.state = SD_FILE_CLOSED;
 	psd_file.state = SD_FILE_CLOSED;
-	
 	
 	// initialize the board specific functions (clocks, gpio, console, wdt, ...)
 	// returns the reason the board was last reset (user, sleep, watchdog, ...)

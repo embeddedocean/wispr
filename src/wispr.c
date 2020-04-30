@@ -224,12 +224,6 @@ int wispr_parse_config(uint8_t *buf, wispr_config_t *hdr)
 
 	hdr->gain = buf[24];
 	hdr->adc_decimation = buf[25];
-	// reserved for future use buf[26];
-	// reserved for future use buf[27];
-	// reserved for future use buf[28];
-	// reserved for future use buf[29];
-	// reserved for future use buf[30];
-	// reserved for future use buf[31];
 
 	hdr->awake_time  = ((uint16_t)buf[32]);
 	hdr->awake_time |= ((uint16_t)buf[33] << 8);

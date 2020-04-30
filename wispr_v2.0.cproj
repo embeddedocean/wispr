@@ -780,9 +780,6 @@
     <Compile Include="src\ASF\common\components\memory\sd_mmc\sd_mmc_mem.h">
       <SubType>compile</SubType>
     </Compile>
-    <Compile Include="src\wispr_main_fat.c">
-      <SubType>compile</SubType>
-    </Compile>
     <Compile Include="src\ASF\common\services\storage\ctrl_access\ctrl_access.c">
       <SubType>compile</SubType>
     </Compile>
@@ -817,6 +814,9 @@
       <SubType>compile</SubType>
     </Compile>
     <Compile Include="src\fatfs\integer.h">
+      <SubType>compile</SubType>
+    </Compile>
+    <Compile Include="src\psd_test_ff.c">
       <SubType>compile</SubType>
     </Compile>
     <Compile Include="src\spectrum.c">

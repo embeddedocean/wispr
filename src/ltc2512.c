@@ -667,6 +667,8 @@ uint16_t ltc2512_read_dma(wispr_data_header_t *hdr, uint8_t *data, uint16_t nsam
 
 /*
 // example of how to copy 24 bit data into a 32 bit signed int
+// Note that bit shifting behavior is undefined for signed numbers and
+// if the number is shifted more than the size of integer, so cast before shifting.
 
 	if( ltc_adc_sample_size == 3) {
 		int m = 0;

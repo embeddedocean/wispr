@@ -746,11 +746,12 @@ FRESULT sd_card_format_fat(uint8_t card_num)
 	printf("Formating disk - this could take a few minutes\n\r");
 
 	// Format disk
-	BYTE work[1024]; /* Work area (larger is better for processing time) */
-	FRESULT res = f_mkfs("0", 0, work, 1024);
-	if (res == FR_OK) {
-		card->state |= SD_CARD_FORMATED;
-	}
+	FRESULT res = FR_NOT_READY;
+//	BYTE work[1024]; /* Work area (larger is better for processing time) */
+//	res = f_mkfs("0", 0, work, 1024);
+//	if (res == FR_OK) {
+//		card->state |= SD_CARD_FORMATED;
+//	}
 
 	card->fs = SD_FS_FAT;
 
