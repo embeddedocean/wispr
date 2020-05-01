@@ -811,7 +811,7 @@ FRESULT sd_card_close_fat(fat_file_t *ff)
 		printf("f_close FAILED: res %d\r\n", res);
 	}
 
-	ff->state == SD_FILE_CLOSED;
+	ff->state = SD_FILE_CLOSED;
 	
 	return(res);
 }

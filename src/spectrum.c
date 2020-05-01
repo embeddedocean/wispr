@@ -55,6 +55,7 @@ uint16_t fft_overlap;
 uint16_t num_freq_bins;  // nfft/2
 float32_t fft_window_power;
 float32_t fft_window_scaling;
+uint8_t fft_window_type;
 //float32_t fft_scaling;
 
 // local instance of the wispr data header to use for updating the data buffer
@@ -77,10 +78,10 @@ void spectrum_update_header(wispr_data_header_t *psd, wispr_data_header_t *adc)
 
 	// copy the adc settings into the psd header
 	// and set the psd specific settings
-	psd->settings[0] = adc->settings[0]; // this is adc gain, if the adc has been initialized;
-	psd->settings[1] = adc->settings[1]; // adc df
-	psd->settings[2] = fft_size >> 4; // shifted 4 to fit into an 8 bit value
-	psd->settings[3] = fft_overlap >> 4; // shifted 4 to fit into an 8 bit value
+	psd->settings[PSD_SETTINGS_INDEX_SAMPLE_SIZE] = adc->sample_size; // 
+	psd->settings[PSD_SETTINGS_INDEX_FFT_WINTYPE] = fft_window_type; // window type flag
+	psd->settings[PSD_SETTINGS_INDEX_FFT_SIZE] = fft_size >> 4; // shifted 4 to fit into an 8 bit value
+	psd->settings[PSD_SETTINGS_INDEX_FFT_OVERLAP] = fft_overlap >> 4; // shifted 4 to fit into an 8 bit value
 
 	// update the data header timestamp
 	psd->second = adc->second; // epoch time stamp
@@ -100,20 +101,17 @@ void spectrum_window(float32_t *w, uint8_t type, uint16_t size)
 	
 	switch (type) 
 	{
-		case HANN_WINDOW:
-		// Hann window
+		case HANN_WINDOW: // Hann window
 			a0 = 0.5; a1 = 0.5; a2 = 0; a3 = 0; a4 = 0;
 			break;
-		case HAMMING_WINDOW:
-		// Hamming window
+		case HAMMING_WINDOW: // Hamming window
 			a0 = 0.54; a1 = 0.46; a2 = 0; a3 = 0; a4 = 0;
 			break;
-		case BLACKMAN_WINDOW: 
-		// Blackman window 
+		case BLACKMAN_WINDOW:  // Blackman window 
 			a0 = 0.42; a1 = 0.5; a2 = 0.08; a3 = 0; a4 = 0;
 			break;
-		case RECT_WINDOW:
-			// rectangular window
+		case RECT_WINDOW: // rectangular window
+		default:
 			for(int m = 0; m < size; m++) w[m] = 1.0;
 			return;
 	}
@@ -177,7 +175,7 @@ int spectrum_init_f32(uint16_t *nbins, uint16_t nfft, uint16_t overlap, uint8_t 
 		
 	// apply the scaling factor to the window 
 	//fft_window_scaling = ADC_SCALING / max_value;
-	fft_window_scaling = 1.0;
+	fft_window_scaling = 1.0f;
 	for(n = 0; n < fft_size; n++) {
 		fft_window[n] *= fft_window_scaling;
 	}
@@ -256,6 +254,7 @@ int spectrum_f32(wispr_data_header_t *psd, float32_t *psd_data, wispr_data_heade
 		// Load the data window into the real fft buffer.
 		// The adc data word is left shifted to fill the msb of the fft buffer.
 		// This is done to prevent the fft output buffer values from getting to small.
+		// This amounts to a scaling that will need to be removed later.
 		// Bit shifting behavior is undefined for signed numbers and
 		// if the number is shifted more than the size of integer, so cast before shifting.
 		m = 0;
@@ -269,8 +268,6 @@ int spectrum_f32(wispr_data_header_t *psd, float32_t *psd_data, wispr_data_heade
 			// load the 24 bit word into a 32 bit float
 			for(n = istart; n < iend; n++, m++) {
 				int32_t v = (int32_t)(((uint32_t)input[3*n+0] << 8) | ((uint32_t)input[3*n+1] << 16) | ((uint32_t)input[3*n+2] << 24));
-				//buf1[m] = win[m] * (float32_t)(v >> 8); // this shift preserves the sign bit
-				//buf1[m] = win[m] * (float32_t)v;
 				buf1[m] = (float32_t)v;
 			}
 		} else {
@@ -318,25 +315,27 @@ int spectrum_f32(wispr_data_header_t *psd, float32_t *psd_data, wispr_data_heade
 		istart += skip;
 		
 	}
-
-	// max adc value used for scaling
-	// the fft output needs to be shifted back into its original byte size 
+	
+	// Rescale the output of the ffts
+	// The output needs to be shifted back into its original byte size.
+	// Note that no adc scaling is applied because the numbers get too small.
+	// So apply the adc scaling later.
 	//float32_t adc_scaling;
 	float32_t fft_scaling = 1.0;
 	if( sample_size == 3) { // 24 bits per sample
 		//adc_scaling = ADC_SCALING / 8388607.0; // 2^23 - 1
-		fft_scaling = 1.0f / 256.0f;
+		fft_scaling = 1.0f / 256.0f; // >> 8
 	}
 	else if( sample_size == 2 ) { // 16 bits per sample
 		//adc_scaling = ADC_SCALING / 32767.0; // 2^15 - 1
-		fft_scaling = 1.0f / 65536.0f;
+		fft_scaling = 1.0f / 65536.0f; // >> 16
 	}
-			
-	// normalization 
-	float32_t norm = 2.0f / (fft_window_power * (float32_t)navg);
+		
+	// normalization and remove the fft scaling 
+	float32_t norm = 2.0f * (fft_scaling * fft_scaling) / (float32_t)navg;
 
-	// remove the fft scaling
-	norm *= (fft_scaling * fft_scaling);
+	// remove window power??
+	//norm *= 1.0f / fft_window_power;
 	
 	// Normalize the output 
 	// Because the signal is real-valued, you only need power estimates for the positive frequencies. 
@@ -455,9 +454,10 @@ int spectrum_q31(wispr_data_header_t *psd, float32_t *psd_data, wispr_data_heade
 			for(m = 0; m < nfft; m++) buf1[m] = 0;
 		}
 		
-		// Load the data window into the fft buffer.
+		// Load the data window into the q31 fft buffer.
 		// The adc data word is left shifted to fill the msb of the fft buffer.
-		// This is done to prevent the fft output buffer values from getting to small.
+		// This is done to prevent the fft output buffer values from getting to small
+		// amounting to a scaling that will need to be removed later.
 		// Bit shifting behavior is undefined for signed numbers and
 		// if the number is shifted more than the size of integer, so cast before shifting.
 		m = 0;
@@ -469,7 +469,7 @@ int spectrum_q31(wispr_data_header_t *psd, float32_t *psd_data, wispr_data_heade
 				m++;
 			}
 		} else if ( sample_size == 3 ) {
-			// load the 24 bit word into a 32 bit q31, preserving the sign bit
+			// load the 24 bit word into a 32 bit q31
 			for(n = istart; n < iend; n++) {
 				int32_t v = (int32_t)(((uint32_t)input[3*n+0] << 8) | ((uint32_t)input[3*n+1] << 16) | ((uint32_t)input[3*n+2] << 24));
 				buf1[m] = (q31_t)(win[m] * (float32_t)v);
@@ -479,12 +479,6 @@ int spectrum_q31(wispr_data_header_t *psd, float32_t *psd_data, wispr_data_heade
 			printf("spectrum_q31: unsupported sample size\r\n");
 			return(0);
 		}
-
-		// apply the window to the input buffer
-		//arm_mult_q31(buf1, win, buf2, (uint32_t)nfft);
-
-		// upshift the fft output
-		//arm_shift_q31(buf1, scale_bits, buf2, nfft);
 
 		//if(k == 0 ) {
 		//	printf("ibuf = [\r\n");
@@ -498,9 +492,6 @@ int spectrum_q31(wispr_data_header_t *psd, float32_t *psd_data, wispr_data_heade
 		// rfft_q31 seems to require buffer sizes of 2*nfft
 		arm_rfft_q31(&fft_twid_q31, buf1, buf2);
 		
-		// bitshift the fft output
-		//arm_shift_q31(buf2, scale_bits, buf1, nfft);
-
 		// calc magnitude of the complex fft output and 
 		// accumulate the result in the output array to average
 		m=0;
@@ -511,7 +502,7 @@ int spectrum_q31(wispr_data_header_t *psd, float32_t *psd_data, wispr_data_heade
 			output[n] += (re*re + im*im);
 		}
 
-		// this doesn't work, not sure why, maybe overflow
+		// this would be faster but it doesn't work, not sure why, maybe overflow
 		// calc magnitude of the complex fft output
 		//buf2[1] = 0; // dc component
 		//arm_cmplx_mag_squared_q31(buf2, buf1, (uint32_t)nbins);
@@ -533,23 +524,27 @@ int spectrum_q31(wispr_data_header_t *psd, float32_t *psd_data, wispr_data_heade
 
 	}
 
-	// max adc value used for scaling
-	// the fft output needs to be shifted back into its original byte size
-	// it also needs to be scaled by nfft because the arm_rfft_q31 removes this
-	//float32_t adc_scaling;
+	// Rescale the output of the ffts
+	// The output needs to be shifted back into its original byte size.
+	// It also needs to be scaled by nfft because the arm_rfft_q31 removes this
+	// Note that no adc scaling is applied because the numbers get too small.
+	// So apply the adc scaling later.
+	float32_t adc_scaling;
 	float32_t fft_scaling = 1.0;
 	if( sample_size == 3) { // 24 bits per sample
-		//adc_scaling = ADC_SCALING / 8388607.0f; // 2^23 - 1
-		fft_scaling = (float32_t)nfft / 256.0f;
+		adc_scaling = ADC_SCALING / 8388607.0f; // 2^23 - 1
+		fft_scaling = (float32_t)nfft / 256.0f; // same as >> 8 
 	}
 	else if( sample_size == 2 ) { // 16 bits per sample
-		//adc_scaling = ADC_SCALING / 32767.0f; // 2^15 - 1
-		fft_scaling = (float32_t)nfft / 65536.0f;
+		adc_scaling = ADC_SCALING / 32767.0f; // 2^15 - 1
+		fft_scaling = (float32_t)nfft / 65536.0f; // same as >> 16
 	}
 	
-	// normalization
-	float32_t norm = 2.0 / (fft_window_power * (float32_t)navg);
-	norm *= (fft_scaling * fft_scaling);
+	// normalization and remove the fft scaling
+	float32_t norm = 2.0f * (fft_scaling * fft_scaling) / (float32_t)navg;
+
+	// remove window power??
+	//norm *= 1.0f / fft_window_power;
 		
 	// Normalize the output
 	// Because the signal is real-valued, you only need power estimates for the positive frequencies.

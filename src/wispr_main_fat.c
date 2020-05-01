@@ -32,7 +32,7 @@
 // But using the COMPILER_WORD_ALIGNED macro will avoid any memory alignment problem,
 // although the compiler will still give the warning.
 
-COMPILER_WORD_ALIGNED uint8_t adc_buffer[ADC_MAX_BUFFER_SIZE+1];
+COMPILER_WORD_ALIGNED uint8_t adc_buffer[ADC_MAX_BUFFER_SIZE+4];
 uint8_t *adc_data = &adc_buffer[WISPR_DATA_HEADER_SIZE]; // data follows header
 wispr_data_header_t adc_header;
 
@@ -40,7 +40,7 @@ wispr_data_header_t adc_header;
 //uint16_t psd_nbins;
 //uint16_t psd_overlap;
 
-COMPILER_WORD_ALIGNED uint8_t psd_buffer[PSD_MAX_BUFFER_SIZE+1];
+COMPILER_WORD_ALIGNED uint8_t psd_buffer[PSD_MAX_BUFFER_SIZE+4];
 float32_t *psd_data = (float32_t *)&psd_buffer[WISPR_DATA_HEADER_SIZE]; // data follows header
 wispr_data_header_t psd_header;
 
@@ -159,7 +159,7 @@ int main (void)
 	// Initialize spectrum
 	if( wispr.mode & WISPR_SPECTRUM ) {
 		uint16_t nbins = wispr.fft_size / 2;
-		spectrum_init_q31(&nbins, wispr.fft_size, wispr.fft_overlap, wispr.sample_size, HANN_WINDOW);
+		spectrum_init_q31(&nbins, wispr.fft_size, wispr.fft_overlap, HANN_WINDOW);
 	}
 	
 	// Define the variables that control the window and interval timing.
@@ -344,7 +344,7 @@ void log_data_buffer(fat_file_t *ff, uint8_t *buffer, uint16_t nblocks, char *ty
 		char filename[32];
 		make_filename(filename, "WISPR", type);
 		if( sd_card_open_fat(ff, filename, FA_OPEN_APPEND | FA_WRITE, wispr.active_sd_card) == FR_OK ) {
-			printf("Open new raw data file: %s\r\n", ff->name);
+			printf("Open new data file: %s\r\n", ff->name);
 		}
 	}
 

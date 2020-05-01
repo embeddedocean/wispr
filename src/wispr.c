@@ -117,12 +117,12 @@ int wispr_serialize_data_header(wispr_data_header_t *hdr, uint8_t *buf)
 	buf[28] = (uint8_t)(hdr->sampling_rate >> 16);
 	buf[29] = (uint8_t)(hdr->sampling_rate >> 24);
 
-	//buf[30] = (uint8_t)(hdr->channels);
+	buf[30] = (uint8_t)(hdr->channels);
 
 	// header checksum 
-	uint8_t chksum2 = 0;
-	for(int n=0; n<28; n++) chksum2 += buf[n];
-	buf[30]  = chksum2;
+	//uint8_t chksum2 = 0;
+	//for(int n=0; n<28; n++) chksum2 += buf[n];
+	//buf[30]  = chksum2;
 	
 	// data checksum
 	buf[31]  = hdr->data_chksum; 
@@ -222,8 +222,10 @@ int wispr_parse_config(uint8_t *buf, wispr_config_t *hdr)
 	hdr->sampling_rate |= ((uint32_t)buf[22] << 16);
 	hdr->sampling_rate |= ((uint32_t)buf[23] << 24);
 
+	// 8 bytes of settings
 	hdr->gain = buf[24];
 	hdr->adc_decimation = buf[25];
+	// 6 more unused
 
 	hdr->awake_time  = ((uint16_t)buf[32]);
 	hdr->awake_time |= ((uint16_t)buf[33] << 8);
@@ -306,10 +308,10 @@ void wispr_update_data_header(wispr_config_t *wispr, wispr_data_header_t *hdr)
 	// this is used to update the current data buffer header
 	hdr->version[0] = wispr->version[0];
 	hdr->version[1] = wispr->version[1];
-	hdr->settings[0] = wispr->gain;
-	hdr->settings[1] = wispr->adc_decimation;
-	hdr->settings[2] = 0;
-	hdr->settings[3] = 0;
+	hdr->settings[ADC_SETTINGS_INDEX_GAIN] = wispr->gain;
+	hdr->settings[ADC_SETTINGS_INDEX_DF] = wispr->adc_decimation;
+	hdr->settings[ADC_SETTINGS_INDEX_2] = 0;
+	hdr->settings[ADC_SETTINGS_INDEX_3] = 0;
 	hdr->sample_size = wispr->sample_size; // number of bytes per sample
 	hdr->block_size = wispr->block_size; // number of bytes in an adc record block
 	hdr->samples_per_block = wispr->samples_per_block;  // number of samples in a block

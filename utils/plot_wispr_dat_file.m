@@ -12,7 +12,7 @@ name = fullfile(dpath,file);
 format = 'ieee-le';
 fp = fopen( name, 'r', format );
 
-N = 4; % number of buffer to concatenate
+N = 1; % number of buffer to concatenate
 
 count = 0;
 go = 1;
@@ -63,15 +63,22 @@ while( go )
     xlabel('Seconds');
     
     nfft = 1024;
-    window = hann(nfft);
+    window = rectwin(nfft);
+    %window = hamming(nfft);
     overlap = 256;
     fs = hdr.sampling_rate;
     [Spec, freq] = my_psd(data(:),fs,window,overlap);
     figure(2); clf;
-    plot(freq, 10*log10(Spec),'.-');
+    plot(1000*freq, 10*log10(Spec),'.-');
     grid on;
-    xlabel('Frequency'), ylabel('Power Spectrum Magnitude (dB)');
+    xlabel('Frequency [kHz]'), 
+    ylabel('Power Spectrum Magnitude (dB)');
+    %axis([0 freq(end) -130 0]);
 
+    total_energy = sum(Spec);
+    sig_var = var(data);
+    title(['WISPR spectrum, Total Energy ' num2str(total_energy) ', Variance ' num2str(sig_var)]);
+        
     if(input('quit: ') == 1) 
         go = 0;
         break; 

@@ -79,6 +79,18 @@
 
 // Max file size is in units of 512 blocks
 #define WISPR_MAX_FILE_SIZE (ADC_MAX_BLOCKS_PER_BUFFER * 4096)
+
+// settings array index for different data header types
+#define ADC_SETTINGS_INDEX_GAIN 0
+#define ADC_SETTINGS_INDEX_DF 1
+#define ADC_SETTINGS_INDEX_2 2
+#define ADC_SETTINGS_INDEX_3 3
+
+#define PSD_SETTINGS_INDEX_SAMPLE_SIZE 0
+#define PSD_SETTINGS_INDEX_FFT_WINTYPE 1
+#define PSD_SETTINGS_INDEX_FFT_SIZE 2
+#define PSD_SETTINGS_INDEX_FFT_OVERLAP 3
+
 //
 // Data header object written to the front of each data buffer
 //

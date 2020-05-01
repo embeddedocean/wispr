@@ -29,6 +29,7 @@ extern uint32_t rtc_init( rtc_time_t *t );
 extern uint32_t rtc_get_datetime( rtc_time_t *dt );
 extern uint32_t rtc_set_datetime( rtc_time_t *dt );
 extern uint32_t rtc_get_epoch( uint32_t *epoch );
+extern uint8_t rtc_valid_datetime(const rtc_time_t *dt);
 
 extern void rtc_get_datetime_asf( rtc_time_t *dt );
 
