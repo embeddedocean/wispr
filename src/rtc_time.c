@@ -35,7 +35,7 @@ uint32_t rtc_init( rtc_time_t *dt )
 	rtc_set_hour_mode(RTC, 0);
 	
 	uint32_t status = rtc_set_datetime(dt);
-	if(status != 0) return(status);
+	if(status != RTC_STATUS_OK) return(status);
 
 	//printf("Internal RTC set to %02d/%02d/%02d %02d:%02d:%02d\r\n", year, month, day, hour, minute, sec);
 	
@@ -82,10 +82,11 @@ void rtc_get_datetime_asf( rtc_time_t *dt )
 //
 // Get the RTC data and time
 // Returns the RTC Valid Entry Register NVTIM: Non-valid Time
-// 0 = No invalid data has been detected in RTC_TIMR or RTC_CALR.
+// 0 = Success.
 // 1 = RTC_TIMR has contained invalid data since it was last programmed.
 // 2 = RTC_CALR has contained invalid data since it was last programmed.
 // 3 = Both contained invalid data.
+// 4 = Invalid date or time provided
 //
 uint32_t rtc_get_datetime( rtc_time_t *dt )
 {
@@ -152,8 +153,19 @@ uint32_t rtc_get_datetime( rtc_time_t *dt )
 	dt->hour = (uint8_t)hour;
 	dt->minute = (uint8_t)minute;
 	dt->second = (uint8_t)second;
+
+	// check for invalid date or time
+	// check for invalid date or time
+	uint32_t status = rtc_valid_datetime(dt);
+	if( status != RTC_STATUS_OK ) {
+		return(status);
+	}
 	
-	return ( p_rtc->RTC_VER & (RTC_VER_NVTIM | RTC_VER_NVCAL) );
+	if ( p_rtc->RTC_VER & (RTC_VER_NVTIM | RTC_VER_NVCAL) ) {
+		return(RTC_REG_ERR);
+	}
+
+	return ( status );
 }
 
 /**
@@ -181,10 +193,11 @@ static uint32_t calculate_week(uint32_t ul_year, uint32_t ul_month, uint32_t ul_
 // The hardware checks if one of the time fields is not correct, the data is not loaded into the register/counter 
 // and a flag is set in the validity register.
 // Returns the RTC Valid Entry Register NVTIM: Non-valid Time
-// 0 = No invalid data has been detected in RTC_TIMR or RTC_CALR.
+// 0 = Success.
 // 1 = RTC_TIMR has contained invalid data since it was last programmed.
 // 2 = RTC_CALR has contained invalid data since it was last programmed.
 // 3 = Both contained invalid data.
+// 4 = Invalid date or time provided
 //
 uint32_t rtc_set_datetime(rtc_time_t *dt )
 {
@@ -195,6 +208,12 @@ uint32_t rtc_set_datetime(rtc_time_t *dt )
 	uint32_t hour = (uint32_t)(dt->hour);
 	uint32_t minute = (uint32_t)(dt->minute);
 	uint32_t second = (uint32_t)(dt->second);
+
+	// check for invalid date or time 
+	uint32_t status = rtc_valid_datetime(dt);
+	if( status != RTC_STATUS_OK ) {
+		return(status);		
+	}
 
 	// set date	
 	uint32_t ul_date = 0;
@@ -278,36 +297,41 @@ uint32_t rtc_set_datetime(rtc_time_t *dt )
 	}
 
 	// return the RTC Valid Entry Register NVTIM: Non-valid Time
-	return ( p_rtc->RTC_VER & (RTC_VER_NVTIM | RTC_VER_NVCAL) );
+	if ( p_rtc->RTC_VER & (RTC_VER_NVTIM | RTC_VER_NVCAL) ) {
+		return(RTC_REG_ERR);
+	}
+	
+	return(RTC_STATUS_OK);
 }
 
-static uint16_t daysPerMonth[12] = {31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
+static uint8_t daysPerMonth[12] = {31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
 
-uint8_t rtc_valid_datetime(const rtc_time_t *dt)
+uint32_t rtc_valid_datetime(const rtc_time_t *dt)
 {
-	uint16_t	days;
+	uint32_t status = 0;
 
 	// Seconds are 0 to 59
 	if (dt->second > 59) {
-		return(0);
+		status |= RTC_INVALID_SECOND;
 	}
 
 	// Minutes are 0 to 59
 	if (dt->minute > 59) {
-		return(0);
+		status |= RTC_INVALID_MINUTE;
 	}
 
 	// Hours are 0 to 23
 	if (dt->hour > 23) {
-		return(0);
+		status |= RTC_INVALID_HOUR;
 	}
 
 	// Months are 1 to 12
 	if ((dt->month == 0) || (dt->month > 12)) {
-		return(0);
+		status |= RTC_INVALID_MONTH;
 	}
 
 	// The day of the month is based on the number of days in the month and whether or not the year is a leap year
+	uint8_t days;
 	if (dt->month == 2) {	// February
 		if ((dt->year % 400) == 0)	{		// Years which are multiples of 400 are leap years
 			days = 29;
@@ -322,27 +346,39 @@ uint8_t rtc_valid_datetime(const rtc_time_t *dt)
 		}
 
 		if ((dt->day == 0) || (dt->day > days)) {
-			return(0);
+			status |= RTC_INVALID_DAY;
 		}
 	}
 	// All months other than February can use the lookup table
 	else if ((dt->day == 0) || (dt->day > daysPerMonth[dt->month - 1])) {
-		return(0);
+		status |= RTC_INVALID_DAY;
 	}
 
 	// year < 99
 	if (dt->year > 99){
-		return(0);
+		status |= RTC_INVALID_YEAR;
 	}
 
 	// century should always be 20
 	if (dt->century != 20){
-		return(0);
+		status |= RTC_INVALID_YEAR;
 	}
 
-	return(1);
+	return(status);
 
 }
 
+void rtc_print_error (uint32_t status)
+{
+	if(status == RTC_STATUS_OK) printf("RTC no error\r\n");
+	if(status & RTC_REG_ERR) printf("RTC error: register read/write error\r\n");
+	if(status & RTC_INVALID_ARG) printf("RTC error: invalid argument\r\n");
+	if(status & RTC_INVALID_SECOND) printf("RTC error: invalid second\r\n");
+	if(status & RTC_INVALID_MINUTE) printf("RTC error: invalid minute\r\n");
+	if(status & RTC_INVALID_HOUR) printf("RTC error: invalid hour\r\n");
+	if(status & RTC_INVALID_DAY) printf("RTC error: invalid day\r\n");
+	if(status & RTC_INVALID_MONTH) printf("RTC error: invalid month\r\n");
+	if(status & RTC_INVALID_YEAR) printf("RTC error: invalid year\r\n");
+}
 
 

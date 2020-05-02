@@ -97,13 +97,17 @@ int main (void)
 	
 	// read and display the external rtc time
 	rtc_time_t  datetime;
-	ds3231_get_datetime(&datetime);
+	uint32_t rtc_status = ds3231_get_datetime(&datetime);
+	if ( rtc_status != RTC_STATUS_OK ) {
+		printf("DS3231 RTC failed, status %d\r\n", rtc_status);
+		//rtc_status = ds3231_get_datetime(&datetime);
+	}
 	printf("\r\n");
 	printf("External RTC time is %02d/%02d/%02d %02d:%02d:%02d\r\n",
 	  datetime.year, datetime.month, datetime.day, datetime.hour, datetime.minute, datetime.second);
 	
 	// Initialize the internal RTC using the external RTC time
-	uint32_t rtc_status = rtc_init(&datetime);
+	rtc_status = rtc_init(&datetime);
 	while ( rtc_status != RTC_STATUS_OK ) {
 		printf("Waiting for RTC, status %d\r\n", rtc_status);
 		rtc_status = rtc_init(&datetime);
@@ -628,16 +632,27 @@ void prompt_config_menu(int timeout)
 		rtc_time_t datetime;
 		ds3231_get_datetime(&datetime);  // get current time
 		while(go) {
-			ds3231_get_datetime(&datetime);  // get current time
-			datetime.year = (uint8_t)console_prompt_int("Enter year", (int)datetime.year, timeout);
-			datetime.month = (uint8_t)console_prompt_int("Enter month", (int)datetime.month, timeout);
-			datetime.day = (uint8_t)console_prompt_int("Enter day", (int)datetime.day, timeout);
-			datetime.hour = (uint8_t)console_prompt_int("Enter hour", (int)datetime.hour, timeout);
-			datetime.minute = (uint8_t)console_prompt_int("Enter minute", (int)datetime.minute, timeout);
-			datetime.second = (uint8_t)console_prompt_int("Enter second", (int)datetime.second, timeout);
-			// set the external RTC using
-			rtc_init((rtc_time_t *)&datetime);
-			if( ds3231_set_datetime(&datetime) == TWI_SUCCESS) break;
+			datetime.year = console_prompt_uint8("Enter year in century (0 to 99)", datetime.year, timeout);
+			datetime.month = console_prompt_uint8("Enter month (1 to 12)", datetime.month, timeout);
+			datetime.day = console_prompt_uint8("Enter day (1 to 31)", datetime.day, timeout);
+			datetime.hour = console_prompt_uint8("Enter hour (0 to 23)", datetime.hour, timeout);
+			datetime.minute = console_prompt_uint8("Enter minute (0 to 59)", datetime.minute, timeout);
+			datetime.second = console_prompt_uint8("Enter second (0 to 59)", datetime.second, timeout);
+			// set the internal RTC 
+			uint32_t status = rtc_init(&datetime);
+			if( status != RTC_STATUS_OK ) {
+				printf("Failed to initialize RTC with new time\r\n");
+				rtc_print_error(status);
+				continue;
+			}
+			// set the external RTC
+			status = ds3231_set_datetime(&datetime);
+			if( status != RTC_STATUS_OK) {
+				printf("Failed to initialize DS3231 with new time\r\n");
+				rtc_print_error(status);
+				continue;
+			}
+			break;
 		}
 		ds3231_get_datetime(&datetime);  // read back time
 		printf("\r\nExternal RTC set to %02d/%02d/%02d %02d:%02d:%02d\r\n",

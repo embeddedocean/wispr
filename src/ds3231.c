@@ -319,14 +319,14 @@ uint32_t ds3231_write_register( uint8_t registerNumber, uint8_t *byte)
  
 uint32_t ds3231_init(void)
 {
-	ds3231_controlregister		controlreg;
-	uint32_t			status = TWI_SUCCESS;
-	ds3231_statusregister		statusreg;
+	ds3231_controlregister controlreg;
+	uint32_t status = RTC_STATUS_OK;
+	ds3231_statusregister statusreg;
 	
 	status = twi_probe(DS3231_TWI, DS3231_ADDR);
 	if( status != TWI_SUCCESS ) {
 		printf("ds3231_initialize(): I2C probe FAILED: 0x%x\r\n", status);
-		return status;
+		return RTC_REG_ERR;
 	}
 		
 	/*
@@ -344,7 +344,7 @@ uint32_t ds3231_init(void)
 	if ((status = ds3231_write_register(CONTROL_REGISTER, (uint8_t *)&controlreg)) != TWI_SUCCESS)
 	{
 		printf("ds3231_initialize(): ds3231_write_register(control_register) failed with status 0x%02x\r\n", status);
-		return status;
+		return RTC_REG_ERR;
 	}
 		 		 
 	// writing status reg clears it
@@ -358,14 +358,14 @@ uint32_t ds3231_init(void)
 	if ((status = ds3231_write_register(STATUS_REGISTER, (uint8_t *)&statusreg)) != TWI_SUCCESS)
 	{
 		printf("ds3231_initialize(): ds3231_write_register(status_register) failed with status 0x%02x\r\n",status);
-		return status;
+		return RTC_REG_ERR;
 	}
 
 	uint8_t reg;
 	if ((status = ds3231_read_register(STATUS_REGISTER, &reg)) != TWI_SUCCESS)
 	{
 		printf("ds3231_initialize(): ds3231_read_register(status_register) failed with status 0x%02x\r\n",status);
-		return status;
+		return RTC_REG_ERR;
 	}
 	//printf("ds3231 status reg: 0x%X\r\n", reg);
 	
@@ -384,7 +384,7 @@ uint32_t ds3231_get_datetime( ds3231_datetime*  dt)
 {
 	ds3231_datetimeregisters datetime;
 	uint8_t secondsregister = SECONDS_REGISTER;
-	uint32_t status = ~TWI_SUCCESS;
+	uint32_t status = 0;
 	
 	/* assume failure */
 	dt->year		= 0;
@@ -399,22 +399,20 @@ uint32_t ds3231_get_datetime( ds3231_datetime*  dt)
 	if ((status = ds3231_read_register(STATUS_REGISTER, (uint8_t *)&reg)) != TWI_SUCCESS)
 	{
 		printf("ds3231_get_datetime(): ds3231_read_register(status_register) failed with status 0x%02x\r\n",status);
-		return status;
+		return RTC_REG_ERR;
 	}
 	
 	// check if RTC osc has stopped for any reason
 	if( reg.osf == 1 ) {
-		status = TWI_INVALID_ARGUMENT;
 		printf("ds3231_get_datetime(): status_register osf bit set, invalid date\r\n");
-		return status;
+		return RTC_REG_ERR;
 	}
 	 
 	/* read the time from the device */
 	if ((status = ds3231_write(DS3231_ADDR, &secondsregister, sizeof(secondsregister))) != TWI_SUCCESS)
 	{
 		printf("ds3231_get_datetime() selecting the seconds register failed with status 0x%02x\r\n", status);
-		status = TWI_INVALID_ARGUMENT;
-		return status;
+		return RTC_REG_ERR;
 	}
 	
 	memset(&datetime, 0, sizeof(datetime));
@@ -422,8 +420,7 @@ uint32_t ds3231_get_datetime( ds3231_datetime*  dt)
 	if ((status = ds3231_read(DS3231_ADDR, (uint8_t*) &datetime, sizeof(datetime))) != TWI_SUCCESS)
 	{
 		printf("ds3231_get_datetime() reading the date/time data failed with status 0x%02x\r\n", status);
-		status = TWI_INVALID_ARGUMENT;
-		return status;
+		return RTC_REG_ERR;
 	}
 	
 	/* convert the response to a simple date time structure */
@@ -432,25 +429,20 @@ uint32_t ds3231_get_datetime( ds3231_datetime*  dt)
 	
 	dt->minute = (datetime.minutes.tensofminutes * 10) + datetime.minutes.minutes;
 	
-	if (datetime.hours.twelvetwentyfour == 0)
-	{
+	if (datetime.hours.twelvetwentyfour == 0) {
 		/* the clock is running in 24 hour mode */
 		dt->hour = datetime.hours.hour;
-		if (datetime.hours.tensofhours != 0)
-		{
+		if (datetime.hours.tensofhours != 0) {
 			dt->hour += 10;
 		}
-		else if (datetime.hours.twentiesofhours != 0)
-		{
+		else if (datetime.hours.twentiesofhours != 0) {
 			dt->hour += 20;
 		}
 	}
-	else
-	{
+	else {
 		/* twelve hour mode */
 		dt->hour = (datetime.hours.tensofhours * 10) + datetime.hours.hour;
-		if (datetime.hours.twentiesofhours != 0)
-		{
+		if (datetime.hours.twentiesofhours != 0) {
 			/* current time is after noon */
 			dt->hour += 12;
 		}
@@ -468,7 +460,7 @@ uint32_t ds3231_get_datetime( ds3231_datetime*  dt)
 	//	dt->year += 100;
 	//}
 	
-	status = TWI_SUCCESS;
+	status = RTC_STATUS_OK;
 	
 	return status;
 }
@@ -481,19 +473,18 @@ uint32_t ds3231_get_datetime( ds3231_datetime*  dt)
 uint32_t ds3231_set_datetime( ds3231_datetime*  dt)
 {
 	//ds3231_datetimeregisters datetime;
-	uint32_t status = ~TWI_SUCCESS;
+	uint32_t status = RTC_STATUS_OK;
 	//uint8_t baseYear;
 	ds3231_datetimetransmissionpacket packet;
-	uint16_t yearofcentury;
+	uint8_t yearofcentury;
 
 	/*
 	 * Confirm that the date/time information that we were supplied is valid
 	 */
-	if (!ds3231_datetime_valid(dt))
-	{
+	status = ds3231_datetime_valid(dt);
+	if ( status != RTC_STATUS_OK ) {
 		printf("ds3231_set_datetime() has been called with an invalid date/time\r\n");
-		status = TWI_INVALID_ARGUMENT;
-		goto EXIT;
+		return(status);
 	}
 
 	/*
@@ -522,20 +513,15 @@ uint32_t ds3231_set_datetime( ds3231_datetime*  dt)
 	 */
 	packet.dt.hours.hour = dt->hour % 10;
 
-	if ((dt->hour >= 10)
-	 && (dt->hour <= 19))
-	{
+	if ((dt->hour >= 10) && (dt->hour <= 19)) {
 		packet.dt.hours.tensofhours     = 1;
 		packet.dt.hours.twentiesofhours = 0;
 	}
-	else if ((dt->hour >= 20)
-		  && (dt->hour <= 23))
-	{
+	else if ((dt->hour >= 20) && (dt->hour <= 23)) {
 		packet.dt.hours.tensofhours     = 0;
 		packet.dt.hours.twentiesofhours = 1;
 	}
-	else
-	{
+	else {
 		packet.dt.hours.tensofhours     = 0;
 		packet.dt.hours.twentiesofhours = 0;
 	}
@@ -569,7 +555,7 @@ uint32_t ds3231_set_datetime( ds3231_datetime*  dt)
 	 * -- Year: All years are allowed, but we need to keep 0-99 for the RTC and save off the century in the signature block
 	 */
 	yearofcentury	= dt->year % 100;
-	ds3231_baseyear	= dt->year / 100;
+	ds3231_baseyear	= 20; //dt->year / 100;
 
 	packet.dt.year.year			= yearofcentury % 10;
 	packet.dt.year.tensofyears	= yearofcentury / 10;
@@ -577,14 +563,11 @@ uint32_t ds3231_set_datetime( ds3231_datetime*  dt)
 	/*
 	 * Write the date/time to the device
 	 */
-	if ((status = ds3231_write(DS3231_ADDR, (uint8_t*) &packet, sizeof(packet))) != TWI_SUCCESS)
-	{
+	if ((status = ds3231_write(DS3231_ADDR, (uint8_t*) &packet, sizeof(packet))) != TWI_SUCCESS) {
 		printf("ds3231_set_datetime() storing the date/time to the device failed with status 0x%02x\r\n",status);
-		goto EXIT; 
+		status = RTC_REG_ERR;
 	}
-
-
-EXIT:
+	
 	return status;
 }
 
@@ -594,12 +577,11 @@ EXIT:
  **
  **/
 
-static uint16_t daysPerMonth[12] = {31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
+static uint8_t daysPerMonth[12] = {31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
 
-bool ds3231_datetime_valid(const ds3231_datetime *dt)
+uint32_t ds3231_datetime_valid(const ds3231_datetime *dt)
 {
-	uint16_t	days;
-	bool		simpleDateTimeValid = false;
+	uint32_t status = RTC_STATUS_OK;
 
 	/*
 	 * Check each field to make sure that it is in range
@@ -614,84 +596,67 @@ bool ds3231_datetime_valid(const ds3231_datetime *dt)
 	/*
 	 * -- Seconds are 0 to 59
 	 */
-	if (dt->second > 59)
-	{
-		goto EXIT;
+	if (dt->second > 59) {
+		status |= RTC_INVALID_SECOND;
 	}
 
 	/*
 	 * -- Minutes are 0 to 59
 	 */
-	if (dt->minute > 59)
-	{
-		goto EXIT;
+	if (dt->minute > 59) {
+		status |= RTC_INVALID_MINUTE;
 	}
 
 	/*
 	 * Hours are 0 to 23
 	 */
-	if (dt->hour > 23)
-	{
-		goto EXIT;
+	if (dt->hour > 23) {
+		status |= RTC_INVALID_HOUR;
 	}
 
 	/*
 	 * Months are 1 to 12
 	 */
-	if ((dt->month == 0)
-	 || (dt->month > 12))
-	{
-		goto EXIT;
+	if ((dt->month == 0) || (dt->month > 12)) {
+		status |= RTC_INVALID_MONTH;
 	}
 
 	/*
 	 * The day of the month is based on the number of days in the month and whether or not the year is a leap year
 	 */
-	if (dt->month == 2)						// February
-	{
-		if ((dt->year % 400) == 0)			// Years which are multiples of 400 are leap years
-		{
+	uint8_t	days;
+	if (dt->month == 2)	{					// February
+		if ((dt->year % 400) == 0) {		// Years which are multiples of 400 are leap years
 			days = 29;
 		}
-		else if ((dt->year % 100) == 0)		// Years which are multiples of 100 (but not 400) are not leap years
-		{
+		else if ((dt->year % 100) == 0)	{	// Years which are multiples of 100 (but not 400) are not leap years
 			days = 28;
 		}
-		else if ((dt->year % 4) == 0)		// "Normal" leap years
-		{
+		else if ((dt->year % 4) == 0) {		// "Normal" leap years
 			days = 29;
 		}
-		else										// The only case left is non leap years
-		{
+		else {								// The only case left is non leap years
 			days = 28;
 		}
 
-		if ((dt->day == 0)
-		 || (dt->day > days))
-		{
-			goto EXIT;
+		if ((dt->day == 0) || (dt->day > days)) {
+			status |= RTC_INVALID_DAY;
 		}
 	}
-	else if ((dt->day == 0)					// All months other than February can use the lookup table
-		  || (dt->day > daysPerMonth[dt->month - 1]))
-	{
-		goto EXIT;
+	// All months other than February can use the lookup table
+	else if ((dt->day == 0) || (dt->day > daysPerMonth[dt->month - 1])) {
+		status |= RTC_INVALID_DAY;
 	}
 
-	// We don't really care about the year value, but we need to be consistent with the signature
-	if (((dt->year / 100) < BASE_YEAR_2000)
-	 || ((dt->year / 100) > BASE_YEAR_2500))
-	{
-		goto EXIT;
+	if ((dt->year < 0) || (dt->year > 99)) {
+		status |= RTC_INVALID_YEAR;
 	}
 
 	/*
 	 * All checks have passed
 	 */
-	simpleDateTimeValid = true;
 
-EXIT:
-	return simpleDateTimeValid;
+	return(status);
 }
 
 uint32_t ds3231_set_alarm( ds3231_datetime *dt )
@@ -748,7 +713,7 @@ uint32_t ds3231_set_alarm( ds3231_datetime *dt )
 	if ((status = ds3231_write(DS3231_ADDR, (uint8_t*) &packet, sizeof(packet))) != TWI_SUCCESS)
 	{
 		printf("ds3231_set_alarm() setting alarm failed with status 0x%02x\r\n",status);
-		return(status);
+		return(RTC_REG_ERR);
 	}
 	
 	/*
@@ -757,7 +722,7 @@ uint32_t ds3231_set_alarm( ds3231_datetime *dt )
 	if ((status = ds3231_read_register(CONTROL_REGISTER, (uint8_t *)&controlreg)) != TWI_SUCCESS)
 	{
 		printf("ds3231_set_alarm(): reading control register failed with status 0x%02x\r\n", status);
-		return status;
+		return(RTC_REG_ERR);
 	}
 	
 	/*
@@ -778,7 +743,7 @@ uint32_t ds3231_set_alarm( ds3231_datetime *dt )
 	if ((status = ds3231_write_register(CONTROL_REGISTER, (uint8_t *)&controlreg)) != TWI_SUCCESS)
 	{
 		printf("ds3231_set_alarm(): ds3231_write_register(control_register) failed with status 0x%02x\r\n", status);
-		return status;
+		return(RTC_REG_ERR);
 	}
 		 
 	// writing status reg clears it
@@ -792,71 +757,9 @@ uint32_t ds3231_set_alarm( ds3231_datetime *dt )
 	if ((status = ds3231_write_register(STATUS_REGISTER, (uint8_t *)&statusreg)) != TWI_SUCCESS)
 	{
 		printf("ds3231_configure(): ds3231_write_register(status_register) failed with status 0x%02x\r\n",status);
-		return status;
+		return(RTC_REG_ERR);
 	}
 
 		 
 	return status;
 }
-
-/****************************************************************************************************************************/
-//
-// Epoch functions
-/*
-
-// 01 Jan 2000 00:00:00 GMT
-#define DS3231_EPOCH_OFFSET 946684800  
- 
-static unsigned short LEAP_DAYS[4][12] =
-{
-	{   0,  31,  60,  91, 121, 152, 182, 213, 244, 274, 305, 335},
-	{ 366, 397, 425, 456, 486, 517, 547, 578, 609, 639, 670, 700},
-	{ 731, 762, 790, 821, 851, 882, 912, 943, 974,1004,1035,1065},
-	{1096,1127,1155,1186,1216,1247,1277,1308,1339,1369,1400,1430},
-};
-
-//
-// ???? Need to verify that day and month start at zero instead of 1
-//
-unsigned int ds3231_datetime_to_epoch(ds3231_datetime *dt)
-{
-	unsigned int second = (unsigned int)(dt->second);  // 0-59
-	unsigned int minute = (unsigned int)(dt->minute);  // 0-59
-	unsigned int hour   = (unsigned int)(dt->hour);    // 0-23
-	unsigned int day    = (unsigned int)(dt->day-1);   // 0-30
-	unsigned int month  = (unsigned int)(dt->month-1); // 0-11
-	unsigned int year   = (unsigned int)(dt->year - 2000);    // 0-99
-	return (((year/4*(365*4+1)+LEAP_DAYS[year%4][month]+day)*24+hour)*60+minute)*60+second + DS3231_EPOCH_OFFSET;
-}
-
-
-void ds3231_epoch_to_datetime(ds3231_datetime *dt, unsigned int epoch)
-{
-	epoch = epoch - DS3231_EPOCH_OFFSET;
-	
-	dt->second = (uint16_t)(epoch%60); epoch /= 60;
-	dt->minute = (uint16_t)(epoch%60); epoch /= 60;
-	dt->hour   = (uint16_t)(epoch%24); epoch /= 24;
-
-	unsigned int years = (epoch/(365*4+1)*4);
-	epoch %= 365*4+1;
-
-	unsigned int year;
-	for (year=3; year>0; year--)
-	{
-		if (epoch >= LEAP_DAYS[year][0])
-		break;
-	}
-
-	unsigned int month;
-	for (month=11; month>0; month--)
-	{
-		if (epoch >= LEAP_DAYS[year][month])
-		break;
-	}
-
-	dt->year  = (uint16_t)(years+year + 2000);
-	dt->month = (uint16_t)(month+1);
-	dt->day   = (uint16_t)(epoch-LEAP_DAYS[year][month]+1);
-}
-*/

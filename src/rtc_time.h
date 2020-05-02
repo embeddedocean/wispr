@@ -10,9 +10,16 @@
 
 #include <stdint.h>
 
-#define RTC_STATUS_OK 0
-#define RTC_STATUS_NVTIM 1
-#define RTC_STATUS_NVCAL 2
+// return values and error flags
+#define RTC_STATUS_OK      0
+#define RTC_REG_ERR        0x01
+#define RTC_INVALID_ARG    0x02
+#define RTC_INVALID_SECOND 0x04
+#define RTC_INVALID_MINUTE 0x08
+#define RTC_INVALID_HOUR   0x10
+#define RTC_INVALID_DAY    0x20
+#define RTC_INVALID_MONTH  0x40
+#define RTC_INVALID_YEAR   0x80
 
 typedef struct {
 	uint8_t century;  // always 20
@@ -29,7 +36,8 @@ extern uint32_t rtc_init( rtc_time_t *t );
 extern uint32_t rtc_get_datetime( rtc_time_t *dt );
 extern uint32_t rtc_set_datetime( rtc_time_t *dt );
 extern uint32_t rtc_get_epoch( uint32_t *epoch );
-extern uint8_t rtc_valid_datetime(const rtc_time_t *dt);
+extern uint32_t rtc_valid_datetime(const rtc_time_t *dt);
+extern void rtc_print_error (uint32_t status);
 
 extern void rtc_get_datetime_asf( rtc_time_t *dt );
 

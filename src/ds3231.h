@@ -48,7 +48,7 @@ extern uint32_t ds3231_init(void);
 extern uint32_t ds3231_get_datetime( ds3231_datetime *dt);
 extern uint32_t ds3231_set_datetime( ds3231_datetime *dt);
 extern uint32_t ds3231_set_alarm( ds3231_datetime *dt );
-extern bool ds3231_datetime_valid(const ds3231_datetime *dt);
+extern uint32_t ds3231_datetime_valid(const ds3231_datetime *dt);
 
 // replaced with epoch.c functions
 //extern unsigned int ds3231_datetime_to_epoch(ds3231_datetime *dt);
