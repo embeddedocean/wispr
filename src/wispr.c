@@ -152,32 +152,34 @@ void wispr_print_config(wispr_config_t *hdr)
 	fprintf(stdout, "WISPR %d.%d configuration\r\n", hdr->version[1], hdr->version[0]);
 	//fprintf(stdout, "- epoch         %s\r\n", epoch_time_string(hdr->epoch));
 	//fprintf(stdout, "- mode           \r\n");
-	fprintf(stdout, "- mode           ");
+	fprintf(stdout, "- mode             %d", hdr->mode);
 	switch(hdr->mode) {
 		case WISPR_WAVEFORM:
-		fprintf(stdout, "DAQ");
+		fprintf(stdout, " [DAQ]\r\n");
 		break;
 		case WISPR_SPECTRUM:
-		fprintf(stdout, "PSD");
+		fprintf(stdout, " [PSD]\r\n");
 		break;
 		case (WISPR_WAVEFORM|WISPR_SPECTRUM):
-		fprintf(stdout, "DAQ/PSD");
+		fprintf(stdout, "[DAQ+PSD]\r\n");
 		break;
 	}
-	fprintf(stdout, " (%d)\r\n", hdr->mode);
-	fprintf(stdout, "- sample size:   %d bytes\r\n", (int)hdr->sample_size);
+	fprintf(stdout, " [%d]\r\n", hdr->mode);
+	fprintf(stdout, "- sample size:     %d bytes\r\n", (int)hdr->sample_size);
 	//fprintf(stdout, "- block_size:    %d bytes\r\n", (int)hdr->block_size);
 	//fprintf(stdout, "- samples:       %d per buffer\r\n", (int)hdr->samples_per_block);
-	fprintf(stdout, "- buffer size:   %d samples (%d bytes)\r\n", (int)hdr->samples_per_block, (int)hdr->block_size);
-	fprintf(stdout, "- sampling rate: %d Hz\r\n", (int)hdr->sampling_rate);
+	fprintf(stdout, "- buffer size:     %d samples (%d bytes)\r\n", (int)hdr->samples_per_block, (int)hdr->block_size);
+	fprintf(stdout, "- sampling rate:   %d Hz\r\n", (int)hdr->sampling_rate);
 	//fprintf(stdout, "- duration:      %lu msec\n\r", (uint32_t)(1000.0*buffer_duration));
-	fprintf(stdout, "- gain:          %d\r\n", (int)hdr->gain);
-	fprintf(stdout, "- decimation:    %d\r\n", (int)hdr->adc_decimation);
-	fprintf(stdout, "- awake time:    %d sec\r\n", (int)hdr->awake_time);
-	fprintf(stdout, "- sleep time:    %d sec\r\n", (int)hdr->sleep_time);
-	fprintf(stdout, "- fft size:      %d\r\n", (int)hdr->fft_size);
-	fprintf(stdout, "- fft overlap:   %d\r\n", (int)hdr->fft_overlap);
-	fprintf(stdout, "- active card:   %d\r\n", hdr->active_sd_card);
+	fprintf(stdout, "- gain:            %d\r\n", (int)hdr->gain);
+	fprintf(stdout, "- decimation:      %d\r\n", (int)hdr->adc_decimation);
+	fprintf(stdout, "- awake time:      %d sec\r\n", (int)hdr->awake_time);
+	fprintf(stdout, "- sleep time:      %d sec\r\n", (int)hdr->sleep_time);
+	fprintf(stdout, "- fft size:        %d\r\n", (int)hdr->fft_size);
+	fprintf(stdout, "- fft overlap:     %d\r\n", (int)hdr->fft_overlap);
+	fprintf(stdout, "- fft window_type: %d\r\n", (int)hdr->fft_window_type);
+	fprintf(stdout, "- max file_size:   %d blocks\r\n", (int)hdr->file_size);
+	fprintf(stdout, "- active card:     %d\r\n", hdr->active_sd_card);
 	fprintf(stdout, "\r\n");
 }
 

@@ -786,6 +786,7 @@ FRESULT sd_card_open_fat(fat_file_t *ff, char *name, unsigned char mode, uint8_t
 	ff->state = 0;
 	ff->card_num = card_num;
 	ff->size = WISPR_MAX_FILE_SIZE;
+	ff->count = 0;
 
 	FRESULT res;
 	res = f_open(&ff->file, name, mode); 
@@ -793,7 +794,7 @@ FRESULT sd_card_open_fat(fat_file_t *ff, char *name, unsigned char mode, uint8_t
 		ff->state = SD_FILE_OPEN;
 		strncpy(ff->name, name, sizeof(ff->name));
 	} else {
-		printf("sd_card_f_open: f_open error %d with %s\r\n", res, name);	
+		printf("sd_card_f_open: f_open error %d with %s\r\n", res, name);
 	}
 	
 	return(res);
@@ -814,6 +815,17 @@ FRESULT sd_card_close_fat(fat_file_t *ff)
 	ff->state = SD_FILE_CLOSED;
 	
 	return(res);
+}
+
+FRESULT sd_card_set_fat_file_size(fat_file_t *ff, uint32_t size)
+{
+	if( size < ADC_MAX_BLOCKS_PER_BUFFER ) {
+		return(FR_INVALID_PARAMETER);
+	}
+	
+	ff->size = size;
+	
+	return(FR_OK);
 }
 
 //
@@ -897,8 +909,10 @@ FRESULT sd_card_read_config_fat(char *filename, wispr_config_t *hdr)
 		if(strcmp(str, "sleep_time:") == 0) new.sleep_time = (uint16_t)v1;
 		if(strcmp(str, "fft_size:") == 0) new.fft_size = (uint16_t)v1;
 		if(strcmp(str, "fft_overlap:") == 0) new.fft_overlap = (uint16_t)v1;
+		if(strcmp(str, "fft_window_type:") == 0) new.fft_window_type = (uint8_t)v1;
 		if(strcmp(str, "gain:") == 0) new.gain = (uint8_t)v1;
 		if(strcmp(str, "adc_decimation:") == 0) new.adc_decimation = (uint8_t)v1;
+		if(strcmp(str, "max_file_size:") == 0) new.file_size = (uint32_t)v1;
 		if(strcmp(str, "active_sd_card:") == 0) new.active_sd_card = (uint8_t)v1;
 	}
 	
@@ -945,6 +959,8 @@ FRESULT sd_card_write_config_fat(char *filename, wispr_config_t *hdr)
 	nwrt += f_printf(&file, "sleep_time: %d\r\n", hdr->sleep_time);
 	nwrt += f_printf(&file, "fft_size: %d\r\n", hdr->fft_size);
 	nwrt += f_printf(&file, "fft_overlap: %d\r\n", hdr->fft_overlap);
+	nwrt += f_printf(&file, "fft_window_type: %d\r\n", hdr->fft_window_type);
+	nwrt += f_printf(&file, "max_file_size: %d\r\n", hdr->file_size);
 	nwrt += f_printf(&file, "active_sd_card: %d\r\n", hdr->active_sd_card);
 
 	res = f_close(&file);

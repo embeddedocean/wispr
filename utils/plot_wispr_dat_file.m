@@ -8,11 +8,13 @@ clear all;
 [file, dpath, filterindex] = uigetfile('./*.dat', 'Pick a waveform file');
 name = fullfile(dpath,file);
 
+vref = 2.5;
+
 % read file
 format = 'ieee-le';
 fp = fopen( name, 'r', format );
 
-N = 1; % number of buffer to concatenate
+N = 3; % number of buffer to concatenate
 
 count = 0;
 go = 1;
@@ -32,9 +34,9 @@ while( go )
         end
         
         if(hdr.sample_size == 2) 
-            q = 5.0/32767.0;  % 16 bit scaling to volts
+            q = vref/32767.0;  % 16 bit scaling to volts
         elseif(hdr.sample_size == 3)
-            q = 5.0/8388608.0;  % l24 bit scaling to volts
+            q = vref/8388608.0;  % l24 bit scaling to volts
         elseif(hdr.sample_size == 4)
             q = 1.0;
         end
@@ -63,8 +65,8 @@ while( go )
     xlabel('Seconds');
     
     nfft = 1024;
-    window = rectwin(nfft);
-    %window = hamming(nfft);
+    %window = rectwin(nfft);
+    window = hamming(nfft);
     overlap = 256;
     fs = hdr.sampling_rate;
     [Spec, freq] = my_psd(data(:),fs,window,overlap);

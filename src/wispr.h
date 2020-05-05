@@ -78,7 +78,7 @@
 #define WISPR_FLOAT32 0x20
 
 // Max file size is in units of 512 blocks
-#define WISPR_MAX_FILE_SIZE (ADC_MAX_BLOCKS_PER_BUFFER * 4096)
+#define WISPR_MAX_FILE_SIZE (ADC_MAX_BLOCKS_PER_BUFFER * 3052)
 
 // settings array index for different data header types
 #define ADC_SETTINGS_INDEX_GAIN 0
@@ -90,6 +90,12 @@
 #define PSD_SETTINGS_INDEX_FFT_WINTYPE 1
 #define PSD_SETTINGS_INDEX_FFT_SIZE 2
 #define PSD_SETTINGS_INDEX_FFT_OVERLAP 3
+
+// Bit shifting macro with casting to load an int32 from a little-endian buffer containing an int24
+#define INT32_FROM_INT24(u8,n) ((int32_t)(((uint32_t)u8[3*n+0] << 8) | ((uint32_t)u8[3*n+1] << 16) | ((uint32_t)u8[3*n+2] << 24)) >> 8)
+
+// Bit shifting macro with casting to load an int32 from a little-endian buffer containing an int16
+#define INT32_FROM_INT16(u8,n) ((int16_t)(((uint16_t)u8[2*n+0] << 0) | ((uint16_t)u8[2*n+1] << 8)))
 
 //
 // Data header object written to the front of each data buffer
@@ -131,7 +137,9 @@ typedef struct {
 	uint16_t awake_time; // time in seconds of the adc record block
 	uint16_t sleep_time; // time in seconds between adc records (must be >= window)
 	uint16_t fft_size; // fft size used for spectrum
-	uint16_t fft_overlap; // ffy overlap used for spectrum
+	uint16_t fft_overlap; // fft overlap used for spectrum
+	uint16_t fft_window_type;
+	uint32_t file_size; // number of block (512 byte) per file
 	uint8_t active_sd_card; // last card written to
 } wispr_config_t;
 

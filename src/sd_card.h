@@ -106,6 +106,7 @@ extern FRESULT sd_card_close_fat(fat_file_t *ff);
 extern FRESULT sd_card_write_fat(fat_file_t *ff, uint8_t *buffer, uint16_t nblocks);
 extern FRESULT sd_card_write_config_fat(char *filename, wispr_config_t *hdr);
 extern FRESULT sd_card_read_config_fat(char *filename, wispr_config_t *hdr);
+extern FRESULT sd_card_set_fat_file_size(fat_file_t *ff, uint32_t size);
 
 
 #endif

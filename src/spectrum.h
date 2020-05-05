@@ -24,10 +24,10 @@
 
 #include "wispr.h"
 
+#define RECT_WINDOW 0
 #define HAMMING_WINDOW 1
 #define HANN_WINDOW 2
 #define BLACKMAN_WINDOW 3
-#define RECT_WINDOW 4
 
 extern void spectrum_update_header(wispr_data_header_t *psd, wispr_data_header_t *adc);
 

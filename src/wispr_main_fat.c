@@ -163,7 +163,7 @@ int main (void)
 	// Initialize spectrum
 	if( wispr.mode & WISPR_SPECTRUM ) {
 		uint16_t nbins = wispr.fft_size / 2;
-		spectrum_init_q31(&nbins, wispr.fft_size, wispr.fft_overlap, HANN_WINDOW);
+		spectrum_init_q31(&nbins, wispr.fft_size, wispr.fft_overlap, wispr.fft_window_type);
 	}
 	
 	// Define the variables that control the window and interval timing.
@@ -218,7 +218,7 @@ int main (void)
 				com_parse_msg(&com_msg, com_buf, nrd);
 				printf("com message received: %s\r\n", com_buf);
 			}
-				
+			
 			// read the current a buffer. If a new buffer is not ready read returns 0
 			uint16_t nsamps = ltc2512_read_dma(&adc_header, adc_data, samples_per_adc_block);
 			
@@ -340,6 +340,7 @@ void log_data_buffer(fat_file_t *ff, uint8_t *buffer, uint16_t nblocks, char *ty
 	
 	// close the file if full
 	if( ff->state & SD_FILE_FULL ) {
+		printf("Closing data file: %s\r\n", ff->name);
 		sd_card_close_fat(ff);
 	}
 
@@ -350,6 +351,8 @@ void log_data_buffer(fat_file_t *ff, uint8_t *buffer, uint16_t nblocks, char *ty
 		if( sd_card_open_fat(ff, filename, FA_OPEN_APPEND | FA_WRITE, wispr.active_sd_card) == FR_OK ) {
 			printf("Open new data file: %s\r\n", ff->name);
 		}
+		// set the max file size
+		sd_card_set_fat_file_size(ff, wispr.file_size);
 	}
 
 	// write the adc buffer - both header and data
@@ -398,8 +401,7 @@ void go_to_sleep(void)
 }
 
 uint8_t swap_sd_cards(void)
-{
-	
+{	
 	if( wispr.active_sd_card == 1 ) {
 		sd_card_umount_fat(1);
 		sd_card_mount_fat(2);
@@ -461,6 +463,10 @@ void set_default_config(void)
 
 	wispr.fft_size = 1024;
 	wispr.fft_overlap = 0;
+	wispr.fft_window_type = RECT_WINDOW; 
+	
+	wispr.file_size = WISPR_MAX_FILE_SIZE;  // about 50Mb
+	
 	wispr.active_sd_card = 1;
 }
 
@@ -594,7 +600,12 @@ void prompt_config_menu(int timeout)
 	wispr.blocks_per_window = (uint16_t)( (float)wispr.awake_time / adc_block_duration ); // truncated number of blocks
 	
 	wispr.state = WISPR_READY;
-	uint8_t mode = 0;
+	 uint8_t mode = 0;
+
+	// prompt file file
+	u32 = wispr.file_size;
+	u32 = console_prompt_int("Enter max size of data file in blocks", u32, timeout);
+	wispr.file_size = u32;
 	
 	// prompt to record waveform data
 	int record_waveform = 0;
@@ -615,6 +626,10 @@ void prompt_config_menu(int timeout)
 		u16 = wispr.fft_overlap;
 		u16 = console_prompt_uint16("Enter fft overlap size", u16, timeout);	
 		wispr.fft_overlap = u16;
+
+		u8 = wispr.fft_window_type;
+		u8 = console_prompt_uint8("Enter fft window type (0=Rect, 1=Hamming)", u8, timeout);
+		wispr.fft_window_type = u8;
 	
 		mode |= WISPR_SPECTRUM;
 	} 	

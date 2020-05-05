@@ -37,10 +37,14 @@ while( go )
     freq = (0:(length(psd)-1)) * df;
     nbps = hdr.adc_bps;
 
-    adc_vref = 5.0;
+    adc_vref = 5.0/2;
     max_adc_value = 2^(nbps*8-1)-1;
     adc_scaling = adc_vref / max_adc_value;  
     scale = (adc_scaling / nfft)^2;
+    
+    if(hdr.wintype == 1) 
+        scale = scale / 4.0;
+    end
     
     fprintf('time = %d\n', hdr.sec);
     

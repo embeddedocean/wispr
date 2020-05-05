@@ -96,7 +96,7 @@ void spectrum_window(float32_t *w, uint8_t type, uint16_t size)
 {
 	float32_t a0, a1, a2, a3, a4;
 	
-	// Default Hamming window
+	// Hamming window
 	a0 = 0.54; a1 = 0.46; a2 = 0; a3 = 0; a4 = 0;
 	
 	switch (type) 
@@ -159,33 +159,37 @@ int spectrum_init_f32(uint16_t *nbins, uint16_t nfft, uint16_t overlap, uint8_t 
 		return(ARM_MATH_ARGUMENT_ERROR);
 	}
 	fft_overlap = overlap;
-		
+	
 	// pre-calculated twiddle factors
 	arm_status status = arm_rfft_fast_init_f32(&fft_twid_f32, fft_size);
 	if( status != ARM_MATH_SUCCESS) {
 		printf("spectrum_init: error in arm_rfft_fast_init_f32 %d", status);
 		return(status);
 	}
-	  
+	
 	// generate window function
 	spectrum_window(fft_window, wintype, fft_size);
 	
 	// calc the window power to use when scaling the fft output 
 	arm_power_f32(fft_window, fft_size, &fft_window_power);
-		
-	// apply the scaling factor to the window 
+	
+	// window scaling factor
 	//fft_window_scaling = ADC_SCALING / max_value;
 	fft_window_scaling = 1.0f;
+	if(wintype == HAMMING_WINDOW) fft_window_scaling = 2.0f;
+	else if(wintype == HANN_WINDOW) fft_window_scaling = 2.0f;
+	
+	// apply the scaling factor to the window
 	for(n = 0; n < fft_size; n++) {
 		fft_window[n] *= fft_window_scaling;
 	}
 	//for(int n = 0; n < fft_size; n++) printf("%.2f ", fft_window_f32[n]);
 	//printf("\r\n");
-
+	
 	//printf("spectrum_init_f32:  nfft=%d, nbins=%d, overlap=%d, bps=%d, fft_window_power=%f\r\n",
 	//	fft_size, psd_num_freq_bins, fft_overlap, nbps, fft_window_power);
 	printf("spectrum_init_f32: fft_window_power=%f\r\n", fft_window_power);
-
+	
 	return(status);
 
 }
@@ -235,6 +239,18 @@ int spectrum_f32(wispr_data_header_t *psd, float32_t *psd_data, wispr_data_heade
 	int istart = 0;  // start index of segment
 	int iend;  // end index of segment
 	
+	// fft input scaling to prevent overflow or underflow
+	//float32_t adc_scaling;
+	uint8_t fft_shift_bits = 0;
+	if( sample_size == 3) { // 24 bits per sample
+		//adc_scaling = ADC_SCALING / 8388607.0; // 2^23 - 1
+		fft_shift_bits = 0;
+	}
+	else if( sample_size == 2 ) { // 16 bits per sample
+		//adc_scaling = ADC_SCALING / 32767.0; // 2^15 - 1
+		fft_shift_bits = 8;
+	}
+		
 	// clear output vector
 	for(m = 0; m < nbins; m++) output[m] = 0.0;
 	
@@ -261,14 +277,16 @@ int spectrum_f32(wispr_data_header_t *psd, float32_t *psd_data, wispr_data_heade
 		if( sample_size == 2 ) {
 			// load the 16 bit word into a 32 bit float
 			for(n = istart; n < iend; n++, m++) {
-				int32_t v = (int32_t)(((uint32_t)input[2*n+0] << 16) | ((uint32_t)input[2*n+1] << 24));
-				buf1[m] = (float32_t)v;
+				//int32_t v = (int32_t)(((uint32_t)input[2*n+0] << 16) | ((uint32_t)input[2*n+1] << 24));
+				//buf1[m] = (float32_t)v;
+				buf1[m] = (float32_t)(INT32_FROM_INT16(input,n) << fft_shift_bits);
 			}
 		} else if ( sample_size == 3 ) {
 			// load the 24 bit word into a 32 bit float
 			for(n = istart; n < iend; n++, m++) {
-				int32_t v = (int32_t)(((uint32_t)input[3*n+0] << 8) | ((uint32_t)input[3*n+1] << 16) | ((uint32_t)input[3*n+2] << 24));
-				buf1[m] = (float32_t)v;
+				//int32_t v = (int32_t)(((uint32_t)input[3*n+0] << 8) | ((uint32_t)input[3*n+1] << 16) | ((uint32_t)input[3*n+2] << 24));
+				//buf1[m] = (float32_t)v;
+				buf1[m] = (float32_t)(INT32_FROM_INT24(input,n) << fft_shift_bits);
 			}
 		} else {
 			printf("spectrum_f32: unsupported sample size\r\n");
@@ -316,23 +334,14 @@ int spectrum_f32(wispr_data_header_t *psd, float32_t *psd_data, wispr_data_heade
 		
 	}
 	
-	// Rescale the output of the ffts
-	// The output needs to be shifted back into its original byte size.
+	// normalization and remove the fft scaling 
 	// Note that no adc scaling is applied because the numbers get too small.
 	// So apply the adc scaling later.
-	//float32_t adc_scaling;
-	float32_t fft_scaling = 1.0;
-	if( sample_size == 3) { // 24 bits per sample
-		//adc_scaling = ADC_SCALING / 8388607.0; // 2^23 - 1
-		fft_scaling = 1.0f / 256.0f; // >> 8
-	}
-	else if( sample_size == 2 ) { // 16 bits per sample
-		//adc_scaling = ADC_SCALING / 32767.0; // 2^15 - 1
-		fft_scaling = 1.0f / 65536.0f; // >> 16
-	}
-		
-	// normalization and remove the fft scaling 
+	float32_t fft_scaling = 1.0f / (float32_t)(1 >> fft_shift_bits);
 	float32_t norm = 2.0f * (fft_scaling * fft_scaling) / (float32_t)navg;
+
+	// remove window scaling
+	norm *= 1.0f / (fft_window_scaling * fft_window_scaling);
 
 	// remove window power??
 	//norm *= 1.0f / fft_window_power;
@@ -394,6 +403,16 @@ int spectrum_init_q31(uint16_t *nbins, uint16_t nfft, uint16_t overlap, uint8_t 
 	// calc the window power to use when scaling the fft output
 	arm_power_f32(fft_window, fft_size, &fft_window_power);
 	
+	// window scaling factor
+	fft_window_scaling = 1.0f;
+	if(wintype == HAMMING_WINDOW) fft_window_scaling = 2.0f;
+	else if(wintype == HANN_WINDOW) fft_window_scaling = 2.0f;
+	
+	// apply the scaling factor to the window
+	for(int n = 0; n < fft_size; n++) {
+		fft_window[n] *= fft_window_scaling;
+	}
+
 	//printf("spectrum_init_q31:  nfft=%d, overlap=%d, bps=%d, win_power=%f\r\n",
 	//	fft_size, fft_overlap, nbps, fft_window_power);
 
@@ -436,7 +455,19 @@ int spectrum_q31(wispr_data_header_t *psd, float32_t *psd_data, wispr_data_heade
 	// build the spectrogram using overlapping ffts
 	int istart = 0;  // start index of segment
 	int iend;  // end index of segment
-	
+
+	// fft input scaling to prevent overflow or underflow
+	//float32_t adc_scaling;
+	uint8_t fft_shift_bits = 0;
+	if( sample_size == 3) { // 24 bits per sample
+		//adc_scaling = ADC_SCALING / 8388607.0; // 2^23 - 1
+		fft_shift_bits = 0;
+	}
+	else if( sample_size == 2 ) { // 16 bits per sample
+		//adc_scaling = ADC_SCALING / 32767.0; // 2^15 - 1
+		fft_shift_bits = 8;
+	}
+		
 	// clear output vector
 	for(m = 0; m < nbins; m++) output[m] = 0.0;
 
@@ -464,15 +495,17 @@ int spectrum_q31(wispr_data_header_t *psd, float32_t *psd_data, wispr_data_heade
 		if( sample_size == 2 ) {
 			// load the 16 bit word into a 32 bit q31_t
 			for(n = istart; n < iend; n++) {
-				int32_t v = (int32_t)( ((uint32_t)input[2*n+0] << 16) | ((uint32_t)input[2*n+1] << 24) );
-				buf1[m] = (q31_t)(win[m] * (float32_t)v);
+				//int32_t v = (int32_t)( ((uint32_t)input[2*n+0] << 16) | ((uint32_t)input[2*n+1] << 24) );
+				//buf1[m] = (q31_t)(win[m] * (float32_t)v);
+				buf1[m] = (q31_t)(win[m] * (float32_t)(INT32_FROM_INT16(input,n) << fft_shift_bits));
 				m++;
 			}
 		} else if ( sample_size == 3 ) {
 			// load the 24 bit word into a 32 bit q31
 			for(n = istart; n < iend; n++) {
-				int32_t v = (int32_t)(((uint32_t)input[3*n+0] << 8) | ((uint32_t)input[3*n+1] << 16) | ((uint32_t)input[3*n+2] << 24));
-				buf1[m] = (q31_t)(win[m] * (float32_t)v);
+				//int32_t v = (int32_t)(((uint32_t)input[3*n+0] << 8) | ((uint32_t)input[3*n+1] << 16) | ((uint32_t)input[3*n+2] << 24));
+				//buf1[m] = (q31_t)(win[m] * (float32_t)v);
+				buf1[m] = (q31_t)(win[m] * (float32_t)(INT32_FROM_INT24(input,n) << fft_shift_bits));
 				m++;
 			}
 		} else {
@@ -524,27 +557,15 @@ int spectrum_q31(wispr_data_header_t *psd, float32_t *psd_data, wispr_data_heade
 
 	}
 
-	// Rescale the output of the ffts
-	// The output needs to be shifted back into its original byte size.
+	// normalization and remove the fft scaling
 	// It also needs to be scaled by nfft because the arm_rfft_q31 removes this
 	// Note that no adc scaling is applied because the numbers get too small.
 	// So apply the adc scaling later.
-	float32_t adc_scaling;
-	float32_t fft_scaling = 1.0;
-	if( sample_size == 3) { // 24 bits per sample
-		adc_scaling = ADC_SCALING / 8388607.0f; // 2^23 - 1
-		fft_scaling = (float32_t)nfft / 256.0f; // same as >> 8 
-	}
-	else if( sample_size == 2 ) { // 16 bits per sample
-		adc_scaling = ADC_SCALING / 32767.0f; // 2^15 - 1
-		fft_scaling = (float32_t)nfft / 65536.0f; // same as >> 16
-	}
-	
-	// normalization and remove the fft scaling
+	float32_t fft_scaling = (float32_t)nfft / (float32_t)(1 >> fft_shift_bits);
 	float32_t norm = 2.0f * (fft_scaling * fft_scaling) / (float32_t)navg;
 
-	// remove window power??
-	//norm *= 1.0f / fft_window_power;
+	// remove window scaling
+	norm *= 1.0f / (fft_window_scaling * fft_window_scaling);
 		
 	// Normalize the output
 	// Because the signal is real-valued, you only need power estimates for the positive frequencies.
