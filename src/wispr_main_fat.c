@@ -60,12 +60,20 @@ void initialize_config(void);
 void prompt_config_menu(int timeout);
 void make_filename(char *name, char *prefix, char *suffix);
 void log_data_buffer(fat_file_t *ff, uint8_t *buffer, uint16_t nblocks, char *type);
+uint32_t initialize_datetime(void);
+uint32_t initialize_datetime_with_gps(void);
+void change_gain(void);
 
 // global variables
+
 wispr_config_t wispr; // current configuration
 char config_filename[] = "wispr1.txt";
+wispr_com_msg_t com_msg;
+char com_buf[COM_MAX_MESSAGE_SIZE];
 fat_file_t dat_file;
 fat_file_t psd_file;
+
+//rtc_time_t datetime;
 
 //
 // main
@@ -91,30 +99,20 @@ int main (void)
 	i2c_init(TWI0, WISPR_I2C_SPEED);
 	
 	// Setup the DS3231 External RTC
+	// This supplies the 32k clock to the internal rtc
 	if( ds3231_init() != STATUS_OK ) {
 		printf("Error initializing DS3231 RTC\r\n");
 	}
 	
-	// read and display the external rtc time
-	rtc_time_t  datetime;
-	uint32_t rtc_status = ds3231_get_datetime(&datetime);
-	if ( rtc_status != RTC_STATUS_OK ) {
-		printf("DS3231 RTC failed, status %d\r\n", rtc_status);
-		//rtc_status = ds3231_get_datetime(&datetime);
-	}
-	printf("\r\n");
-	printf("External RTC time is %02d/%02d/%02d %02d:%02d:%02d\r\n",
-	  datetime.year, datetime.month, datetime.day, datetime.hour, datetime.minute, datetime.second);
-	
-	// Initialize the internal RTC using the external RTC time
-	rtc_status = rtc_init(&datetime);
-	while ( rtc_status != RTC_STATUS_OK ) {
-		printf("Waiting for RTC, status %d\r\n", rtc_status);
-		rtc_status = rtc_init(&datetime);
-	}
-	printf("Internal RTC set to  %02d/%02d/%02d %02d:%02d:%02d\r\n",
-		datetime.year, datetime.month, datetime.day, datetime.hour, datetime.minute, datetime.second);
-	printf("\r\n");
+	// initialize the uart com communications port
+	com_init(BOARD_COM_PORT, BOARD_COM_BAUDRATE);
+
+	// setup the rtc clocks and set system time
+	initialize_datetime();
+
+// Haru's additions
+//	initialize_datetime_with_gps();
+//	change_gain();
 
 	// check all sd cards and configure them if needed
 	// this also sets the active sd card number 
@@ -192,11 +190,6 @@ int main (void)
 	//noise = console_prompt_f32("Enter test signal noise std dev", noise, 10);
 	//ltc2512_init_test(&wispr, samples_per_adc_block, fc, amp, noise);		
 	
-	// initialize the uart com communications port
-	wispr_com_msg_t com_msg;
-	char com_buf[COM_MAX_MESSAGE_SIZE];
-	com_init(BOARD_COM_PORT, BOARD_COM_BAUDRATE);
-
 	// start adc
 	ltc2512_start_dma();
 	ltc2512_start_conversion();
@@ -212,8 +205,8 @@ int main (void)
 		// if within the sampling window
 		if( count < adc_blocks_per_window ) {
 	
-			// check for a com message
-			int nrd = com_read_msg (BOARD_COM_PORT, com_buf);
+			// check for a com message, no wait timeout 
+			int nrd = com_read_msg (BOARD_COM_PORT, com_buf, 0);
 			if( nrd > 0) {
 				com_parse_msg(&com_msg, com_buf, nrd);
 				printf("com message received: %s\r\n", com_buf);
@@ -292,8 +285,9 @@ int main (void)
 			sd_card_umount_fat(wispr.active_sd_card);
 
 			// set the alarm to wakeup for the next window read cycle
-			epoch_to_rtc_time((rtc_time_t *)&datetime, now + wispr.sleep_time);
-			ds3231_set_alarm(&datetime);
+			rtc_time_t dt;
+			epoch_to_rtc_time(&dt, now + wispr.sleep_time);
+			ds3231_set_alarm(&dt);
 			printf("\r\nAlarm set for %s\r\n", epoch_time_string(now + wispr.sleep_time));				
 
 			count = 0; // reset block counter
@@ -324,7 +318,7 @@ void make_filename(char *name, char *prefix, char *suffix)
 	rtc_time_t dt;
 	rtc_get_datetime(&dt);
 	sprintf(name, "%s_%02d%02d%02d_%02d%02d%02d.%s",
-	prefix, dt.year, dt.month, dt.day, dt.hour, dt.minute, dt.second, suffix);
+		prefix, dt.year, dt.month, dt.day, dt.hour, dt.minute, dt.second, suffix);
 }
 
 void log_data_buffer(fat_file_t *ff, uint8_t *buffer, uint16_t nblocks, char *type)
@@ -644,24 +638,24 @@ void prompt_config_menu(int timeout)
 	// prompt to  reset the time
 	if( console_prompt_int("Enter new time?", 0, timeout) ) {
 		int go = 1;
-		rtc_time_t datetime;
-		ds3231_get_datetime(&datetime);  // get current time
+		rtc_time_t dt;
+		ds3231_get_datetime(&dt);  // get current time
 		while(go) {
-			datetime.year = console_prompt_uint8("Enter year in century (0 to 99)", datetime.year, timeout);
-			datetime.month = console_prompt_uint8("Enter month (1 to 12)", datetime.month, timeout);
-			datetime.day = console_prompt_uint8("Enter day (1 to 31)", datetime.day, timeout);
-			datetime.hour = console_prompt_uint8("Enter hour (0 to 23)", datetime.hour, timeout);
-			datetime.minute = console_prompt_uint8("Enter minute (0 to 59)", datetime.minute, timeout);
-			datetime.second = console_prompt_uint8("Enter second (0 to 59)", datetime.second, timeout);
+			dt.year = console_prompt_uint8("Enter year in century (0 to 99)", dt.year, timeout);
+			dt.month = console_prompt_uint8("Enter month (1 to 12)", dt.month, timeout);
+			dt.day = console_prompt_uint8("Enter day (1 to 31)", dt.day, timeout);
+			dt.hour = console_prompt_uint8("Enter hour (0 to 23)", dt.hour, timeout);
+			dt.minute = console_prompt_uint8("Enter minute (0 to 59)", dt.minute, timeout);
+			dt.second = console_prompt_uint8("Enter second (0 to 59)", dt.second, timeout);
 			// set the internal RTC 
-			uint32_t status = rtc_init(&datetime);
+			uint32_t status = rtc_init(&dt);
 			if( status != RTC_STATUS_OK ) {
 				printf("Failed to initialize RTC with new time\r\n");
 				rtc_print_error(status);
 				continue;
 			}
 			// set the external RTC
-			status = ds3231_set_datetime(&datetime);
+			status = ds3231_set_datetime(&dt);
 			if( status != RTC_STATUS_OK) {
 				printf("Failed to initialize DS3231 with new time\r\n");
 				rtc_print_error(status);
@@ -669,9 +663,9 @@ void prompt_config_menu(int timeout)
 			}
 			break;
 		}
-		ds3231_get_datetime(&datetime);  // read back time
+		ds3231_get_datetime(&dt);  // read back time
 		printf("\r\nExternal RTC set to %02d/%02d/%02d %02d:%02d:%02d\r\n",
-			datetime.year, datetime.month, datetime.day, datetime.hour, datetime.minute, datetime.second);
+			dt.year, dt.month, dt.day, dt.hour, dt.minute, dt.second);
 	}
 	
 	// set config mod time
@@ -679,4 +673,114 @@ void prompt_config_menu(int timeout)
 	
 }
 
+
+uint32_t initialize_datetime(void)
+{
+	uint32_t status;
+	rtc_time_t dt;
+
+	// read and display the external rtc time
+	uint32_t rtc_status = ds3231_get_datetime(&dt);
+	if ( rtc_status != RTC_STATUS_OK ) {
+		printf("DS3231 RTC failed, status %d\r\n", rtc_status);
+		//rtc_status = ds3231_get_datetime(&dt);
+	}
+	printf("\r\n");
+	printf("External RTC time is %02d/%02d/%02d %02d:%02d:%02d\r\n", dt.year, dt.month, dt.day, dt.hour, dt.minute, dt.second);
+	
+	// Initialize the internal RTC using the external RTC time
+	status = rtc_init(&dt);
+	while ( rtc_status != RTC_STATUS_OK ) {
+		printf("Waiting for RTC, status %d\r\n", status);
+		status = rtc_init(&dt);
+	}
+	printf("Internal RTC set to  %02d/%02d/%02d %02d:%02d:%02d\r\n", dt.year, dt.month, dt.day, dt.hour, dt.minute, dt.second);
+	printf("\r\n");
+
+	return(status);
+}
+
+uint32_t initialize_datetime_with_gps(void)
+{
+	uint32_t status;
+	uint16_t timeout=10000; //10 sec wait for COM0 input
+	rtc_time_t dt;
+	rtc_time_t rt;
+	
+	//Set RTC time by GPS epoch sec received at COM0. Gain is also changed. HM
+	printf("Requesting GPS message to set DS3231 & RTC.\r\n");
+	com_msg.lat = 0.0; com_msg.lon = 0.0;
+	//Sends $GPS* que to MPC as a request for GPS time and Location
+	com_write_msg(BOARD_COM_PORT, "GPS");
+	//reply $GPS,1588589815,-35.000000,19.000000*
+	if( ds3231_init() != STATUS_OK ) {
+		printf("Error initializing DS3231 RTC\r\n");
+	}
+		
+	int nrd = com_read_msg (BOARD_COM_PORT, com_buf, timeout);
+		
+	if(nrd > 0) {
+		
+		com_parse_msg(&com_msg, com_buf, nrd);
+		epoch_to_rtc_time(&dt, com_msg.sec); //Convert epoch time to RTC datetime format
+		//ds3231_epoch_to_datetime(&dt, com_msg.sec); //HM year is wrong. Use epoch_rtc_time()
+		// set DS3231 RTC using epoch time received from GPS
+		status = ds3231_set_datetime(&dt);
+		status = rtc_init(&dt);
+		printf("Resetting DS3231 and built-in RTC successful\n\r");
+		printf("lat=%f, lon=%f\n\r", com_msg.lat, com_msg.lon); //debug Remove this
+		status = ds3231_get_datetime(&dt);  // read back time
+		status = rtc_get_datetime(&rt);
+		printf("DS3231 RTC set to %02d/%02d/%02d %02d:%02d:%02d\r\n", dt.year, dt.month, dt.day, dt.hour, dt.minute, dt.second);
+		printf("Internal RTC time %02d/%02d/%02d %02d:%02d:%02d\r\n", rt.year, rt.month,rt.day,rt.hour,rt.minute,rt.second);
+			
+	} else {//NO GPS time available. Sync RTC by DS3231,
+	
+		printf("No GPS message received from COM0. Sync int RTC by DS3231\n\r");
+			
+		// read and display the ds3231 time
+		ds3231_get_datetime(&dt);
+		printf("\r\n");
+		printf("External RTC time is %02d/%02d/%02d %02d:%02d:%02d\r\n",
+			dt.year, dt.month, dt.day, dt.hour, dt.minute, dt.second);
+			
+		// Initialize the internal RTC using ds3231 RTC time
+		status = rtc_init(&dt);
+		while ( status != RTC_STATUS_OK ) {
+			printf("Waiting for RTC, status %d\r\n", status);
+			status = rtc_init(&dt);
+		}
+		printf("Internal RTC set to  %02d/%02d/%02d %02d:%02d:%02d\r\n",
+			dt.year, dt.month, dt.day, dt.hour, dt.minute, dt.second);
+		printf("\r\n");
+	}
+	
+	return(status);
+}
+
+void change_gain(void)
+{
+	uint16_t timeout=10000; //10 sec wait for COM0 input
+	uint8_t new_gain;
+	
+	//HM added to check if a gain change is requested
+	com_write_msg(BOARD_COM_PORT, "NGN");
+	printf("Type at com0 $NGN,1*\r\n");//HM For debug. Remove this
+	int nrd = com_read_msg (BOARD_COM_PORT, com_buf, timeout);
+
+	new_gain = ADC_DEFAULT_GAIN;
+			
+	if(nrd > 0) {
+		com_parse_msg(&com_msg, com_buf, nrd);
+		//printf("%d\n\r",com_msg.gain);//  HM debug
+		//printf("new gain = %d\n\r", com_msg.gain);//HM debug
+		if((com_msg.gain <4) && (com_msg.gain >= 0)) {
+			new_gain=com_msg.gain;//HM Gain update is ready. config.settings[0] will be updated in initialize_config()
+		}
+	}
+
+	// set the global config with the new gain 
+	wispr.gain = new_gain;
+
+}
 

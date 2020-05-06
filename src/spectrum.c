@@ -279,14 +279,14 @@ int spectrum_f32(wispr_data_header_t *psd, float32_t *psd_data, wispr_data_heade
 			for(n = istart; n < iend; n++, m++) {
 				//int32_t v = (int32_t)(((uint32_t)input[2*n+0] << 16) | ((uint32_t)input[2*n+1] << 24));
 				//buf1[m] = (float32_t)v;
-				buf1[m] = (float32_t)(INT32_FROM_INT16(input,n) << fft_shift_bits);
+				buf1[m] = (float32_t)(LOAD_INT16(input,n) << fft_shift_bits);
 			}
 		} else if ( sample_size == 3 ) {
 			// load the 24 bit word into a 32 bit float
 			for(n = istart; n < iend; n++, m++) {
 				//int32_t v = (int32_t)(((uint32_t)input[3*n+0] << 8) | ((uint32_t)input[3*n+1] << 16) | ((uint32_t)input[3*n+2] << 24));
 				//buf1[m] = (float32_t)v;
-				buf1[m] = (float32_t)(INT32_FROM_INT24(input,n) << fft_shift_bits);
+				buf1[m] = (float32_t)(LOAD_INT24(input,n) << fft_shift_bits);
 			}
 		} else {
 			printf("spectrum_f32: unsupported sample size\r\n");
@@ -497,7 +497,7 @@ int spectrum_q31(wispr_data_header_t *psd, float32_t *psd_data, wispr_data_heade
 			for(n = istart; n < iend; n++) {
 				//int32_t v = (int32_t)( ((uint32_t)input[2*n+0] << 16) | ((uint32_t)input[2*n+1] << 24) );
 				//buf1[m] = (q31_t)(win[m] * (float32_t)v);
-				buf1[m] = (q31_t)(win[m] * (float32_t)(INT32_FROM_INT16(input,n) << fft_shift_bits));
+				buf1[m] = (q31_t)(win[m] * (float32_t)(LOAD_INT16(input,n) << fft_shift_bits));
 				m++;
 			}
 		} else if ( sample_size == 3 ) {
@@ -505,7 +505,7 @@ int spectrum_q31(wispr_data_header_t *psd, float32_t *psd_data, wispr_data_heade
 			for(n = istart; n < iend; n++) {
 				//int32_t v = (int32_t)(((uint32_t)input[3*n+0] << 8) | ((uint32_t)input[3*n+1] << 16) | ((uint32_t)input[3*n+2] << 24));
 				//buf1[m] = (q31_t)(win[m] * (float32_t)v);
-				buf1[m] = (q31_t)(win[m] * (float32_t)(INT32_FROM_INT24(input,n) << fft_shift_bits));
+				buf1[m] = (q31_t)(win[m] * (float32_t)(LOAD_INT24(input,n) << fft_shift_bits));
 				m++;
 			}
 		} else {

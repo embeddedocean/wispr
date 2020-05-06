@@ -164,7 +164,6 @@ void wispr_print_config(wispr_config_t *hdr)
 		fprintf(stdout, "[DAQ+PSD]\r\n");
 		break;
 	}
-	fprintf(stdout, " [%d]\r\n", hdr->mode);
 	fprintf(stdout, "- sample size:     %d bytes\r\n", (int)hdr->sample_size);
 	//fprintf(stdout, "- block_size:    %d bytes\r\n", (int)hdr->block_size);
 	//fprintf(stdout, "- samples:       %d per buffer\r\n", (int)hdr->samples_per_block);

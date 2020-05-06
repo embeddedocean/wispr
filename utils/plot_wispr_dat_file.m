@@ -8,7 +8,7 @@ clear all;
 [file, dpath, filterindex] = uigetfile('./*.dat', 'Pick a waveform file');
 name = fullfile(dpath,file);
 
-vref = 2.5;
+vref = 5.0;
 
 % read file
 format = 'ieee-le';
@@ -71,14 +71,14 @@ while( go )
     fs = hdr.sampling_rate;
     [Spec, freq] = my_psd(data(:),fs,window,overlap);
     figure(2); clf;
-    plot(1000*freq, 10*log10(Spec),'.-');
+    plot(freq/1000, 10*log10(Spec),'.-');
     grid on;
     xlabel('Frequency [kHz]'), 
     ylabel('Power Spectrum Magnitude (dB)');
     %axis([0 freq(end) -130 0]);
 
     total_energy = sum(Spec);
-    sig_var = var(data);
+    sig_var = var(data(:));
     title(['WISPR spectrum, Total Energy ' num2str(total_energy) ', Variance ' num2str(sig_var)]);
         
     if(input('quit: ') == 1) 

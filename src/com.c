@@ -13,6 +13,8 @@
 #include "wispr.h"
 #include "com.h"
 #include "uart_queue.h"
+#include "wdt.h"
+#include <delay.h>
 
 static int verbose_level = 0;
 
@@ -57,8 +59,7 @@ void com_stop(int port)
 *  msg = GPS,1420070460,19.000000,19.000000
 *        0123456789012345678901234567890123456
 */
-//int com_read_msg (int port, char *msg, int timeout)
-int com_read_msg (int port, char *msg)
+int com_read_msg (int port, char *msg, int timeout)
 {
   int nrd = 0;
   char tmp[COM_MAX_MESSAGE_SIZE];  // input buffer
@@ -73,13 +74,16 @@ int com_read_msg (int port, char *msg)
   
   // read the message from the port
   enum status_code stat;
-//  while(1) {
-//	  stat =  uart_read_message_queue(port, (uint8_t *)tmp, COM_MAX_MESSAGE_SIZE);
-//	  if(stat == STATUS_OK || timeout <= 0 ) break;
-//	  delay_ms(1);
-//	  timeout--;
-//  };
-  stat =  uart_read_message_queue(port, (uint8_t *)tmp, COM_MAX_MESSAGE_SIZE);
+  while(1) {
+	  stat =  uart_read_message_queue(port, (uint8_t *)tmp, COM_MAX_MESSAGE_SIZE);
+	  if(stat == STATUS_OK || timeout <= 0 ) break;
+	  wdt_restart(WDT);
+	  delay_ms(1);
+	  timeout--;
+  }
+  
+  // read the message with no timeout
+  //stat =  uart_read_message_queue(port, (uint8_t *)tmp, COM_MAX_MESSAGE_SIZE);
   if(stat != STATUS_OK) return(0);
   
   nrd = strlen(tmp);
@@ -87,7 +91,6 @@ int com_read_msg (int port, char *msg)
   // otherwise something was read, so
   // check if it's a valid message 
   if(nrd > 0) {
-    //log_printf( "com_read_msg: %d, %s", nrd, tmp);
     // find start, end, and size of the msg in buffer
     head = strchr(tmp, COM_MESSAGE_PREFIX);	// find start of msg
     tail = strchr(tmp, COM_MESSAGE_SUFFIX);	// find end of msg
@@ -103,7 +106,7 @@ int com_read_msg (int port, char *msg)
   // return the length of the message, 
   // which will be 0 if it's not valid
   nrd = strlen(msg);
-  if((verbose_level > 2) && (nrd > 0)) { 
+  if((verbose_level >= 2) && (nrd > 0)) { 
 	printf( "com_read_msg: %s, %d bytes\r\n", msg, nrd);
   }
   return (nrd);
@@ -158,52 +161,52 @@ int com_parse_msg (wispr_com_msg_t *msg, char *buf, int len)
   
   // Add user commands here
 
-  if (strncmp (buf, "EXI", 4) == 0) {  // Exit command  
+  if (strncmp (buf, "EXI", 3) == 0) {  // Exit command  
     msg->type = COM_EXIT;
   }
-  if (strncmp (buf, "RUN", 4) == 0) {  // Run command
+  if (strncmp (buf, "RUN", 3) == 0) {  // Run command
     msg->type = COM_RUN;
   }
-  if (strncmp (buf, "PAU", 4) == 0) {  // Pause command
+  if (strncmp (buf, "PAU", 3) == 0) {  // Pause command
     msg->type = COM_PAUSE;
   }
-  if (strncmp (buf, "RES", 4) == 0) {  // Reset command
+  if (strncmp (buf, "RES", 3) == 0) {  // Reset command
     msg->type = COM_RESET;
   }
-  if (strncmp (buf, "SLP", 4) == 0) {  // Sleep command
+  if (strncmp (buf, "SLP", 3) == 0) {  // Sleep command
     msg->type = COM_SLEEP;
   }
 
   // GPS message
-  if (strncmp (buf, "GPS", 4) == 0) {
+  if (strncmp (buf, "GPS", 3) == 0) {
     msg->type = COM_GPS;
     strcpy (args, &buf[4]);  // copy args
-    sscanf (args, "%lu,%f,%f", &msg->sec, &msg->lon, &msg->lat);
+    sscanf (args, "%lu,%f,%f", &msg->sec, &msg->lat, &msg->lon);
     if(verbose_level) {
       printf("GPS: sec=%lu, lat=%f, lon=%f \r\n", msg->sec, msg->lat, msg->lon);
     }
   }
 
-  if (strncmp (buf, "STA", 4) == 0) {
+  if (strncmp (buf, "STA", 3) == 0) {
     msg->type = COM_STATUS;
   }
   
   // set time
-  if (strncmp (buf, "TME", 4) == 0) { 
+  if (strncmp (buf, "TME", 3) == 0) { 
      msg->type = COM_TIME;
      strcpy (args, &buf[4]);  // copy args
      sscanf (args, "%lu", &msg->sec);
   }
 
   // set gain
-  if (strncmp (buf, "ADC", 4) == 0) {
+  if (strncmp (buf, "NGN", 3) == 0) {
 	  msg->type = COM_GAIN;
 	  strcpy (args, &buf[4]);  // copy args
 	  sscanf (args, "%d", &msg->gain);
   }
 
   // report SD card memory usage
-  if (strncmp (buf, "SDF", 4) == 0) {
+  if (strncmp (buf, "SDF", 3) == 0) {
 	  msg->type = COM_SDF;
   }
 

@@ -133,8 +133,8 @@
 	rx_clk_option.ul_cks = SSC_RCMR_CKS_MCK;  // select divided clock source
 	rx_clk_option.ul_cko = SSC_RCMR_CKO_TRANSFER; // Receive Clock only during data transfers, RK pin is an output
 	//rx_clk_option.ul_cko = SSC_RCMR_CKO_CONTINUOUS; // Receive Clock only during data transfers, RK pin is an output
-	//rx_clk_option.ul_cki = 0; // sampled on Receive Clock falling edge.
-	rx_clk_option.ul_cki = 1; // sampled on Receive Clock rising edge.
+	//rx_clk_option.ul_cki = 1; // sampled on Receive Clock rising edge.
+	rx_clk_option.ul_cki = 0; // sampled on Receive Clock falling edge - adc clocks out data on rising edge.
 	rx_clk_option.ul_ckg = SSC_RCMR_CKG_EN_RF_LOW; // clock gating selection, enable clock only when RF is low
 	//rx_clk_option.ul_start_sel = SSC_RCMR_START_RF_LOW; // Detection of a low level on RF signal
 	rx_clk_option.ul_start_sel = SSC_RCMR_START_RF_FALLING; // Detection of a falling edge on RF signal
@@ -143,7 +143,7 @@
 	rx_clk_option.ul_period = 0; //ul_rfck_div;  // length of frame in clock cycles
 	 
 	/* Receiver frame mode configuration. */
-	rx_data_frame_option.ul_datlen = LTC2512_BITS_PER_SAMPLE - 1; // number of bits per data word, should be 0 to 31
+	rx_data_frame_option.ul_datlen = 31; //LTC2512_BITS_PER_SAMPLE - 1; // number of bits per data word, should be 0 to 31
 
 	// read data word MSB first - although it's stored in processor memory as little-endian or LSB first
 	rx_data_frame_option.ul_msbf = SSC_RFMR_MSBF;  // MSB First
@@ -533,11 +533,12 @@ static inline uint8_t ltc2512_copy_dma_int24(uint8_t *ibuf, uint8_t *obuf, uint1
 	uint32_t nbytes = 4 * (uint32_t)nsamps;
 	uint32_t m = 0;
 	for(uint32_t n = 0; n < nbytes; n += 4) {
-		obuf[m++] = ibuf[n]; // LSB
-		obuf[m++] = ibuf[n+1];
-		obuf[m++] = ibuf[n+2]; // MSB
-		chksum += ibuf[n] + ibuf[n+1] + ibuf[n+2];
-		//if(n < 32) printf("%x%x%x ", ibuf[n+2], ibuf[n+1], ibuf[n]);
+		//obuf[m++] = ibuf[n]; // status bit
+		obuf[m++] = ibuf[n+1]; // LSB
+		obuf[m++] = ibuf[n+2];
+		obuf[m++] = ibuf[n+3]; // MSB
+		chksum += ibuf[n+1] + ibuf[n+2] + ibuf[n+3];
+		//if(n < 256) printf("'%02x%02x%02x'; ", ibuf[n+3], ibuf[n+2], ibuf[n+1]);
 	}
 	//printf("\r\n");
 	return(chksum);
@@ -554,10 +555,10 @@ static inline uint8_t ltc2512_copy_dma_int16(uint8_t *ibuf, uint8_t *obuf, uint1
 	uint32_t m = 0;
 	for(uint32_t n = 0; n < nbytes; n += 4) {
 		//obuf[m++] = ibuf[n]; // LSB
-		obuf[m++] = ibuf[n+1]; // 
-		obuf[m++] = ibuf[n+2]; // MSB
-		chksum += ibuf[n+1] + ibuf[n+2];
-		//if(n < 32) printf("%x%x ", ibuf[n+2], ibuf[n+1]);
+		obuf[m++] = ibuf[n+2]; // 
+		obuf[m++] = ibuf[n+3]; // MSB
+		chksum += ibuf[n+2] + ibuf[n+3];
+		//if(n < 32) printf("%x%x ", ibuf[n+3], ibuf[n+2]);
 	}
 	//printf("\r\n");
 	return(chksum);

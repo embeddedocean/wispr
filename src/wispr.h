@@ -92,10 +92,10 @@
 #define PSD_SETTINGS_INDEX_FFT_OVERLAP 3
 
 // Bit shifting macro with casting to load an int32 from a little-endian buffer containing an int24
-#define INT32_FROM_INT24(u8,n) ((int32_t)(((uint32_t)u8[3*n+0] << 8) | ((uint32_t)u8[3*n+1] << 16) | ((uint32_t)u8[3*n+2] << 24)) >> 8)
+#define LOAD_INT24(u8,n) ((int32_t)(((uint32_t)u8[3*n+0] << 8) | ((uint32_t)u8[3*n+1] << 16) | ((uint32_t)u8[3*n+2] << 24)) >> 8)
 
 // Bit shifting macro with casting to load an int32 from a little-endian buffer containing an int16
-#define INT32_FROM_INT16(u8,n) ((int16_t)(((uint16_t)u8[2*n+0] << 0) | ((uint16_t)u8[2*n+1] << 8)))
+#define LOAD_INT16(u8,n) ((int16_t)(((uint16_t)u8[2*n+0] << 0) | ((uint16_t)u8[2*n+1] << 8)))
 
 //
 // Data header object written to the front of each data buffer
