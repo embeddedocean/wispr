@@ -72,12 +72,16 @@
 // ===== PLL0 (A) Options   (Fpll = (Fclk * PLL_mul) / PLL_div)
 // Use mul and div effective values here.
 //#define CONFIG_PLL0_SOURCE          PLL_SRC_MAINCK_XTAL
-#define CONFIG_PLL0_SOURCE          PLL_SRC_MAINCK_BYPASS
+//#define CONFIG_PLL0_SOURCE  PLL_SRC_MAINCK_BYPASS
+#define CONFIG_PLL0_SOURCE  PLL_SRC_MAINCK_4M_RC
 
 // - System clock: (XTAL=12) * 8 / 1 / (SYSCLK_PRES=2) = 48MHz
-#define CONFIG_PLL0_MUL             8
-#define CONFIG_PLL0_DIV             1
-#define CONFIG_SYSCLK_PRES          SYSCLK_PRES_2
+//#define CONFIG_PLL0_SOURCE  PLL_SRC_MAINCK_BYPASS
+//#define CONFIG_PLL0_MUL     8
+#define CONFIG_PLL0_SOURCE  PLL_SRC_MAINCK_4M_RC
+#define CONFIG_PLL0_MUL     24
+#define CONFIG_PLL0_DIV     1
+#define CONFIG_SYSCLK_PRES  SYSCLK_PRES_2
 
 // - System clock: (XTAL=12) * 10 / 1 / (SYSCLK_PRES=2) = 60MHz
 //#define CONFIG_PLL0_MUL             10

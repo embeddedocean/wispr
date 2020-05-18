@@ -157,8 +157,8 @@ int main (void)
 		psd_nfft = wispr.fft_size;
 		psd_nbins = psd_nfft/2;
 		psd_overlap = wispr.fft_overlap;
-		//spectrum_init_f32(&psd_nbins, psd_nfft, psd_overlap, wispr.sampling_rate, wispr.sample_size, HANN_WINDOW);
-		spectrum_init_q31(&psd_nbins, psd_nfft, psd_overlap, wispr.sample_size, HANN_WINDOW);
+		//spectrum_init_f32(&psd_nbins, psd_nfft, psd_overlap, wispr.sampling_rate, HANN_WINDOW);
+		spectrum_init_q31(&psd_nbins, psd_nfft, psd_overlap, HANN_WINDOW);
 	}
 	
 	// Define the variables that control the window and interval timing.
@@ -208,7 +208,7 @@ int main (void)
 		if( count < adc_blocks_per_window ) {
 	
 			// check for a com message
-			int nrd = com_read_msg (BOARD_COM_PORT, com_buf);
+			int nrd = com_read_msg (BOARD_COM_PORT, com_buf, 0);
 			if( nrd > 0) {
 				com_parse_msg(&com_msg, com_buf, nrd);
 				printf("com message received: %s\r\n", com_buf);

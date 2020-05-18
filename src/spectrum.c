@@ -33,6 +33,8 @@
 #include "wispr.h"
 #include "spectrum.h"
 
+uint8_t verbose = 1; // prints more messages if set
+
 //
 // statically allocated data arrays so avoid runtime allocation
 //
@@ -70,8 +72,8 @@ void spectrum_update_header(wispr_data_header_t *psd, wispr_data_header_t *adc)
 	psd->version[1] = adc->version[1];
 	psd->type = WISPR_SPECTRUM;
 	psd->sample_size = 4;
-	psd->samples_per_block = num_freq_bins;
-	psd->block_size = PSD_MAX_BUFFER_SIZE; // number of bytes in an psd record block
+	psd->samples_per_buffer = num_freq_bins;
+	psd->buffer_size = PSD_BUFFER_SIZE; // number of bytes in an psd buffer
 	psd->sampling_rate = adc->sampling_rate;
 	psd->second = 0; // time gets updated with the adc data time when the spectrum is processed
 	psd->usec = 0;
@@ -136,13 +138,13 @@ int spectrum_init_f32(uint16_t *nbins, uint16_t nfft, uint16_t overlap, uint8_t 
 	// check spectrum size
 	if( *nbins > nfft/2 ) {
 		*nbins = nfft/2;
-		printf("spectrum_init_f32: number of bin truncated to %d\r\n", *nbins);
+		if(verbose) printf("spectrum_init_f32: number of bin truncated to %d\r\n", *nbins);
 	}
 	
 	// check number of bins
 	if(*nbins > PSD_MAX_BINS_PER_BUFFER) {
 		*nbins = PSD_MAX_BINS_PER_BUFFER;
-		printf("spectrum_init_f32: number of bin truncated to %d\r\n", *nbins);
+		if(verbose) printf("spectrum_init_f32: number of bin truncated to %d\r\n", *nbins);
 	}
 	num_freq_bins = *nbins;
 	
@@ -188,7 +190,7 @@ int spectrum_init_f32(uint16_t *nbins, uint16_t nfft, uint16_t overlap, uint8_t 
 	
 	//printf("spectrum_init_f32:  nfft=%d, nbins=%d, overlap=%d, bps=%d, fft_window_power=%f\r\n",
 	//	fft_size, psd_num_freq_bins, fft_overlap, nbps, fft_window_power);
-	printf("spectrum_init_f32: fft_window_power=%f\r\n", fft_window_power);
+	if(verbose) printf("spectrum_init_f32: fft_window_power=%f\r\n", fft_window_power);
 	
 	return(status);
 
@@ -220,8 +222,8 @@ int spectrum_f32(wispr_data_header_t *psd, float32_t *psd_data, wispr_data_heade
 	
 	uint8_t sample_size = adc->sample_size;
 	
-	if(nsamps > adc->samples_per_block) {
-		nsamps = adc->samples_per_block;
+	if(nsamps > adc->samples_per_buffer) {
+		nsamps = adc->samples_per_buffer;
 		printf("spectrum_f32: number of samples truncated to %d\r\n", nsamps);
 	}	
 	
@@ -364,13 +366,13 @@ int spectrum_init_q31(uint16_t *nbins, uint16_t nfft, uint16_t overlap, uint8_t 
 	// check spectrum size
 	if( *nbins > nfft/2 ) {
 		*nbins = nfft/2;
-		printf("spectrum_init_q31: number of bin truncated to %d\r\n", *nbins);
+		if(verbose) printf("spectrum_init_q31: number of bin truncated to %d\r\n", *nbins);
 	}
 	
 	// check number of bins
 	if(*nbins > PSD_MAX_BINS_PER_BUFFER) {
 		*nbins = PSD_MAX_BINS_PER_BUFFER;
-		printf("spectrum_init_q31: number of bin truncated to %d\r\n", *nbins);
+		if(verbose) printf("spectrum_init_q31: number of bin truncated to %d\r\n", *nbins);
 	}
 	num_freq_bins = *nbins;
 	
@@ -441,11 +443,16 @@ int spectrum_q31(wispr_data_header_t *psd, float32_t *psd_data, wispr_data_heade
 	
 	uint8_t *input = adc_data;
 	float32_t *output = psd_data;
+
+	uint8_t sample_size = adc->sample_size;
+	
+	if(nsamps > adc->samples_per_buffer) {
+		nsamps = adc->samples_per_buffer;
+		printf("spectrum_q31: number of samples truncated to %d\r\n", nsamps);
+	}
 	
 	// update the data header
 	spectrum_update_header(psd, adc);
-	
-	uint8_t sample_size = adc->sample_size;
 	
 	// number of spectral estimates in the psd
 	uint16_t skip = nfft - overlap;

@@ -21,7 +21,7 @@
 #define BCD_FACTOR     10
 
 // msec to wait for valid time
-#define RTC_TIMEOUT 2000
+#define RTC_TIMEOUT 3000
 
 uint32_t rtc_init( rtc_time_t *dt )
 {	
@@ -154,8 +154,7 @@ uint32_t rtc_get_datetime( rtc_time_t *dt )
 	dt->minute = (uint8_t)minute;
 	dt->second = (uint8_t)second;
 
-	// check for invalid date or time
-	// check for invalid date or time
+	// check for invalid date and time
 	uint32_t status = rtc_valid_datetime(dt);
 	if( status != RTC_STATUS_OK ) {
 		return(status);
@@ -209,7 +208,7 @@ uint32_t rtc_set_datetime(rtc_time_t *dt )
 	uint32_t minute = (uint32_t)(dt->minute);
 	uint32_t second = (uint32_t)(dt->second);
 
-	// check for invalid date or time 
+	// check for invalid date and time 
 	uint32_t status = rtc_valid_datetime(dt);
 	if( status != RTC_STATUS_OK ) {
 		return(status);		
@@ -218,7 +217,7 @@ uint32_t rtc_set_datetime(rtc_time_t *dt )
 	// set date	
 	uint32_t ul_date = 0;
 
-	/* Cent */
+	/* Century */
 	ul_date |= ((year / BCD_FACTOR / BCD_FACTOR / BCD_FACTOR) <<
 		(RTC_CALR_CENT_Pos + BCD_SHIFT) |
 		((year / BCD_FACTOR / BCD_FACTOR) % BCD_FACTOR) <<  RTC_CALR_CENT_Pos);
@@ -253,8 +252,8 @@ uint32_t rtc_set_datetime(rtc_time_t *dt )
 	p_rtc->RTC_CR &= (~RTC_CR_UPDCAL);
 
 	if(timeout <= 0) {
-		printf("rtc_set_datetime: set date timeout!\r\n");
-		return(0);
+		printf("rtc_set_datetime: timed out\r\n");
+		return(RTC_TIMEOUT_ERR);
 	}
 
 	// set time	
@@ -294,6 +293,7 @@ uint32_t rtc_set_datetime(rtc_time_t *dt )
 
 	if(timeout <= 0) {
 		printf("rtc_set_datetime: set time timeout!\r\n");
+		return(RTC_TIMEOUT_ERR);
 	}
 
 	// return the RTC Valid Entry Register NVTIM: Non-valid Time

@@ -676,10 +676,8 @@ int sd_card_serialize_header(sd_card_t *hdr, uint8_t *buf)
 //
 #include <ff.h>
 FATFS fat_fs;
-//FIL fat_file;
 
-
-FRESULT sd_card_mount_fat(uint8_t card_num)
+FRESULT sd_card_mount(uint8_t card_num)
 {
 	uint8_t state = sd_card_init(card_num);
 	if( !(state & SD_CARD_OK) ) {
@@ -691,7 +689,7 @@ FRESULT sd_card_mount_fat(uint8_t card_num)
 	memset(&fat_fs, 0, sizeof(FATFS));
 	FRESULT res = f_mount(&fat_fs, "0", 1); // force mount
 	if (res != FR_OK) {
-		printf("sd_card_mount_fat: f_mount error %d\r\n", res);
+		printf("sd_card_mount: f_mount error %d\r\n", res);
 		return(res);
 	}
 
@@ -703,7 +701,7 @@ FRESULT sd_card_mount_fat(uint8_t card_num)
 	FATFS *fs = &fat_fs;
 	res = f_getfree("0", &free_clust, &fs);
 	if (res != FR_OK) {
-		printf("sd_card_mount_fat: f_getfree error %d\r\n", res);
+		printf("sd_card_mount: f_getfree error %d\r\n", res);
 		return(res);
 	}
 
@@ -734,11 +732,11 @@ FRESULT sd_card_mount_fat(uint8_t card_num)
 //
 // Formatting takes long so you need to disable the WDT to use it.
 //
-FRESULT sd_card_format_fat(uint8_t card_num)
+FRESULT sd_card_mkfs(uint8_t card_num)
 {
 	uint8_t state = sd_card_init(card_num);
 	if( !(state & SD_CARD_OK) ) {
-		printf("sd_card_mount_fat: card init error %d\n\r", state);
+		printf("sd_card_mkfs: card init error %d\n\r", state);
 		return( FR_NOT_READY );
 	}
 	sd_card_t *card = &sd_card_instance[card_num-1];
@@ -758,7 +756,7 @@ FRESULT sd_card_format_fat(uint8_t card_num)
 	return(res);
 }
 
-FRESULT sd_card_umount_fat(uint8_t card_num)
+FRESULT sd_card_unmount(uint8_t card_num)
 {
 	sd_card_t *card = &sd_card_instance[card_num-1];
 	
@@ -766,7 +764,7 @@ FRESULT sd_card_umount_fat(uint8_t card_num)
 
 	FRESULT res = f_mount(0, "0", 0);
 	if (res != FR_OK) {
-		printf("sd_card_umount_fat: f_mount error %d\r\n", res);
+		printf("sd_card_unmount: f_mount error %d\r\n", res);
 	}
 	
 	if (res == FR_OK) {
@@ -776,7 +774,7 @@ FRESULT sd_card_umount_fat(uint8_t card_num)
 	return(res);
 }
 
-FRESULT sd_card_open_fat(fat_file_t *ff, char *name, unsigned char mode, uint8_t card_num)
+FRESULT sd_card_fopen(fat_file_t *ff, char *name, unsigned char mode, uint8_t card_num)
 {	
 	if( card_num < 1 || card_num > NUMBER_SD_CARDS ) {
 		//printf("Unknown SD number: enable SD Card Failed\n\r");
@@ -794,13 +792,13 @@ FRESULT sd_card_open_fat(fat_file_t *ff, char *name, unsigned char mode, uint8_t
 		ff->state = SD_FILE_OPEN;
 		strncpy(ff->name, name, sizeof(ff->name));
 	} else {
-		printf("sd_card_f_open: f_open error %d with %s\r\n", res, name);
+		printf("sd_card_fopen: f_open error %d with %s\r\n", res, name);
 	}
 	
 	return(res);
 }
 
-FRESULT sd_card_close_fat(fat_file_t *ff)
+FRESULT sd_card_fclose(fat_file_t *ff)
 {
 	if( !(ff->state & SD_FILE_OPEN) ) {
 		return(FR_NOT_READY);
@@ -817,9 +815,9 @@ FRESULT sd_card_close_fat(fat_file_t *ff)
 	return(res);
 }
 
-FRESULT sd_card_set_fat_file_size(fat_file_t *ff, uint32_t size)
+FRESULT sd_card_set_file_size(fat_file_t *ff, uint32_t size)
 {
-	if( size < ADC_MAX_BLOCKS_PER_BUFFER ) {
+	if( size < ADC_BLOCKS_PER_BUFFER ) {
 		return(FR_INVALID_PARAMETER);
 	}
 	
@@ -834,10 +832,10 @@ FRESULT sd_card_set_fat_file_size(fat_file_t *ff, uint32_t size)
 // It's up the user to handle the file full state, such as closing the file and opening a new one
 // because subsequent writes will just overfill the file. 
 //
-FRESULT sd_card_write_fat(fat_file_t *ff, uint8_t *buffer, uint16_t nblocks)
+FRESULT sd_card_fwrite(fat_file_t *ff, uint8_t *buffer, uint16_t nblocks)
 {
 	if( !(ff->state & SD_FILE_OPEN) ) {
-		printf("sd_card_write_fat: file not open\n\r");
+		printf("sd_card_fwrite: file not open\n\r");
 		return(FR_NOT_READY);
 	}
 	
@@ -846,7 +844,7 @@ FRESULT sd_card_write_fat(fat_file_t *ff, uint8_t *buffer, uint16_t nblocks)
 	UINT nbytes = nblocks * SD_MMC_BLOCK_SIZE;
 	FRESULT res = f_write(&ff->file, buffer, nbytes, &nwrt);
 	if( nwrt != nbytes ) {
-		printf("sd_card_write_fat: f_write error %d, %d\r\n", res, nwrt);
+		printf("sd_card_fwrite: f_write error %d, %d\r\n", res, nwrt);
 		return(res);
 	}
 	
@@ -865,7 +863,25 @@ FRESULT sd_card_write_fat(fat_file_t *ff, uint8_t *buffer, uint16_t nblocks)
 }
 
 
-FRESULT sd_card_read_config_fat(char *filename, wispr_config_t *hdr)
+FRESULT sd_card_fread(fat_file_t *ff, uint8_t *buffer, uint16_t nblocks)
+{
+	if( !(ff->state & SD_FILE_OPEN) ) {
+		printf("sd_card_fread: file not open\n\r");
+		return(FR_NOT_READY);
+	}
+	
+	size_t nrd = 0;
+	UINT nbytes = nblocks * SD_MMC_BLOCK_SIZE;
+	FRESULT res = f_read(&ff->file, buffer, nbytes, &nrd);
+	if( nrd != nbytes ) {
+		printf("sd_card_fread: f_read error %d, %d\r\n", res, nrd);
+	}
+		
+	return(res);
+}
+
+
+FRESULT sd_card_fread_config(char *filename, wispr_config_t *hdr)
 {
 	FIL file;
 	FRESULT res;
@@ -874,7 +890,7 @@ FRESULT sd_card_read_config_fat(char *filename, wispr_config_t *hdr)
 		if( res == FR_NO_FILE ) {
 			printf("No configuration file found\r\n", res);
 		} else {
-			printf("sd_card_read_config_fat: f_open failed res %d\r\n", res);
+			printf("sd_card_fread_config: f_open failed res %d\r\n", res);
 		}
 		return(res);
 	}
@@ -901,11 +917,11 @@ FRESULT sd_card_read_config_fat(char *filename, wispr_config_t *hdr)
 		//printf("%s\r\n", buf);
 		sscanf(buf, "%s %d", str, &v1);
 		if(strcmp(str, "mode:") == 0) new.mode = (uint8_t)v1;
-		if(strcmp(str, "samples_per_block:") == 0) new.samples_per_block = (uint16_t)v1;
+		if(strcmp(str, "samples_per_buffer:") == 0) new.samples_per_buffer = (uint16_t)v1;
 		if(strcmp(str, "sample_size:") == 0) new.sample_size = (uint8_t)v1;
-		if(strcmp(str, "block_size:") == 0) new.block_size = (uint16_t)v1;
+		if(strcmp(str, "buffer_size:") == 0) new.buffer_size = (uint16_t)v1;
 		if(strcmp(str, "sampling_rate:") == 0) new.sampling_rate = (uint32_t)v1;
-		if(strcmp(str, "awake_time:") == 0) new.awake_time = (uint16_t)v1;
+		if(strcmp(str, "acquisition_time:") == 0) new.acquisition_time = (uint16_t)v1;
 		if(strcmp(str, "sleep_time:") == 0) new.sleep_time = (uint16_t)v1;
 		if(strcmp(str, "fft_size:") == 0) new.fft_size = (uint16_t)v1;
 		if(strcmp(str, "fft_overlap:") == 0) new.fft_overlap = (uint16_t)v1;
@@ -924,12 +940,12 @@ FRESULT sd_card_read_config_fat(char *filename, wispr_config_t *hdr)
 	
 	res = f_close(&file);
 	if( res != FR_OK ) {
-		printf("sd_card_read_config_fat: f_close failed res %d\r\n", res);
+		printf("sd_card_fread_config: f_close failed res %d\r\n", res);
 	}
 	return(res);
 }
 
-FRESULT sd_card_write_config_fat(char *filename, wispr_config_t *hdr)
+FRESULT sd_card_fwrite_config(char *filename, wispr_config_t *hdr)
 {	
 	FRESULT res;
 	FIL file;
@@ -937,25 +953,25 @@ FRESULT sd_card_write_config_fat(char *filename, wispr_config_t *hdr)
 	//res = f_open(&file, filename, FA_OPEN_ALWAYS | FA_WRITE);
 	res = f_open(&file, filename, FA_CREATE_ALWAYS | FA_WRITE);
 	if( res != FR_OK ) {
-		printf("sd_card_write_config_fat: failed to open %s, res %d\r\n", filename, res);
+		printf("sd_card_write_fconfig: failed to open %s, res %d\r\n", filename, res);
 		return(res);
 	}
 
 	int nwrt = 0;
-	//float buffer_duration =  (float)hdr->samples_per_block / (float)hdr->sampling_rate;
+	//float buffer_duration =  (float)hdr->samples_per_buffer / (float)hdr->sampling_rate;
 
 	nwrt += f_printf(&file, "WISPR %d.%d configuration\r\n", hdr->version[1], hdr->version[0]);
 	nwrt += f_printf(&file, "time: %s\r\n", epoch_time_string(hdr->epoch));
 	//nwrt += f_printf(&file, "epoch time: %lu\r\n", hdr->epoch);
 	//nwrt += f_printf(&file, "state: %02x\r\n", hdr->state);
 	nwrt += f_printf(&file, "mode: %02x\r\n", hdr->mode);
-	nwrt += f_printf(&file, "samples_per_block: %d\r\n", hdr->samples_per_block);
+	nwrt += f_printf(&file, "samples_per_buffer: %d\r\n", hdr->samples_per_buffer);
 	nwrt += f_printf(&file, "sample_size: %d\r\n", (int)hdr->sample_size);
-	nwrt += f_printf(&file, "block_size: %d\r\n", (int)hdr->block_size);
+	nwrt += f_printf(&file, "buffer_size: %d\r\n", (int)hdr->buffer_size);
 	nwrt += f_printf(&file, "sampling_rate: %d\r\n", hdr->sampling_rate);
 	nwrt += f_printf(&file, "gain: %d\r\n", hdr->gain);
 	nwrt += f_printf(&file, "adc_decimation: %d\r\n", hdr->adc_decimation);
-	nwrt += f_printf(&file, "awake_time: %d\r\n", hdr->awake_time);
+	nwrt += f_printf(&file, "acquisition_time: %d\r\n", hdr->acquisition_time);
 	nwrt += f_printf(&file, "sleep_time: %d\r\n", hdr->sleep_time);
 	nwrt += f_printf(&file, "fft_size: %d\r\n", hdr->fft_size);
 	nwrt += f_printf(&file, "fft_overlap: %d\r\n", hdr->fft_overlap);
@@ -965,8 +981,56 @@ FRESULT sd_card_write_config_fat(char *filename, wispr_config_t *hdr)
 
 	res = f_close(&file);
 	if( res != FR_OK ) {
-		printf("sd_card_read_config_fat: f_close failed res %d\r\n", res);
+		printf("sd_card_fread_config: f_close failed res %d\r\n", res);
 	}
 	return(nwrt);
 }
 
+FRESULT sd_card_fwrite_header(char *filename, wispr_config_t *cfg, wispr_data_header_t *hdr)
+{
+	FRESULT res;
+	FIL file;
+
+	printf("\r\nCreating header file %s\r\n", filename);
+	
+	res = f_open(&file, filename, FA_CREATE_ALWAYS | FA_WRITE);
+	if( res != FR_OK ) {
+		printf("Failed to open %s, res %d\r\n", filename, res);
+		return(res);
+	}
+
+	int nwrt = 0;
+	//float buffer_duration =  (float)hdr->samples_per_buffer / (float)hdr->sampling_rate;
+	nwrt += f_printf(&file, "%% WISPR %d.%d HEADER FILE\r\n", cfg->version[1], cfg->version[0]);
+	nwrt += f_printf(&file, "time = '%s';\r\n", epoch_time_string(hdr->second));
+	//sprintf(str, "%f", (float)hdr->second + 0.000001 * (float)hdr->usec );
+	//nwrt += f_printf(&file, "second = %s;\r\n", str); // f_printf doesn't support %f format
+	nwrt += f_printf(&file, "second = %d.%06d;\r\n", hdr->second, hdr->usec); // f_printf doesn't support %f format
+	//nwrt += f_printf(&file, "second = %lu;\r\n", hdr->second );
+	//nwrt += f_printf(&file, "usecond = %lu;\r\n", hdr->usec);
+	nwrt += f_printf(&file, "mode = %d;\r\n", cfg->mode);
+	nwrt += f_printf(&file, "number_buffers = %d;\r\n", cfg->file_size);
+	nwrt += f_printf(&file, "samples_per_buffer = %d;\r\n", hdr->samples_per_buffer);
+	nwrt += f_printf(&file, "sample_size = %d;\r\n", (int)hdr->sample_size);
+	nwrt += f_printf(&file, "buffer_size = %d;\r\n", (int)hdr->buffer_size);
+	nwrt += f_printf(&file, "sampling_rate = %d;\r\n", hdr->sampling_rate);
+	nwrt += f_printf(&file, "gain = %d;\r\n", cfg->gain);
+	nwrt += f_printf(&file, "acquisition_time = %d;\r\n", cfg->acquisition_time);
+	nwrt += f_printf(&file, "sleep_time = %d;\r\n", cfg->sleep_time);
+	nwrt += f_printf(&file, "fft_size = %d;\r\n", cfg->fft_size);
+	nwrt += f_printf(&file, "fft_overlap = %d;\r\n", cfg->fft_overlap);
+	nwrt += f_printf(&file, "fft_window_type = %d;\r\n", cfg->fft_window_type);
+	nwrt += f_printf(&file, "adc_decimation = %d;\r\n", cfg->adc_decimation);
+	//sprintf(str, "%f", ADC_VREF );
+	//nwrt += f_printf(&file, "adc_vref = %s;\r\n", str); // no %f
+	nwrt += f_printf(&file, "adc_vref = %d.%02d;\r\n", (int)ADC_VREF, (int)(ADC_VREF*100) - 100*(int)ADC_VREF ); // no %f
+
+	res = f_close(&file);
+	if( res != FR_OK ) {
+		printf("f_close failed res %d\r\n", res);
+	}
+	
+	//printf(", %d bytes written\r\n", nwrt);
+	
+	return(nwrt);
+}

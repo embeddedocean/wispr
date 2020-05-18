@@ -212,17 +212,18 @@ DRESULT disk_write (BYTE drv, const BYTE* buff, LBA_t sector, UINT count)
 	}
 
 	/* Write the data */
-	/*
-	uint32_t i;
-	for (i = 0; i < count; i++) {
-		//if (ram_2_memory(drv, sector + uc_sector_size * i,
-		if (sd_mmc_ram_2_mem(0, sector + uc_sector_size * i,
-				buff + uc_sector_size * SECTOR_SIZE_DEFAULT * i) !=
-				CTRL_GOOD) {
-			return RES_ERROR;
-		}
-	}
-	*/
+	
+//	uint32_t i;
+//	for (i = 0; i < count; i++) {
+//		//if (ram_2_memory(drv, sector + uc_sector_size * i,
+//		if (sd_mmc_ram_2_mem(0, sector + uc_sector_size * i,
+//				buff + uc_sector_size * SECTOR_SIZE_DEFAULT * i) !=
+//				CTRL_GOOD) {
+//			return RES_ERROR;
+//		}
+//	}
+	
+
 	//cj this should be faster
 	if (SD_MMC_OK != sd_mmc_init_write_blocks(0, sector, count)) {
 		return RES_ERROR;

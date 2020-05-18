@@ -43,6 +43,7 @@ float32_t vref = 5.0;
 
 fat_file_t ffin;
 fat_file_t ffout;
+fat_file_t ffout2;
 uint16_t count;
 
 void read_test_data(void);
@@ -108,7 +109,18 @@ int main (void)
 	sprintf(filename, "test%d.psd", file_count);
 	printf("\r\nEnter output data file [%s]: ", filename);
 	if( console_input(str, 32, 20) > 0) strncpy(filename, str, 32);
+
+	tick1 = ul_ms_ticks;
 	res = sd_card_open_fat(&ffout, filename, FA_CREATE_ALWAYS | FA_WRITE, 1);
+	tick2 = ul_ms_ticks;	
+	printf("sd_card_open_fat: msec %d\r\n", tick2 - tick1);
+
+	sprintf(filename, "out%d.dat", file_count);
+	tick1 = ul_ms_ticks;
+	res = sd_card_open_fat(&ffout2, filename, FA_CREATE_ALWAYS | FA_WRITE, 1);
+	tick2 = ul_ms_ticks;
+	printf("sd_card_open_fat: msec %d\r\n", tick2 - tick1);
+	
 	if( res == FR_OK ) {
 		printf("\r\nOpen new psd file: %s\r\n", filename);
 	} else {
@@ -137,7 +149,7 @@ int main (void)
 		
 		if(use_q31) {
 			spectrum_init_q31(&nbins, nfft, overlap, wintype);
-		}else {
+		} else {
 			spectrum_init_f32(&nbins, nfft, overlap, wintype);
 		}
 		
@@ -145,7 +157,7 @@ int main (void)
 	
 		if(use_q31) {
 			spectrum_q31(&psd_header, psd_data, &adc_header, adc_data, nsamps);			
-		}else {
+		} else {
 			spectrum_f32(&psd_header, psd_data, &adc_header, adc_data, nsamps);		
 		}
 		
@@ -171,7 +183,7 @@ int main (void)
 		
 		if(use_q31) {
 			printf("spectrum_q31_execution_msec = %d;\r\n", msec) ;
-		}else {
+		} else {
 			printf("spectrum_f32_execution_msec = %d;\r\n", msec) ;
 		}
 		
@@ -179,6 +191,14 @@ int main (void)
 		wispr_serialize_data_header(&psd_header, psd_buffer);
 
 		// write the adc buffer - both header and data
+		
+		tick1 = ul_ms_ticks;
+		if( sd_card_write_fat(&ffout2, adc_buffer, ADC_MAX_BLOCKS_PER_BUFFER) != FR_OK ) {
+			printf("Error writing to file: %s\r\n", ffout.name);
+		}
+		tick2 = ul_ms_ticks;
+		printf("sd_card_write_fat: msec %d\r\n", tick2 - tick1);
+
 		uint16_t psd_write_size = PSD_MAX_BLOCKS_PER_BUFFER;
 		if( sd_card_write_fat(&ffout, psd_buffer, psd_write_size) != FR_OK ) {
 			printf("Error writing to file: %s\r\n", ffout.name);
@@ -191,6 +211,11 @@ int main (void)
 
 	sd_card_close_fat(&ffin);
 	sd_card_close_fat(&ffout);
+	
+	tick1 = ul_ms_ticks;
+	sd_card_close_fat(&ffout2);
+	tick2 = ul_ms_ticks;
+	printf("sd_card_close_fat: msec %d\r\n", tick2 - tick1);
 	
 	file_count++;
 	

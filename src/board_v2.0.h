@@ -52,6 +52,7 @@ extern uint32_t board_get_cpu_clock_hz(void);
 extern uint32_t board_get_main_clock_hz(void);
 extern void board_set_clock(enum board_cpu_freq_hz mck);
 extern void board_gpio_init(void);
+extern void board_init_wakeup(void);
 extern uint32_t board_uart_init(int port, uint32_t baud);
 extern uint32_t board_wdt_init(void);
 extern void board_reset_reason(uint8_t *reason, uint8_t *nrst, uint8_t *user);
@@ -135,15 +136,20 @@ extern void board_reset_reason(uint8_t *reason, uint8_t *nrst, uint8_t *user);
 #define PIN_PREAMP_G1 PIN_PB5
 #define PIN_PREAMP_SHDN PIN_PA22
 
-//#define PIN_RTC_INT PIN_PA2
+// PPS pin is shared with the RTC Interrupt pin
+#define PIN_PPS_INT        (PIO_PA2_IDX)
+#define PIN_PPS_FLAGS      (PIO_PERIPH_A | PIO_DEFAULT)
+#define PIN_PPS_MASK       (PIO_PA2)
+#define PIN_PPS_PIO        (PIOA)
+#define PIN_PPS_ID         (ID_PIOA)
 
 #define PIN_RTC_INT        (PIO_PA2_IDX)
 #define PIN_RTC_INT_FLAGS  (PIO_PERIPH_A | PIO_DEFAULT)
+#define PIN_RTC_INT_MASK   (PIO_PA2)
+#define PIN_RTC_INT_PIO    (PIOA)
+#define PIN_RTC_INT_ID     (ID_PIOA)
 
 // LED definitions
-//#define LED1_PIN      PIN_PB10 //PIN_PA7 //PIN_PA22
-//#define LED2_PIN      PIN_PB11 //PIN_PA8 //PIN_PA7
-
 #define LED_ON        true
 #define LED_OFF       !LED_ON
 

@@ -56,13 +56,13 @@ int wispr_parse_data_header(uint8_t *buf, wispr_data_header_t *hdr)
 	hdr->settings[2] = buf[19];
 	hdr->settings[3] = buf[20];
 
-	hdr->block_size  = ((uint16_t)buf[21] << 0);
-	hdr->block_size |= ((uint16_t)buf[22] << 8);
+	hdr->buffer_size  = ((uint16_t)buf[21] << 0);
+	hdr->buffer_size |= ((uint16_t)buf[22] << 8);
 	
 	hdr->sample_size = (uint8_t)buf[23];
 
-	hdr->samples_per_block  = ((uint16_t)buf[24] << 0);
-	hdr->samples_per_block |= ((uint16_t)buf[25] << 8);
+	hdr->samples_per_buffer  = ((uint16_t)buf[24] << 0);
+	hdr->samples_per_buffer |= ((uint16_t)buf[25] << 8);
 
 	hdr->sampling_rate  = ((uint32_t)buf[26] << 0);
 	hdr->sampling_rate |= ((uint32_t)buf[27] << 8);
@@ -104,13 +104,13 @@ int wispr_serialize_data_header(wispr_data_header_t *hdr, uint8_t *buf)
 	buf[19] = (uint8_t)(hdr->settings[2]);
 	buf[20] = (uint8_t)(hdr->settings[3]);
 	
-	buf[21] = (uint8_t)(hdr->block_size >> 0);
-	buf[22] = (uint8_t)(hdr->block_size >> 8);
+	buf[21] = (uint8_t)(hdr->buffer_size >> 0);
+	buf[22] = (uint8_t)(hdr->buffer_size >> 8);
 	
 	buf[23] = (uint8_t)(hdr->sample_size);
 	
-	buf[24] = (uint8_t)(hdr->samples_per_block >> 0);
-	buf[25] = (uint8_t)(hdr->samples_per_block >> 8);
+	buf[24] = (uint8_t)(hdr->samples_per_buffer >> 0);
+	buf[25] = (uint8_t)(hdr->samples_per_buffer >> 8);
 	
 	buf[26] = (uint8_t)(hdr->sampling_rate >> 0);
 	buf[27] = (uint8_t)(hdr->sampling_rate >> 8);
@@ -137,48 +137,48 @@ void wispr_print_data_header(wispr_data_header_t *hdr)
 	fprintf(stdout, "- time: %s\r\n", epoch_time_string(hdr->second));
 	fprintf(stdout, "- type: %d\r\n", hdr->type);
 	fprintf(stdout, "- settings: %d %d %d %d\r\n",hdr->settings[0],hdr->settings[1],hdr->settings[2],hdr->settings[3]);
-	fprintf(stdout, "- bytes per block: %d\r\n", hdr->block_size);
+	fprintf(stdout, "- bytes per buffer: %d\r\n", hdr->buffer_size);
 	fprintf(stdout, "- bytes per sample: %d\r\n", hdr->sample_size);
-	fprintf(stdout, "- samples per block: %d\r\n", hdr->samples_per_block);
+	fprintf(stdout, "- samples per buffer: %d\r\n", hdr->samples_per_buffer);
 	fprintf(stdout, "- sampling rate: %d\r\n", hdr->sampling_rate);
 }
 
 
 void wispr_print_config(wispr_config_t *hdr)
 {
-	float buffer_duration =  (float)hdr->samples_per_block / (float)hdr->sampling_rate;
+	//float buffer_duration =  (float)hdr->samples_per_buffer / (float)hdr->sampling_rate;
 
 	fprintf(stdout, "\r\n");
 	fprintf(stdout, "WISPR %d.%d configuration\r\n", hdr->version[1], hdr->version[0]);
 	//fprintf(stdout, "- epoch         %s\r\n", epoch_time_string(hdr->epoch));
 	//fprintf(stdout, "- mode           \r\n");
-	fprintf(stdout, "- mode             %d", hdr->mode);
+	fprintf(stdout, "- mode              %d ", hdr->mode);
 	switch(hdr->mode) {
 		case WISPR_WAVEFORM:
-		fprintf(stdout, " [DAQ]\r\n");
+		fprintf(stdout, "[DAQ]\r\n");
 		break;
 		case WISPR_SPECTRUM:
-		fprintf(stdout, " [PSD]\r\n");
+		fprintf(stdout, "[PSD]\r\n");
 		break;
 		case (WISPR_WAVEFORM|WISPR_SPECTRUM):
 		fprintf(stdout, "[DAQ+PSD]\r\n");
 		break;
 	}
-	fprintf(stdout, "- sample size:     %d bytes\r\n", (int)hdr->sample_size);
-	//fprintf(stdout, "- block_size:    %d bytes\r\n", (int)hdr->block_size);
-	//fprintf(stdout, "- samples:       %d per buffer\r\n", (int)hdr->samples_per_block);
-	fprintf(stdout, "- buffer size:     %d samples (%d bytes)\r\n", (int)hdr->samples_per_block, (int)hdr->block_size);
-	fprintf(stdout, "- sampling rate:   %d Hz\r\n", (int)hdr->sampling_rate);
-	//fprintf(stdout, "- duration:      %lu msec\n\r", (uint32_t)(1000.0*buffer_duration));
-	fprintf(stdout, "- gain:            %d\r\n", (int)hdr->gain);
-	fprintf(stdout, "- decimation:      %d\r\n", (int)hdr->adc_decimation);
-	fprintf(stdout, "- awake time:      %d sec\r\n", (int)hdr->awake_time);
-	fprintf(stdout, "- sleep time:      %d sec\r\n", (int)hdr->sleep_time);
-	fprintf(stdout, "- fft size:        %d\r\n", (int)hdr->fft_size);
-	fprintf(stdout, "- fft overlap:     %d\r\n", (int)hdr->fft_overlap);
-	fprintf(stdout, "- fft window_type: %d\r\n", (int)hdr->fft_window_type);
-	fprintf(stdout, "- max file_size:   %d blocks\r\n", (int)hdr->file_size);
-	fprintf(stdout, "- active card:     %d\r\n", hdr->active_sd_card);
+	fprintf(stdout, "- sample size:      %d bytes\r\n", (int)hdr->sample_size);
+	//fprintf(stdout, "- buffer_size:     %d bytes\r\n", (int)hdr->buffer_size);
+	//fprintf(stdout, "- samples:        %d per buffer\r\n", (int)hdr->samples_per_buffer);
+	fprintf(stdout, "- buffer size:      %d samples (%d bytes)\r\n", (int)hdr->samples_per_buffer, (int)hdr->buffer_size);
+	fprintf(stdout, "- sampling rate:    %d Hz\r\n", (int)hdr->sampling_rate);
+	//fprintf(stdout, "- duration:       %lu msec\n\r", (uint32_t)(1000.0*buffer_duration));
+	fprintf(stdout, "- gain:             %d\r\n", (int)hdr->gain);
+	fprintf(stdout, "- decimation:       %d\r\n", (int)hdr->adc_decimation);
+	fprintf(stdout, "- acquisition time: %d sec\r\n", (int)hdr->acquisition_time);
+	fprintf(stdout, "- sleep time:       %d sec\r\n", (int)hdr->sleep_time);
+	fprintf(stdout, "- fft size:         %d\r\n", (int)hdr->fft_size);
+	fprintf(stdout, "- fft overlap:      %d\r\n", (int)hdr->fft_overlap);
+	fprintf(stdout, "- fft window_type:  %d\r\n", (int)hdr->fft_window_type);
+	fprintf(stdout, "- max file_size:    %d blocks\r\n", (int)hdr->file_size);
+	fprintf(stdout, "- active card:      %d\r\n", hdr->active_sd_card);
 	fprintf(stdout, "\r\n");
 }
 
@@ -212,11 +212,11 @@ int wispr_parse_config(uint8_t *buf, wispr_config_t *hdr)
 
 	hdr->sample_size = (uint8_t)buf[15];
 
-	hdr->block_size  = ((uint16_t)buf[16]);
-	hdr->block_size |= ((uint16_t)buf[17] << 8);
+	hdr->buffer_size  = ((uint16_t)buf[16]);
+	hdr->buffer_size |= ((uint16_t)buf[17] << 8);
 	
-	hdr->samples_per_block  = ((uint16_t)buf[18]);
-	hdr->samples_per_block |= ((uint16_t)buf[19] << 8);
+	hdr->samples_per_buffer  = ((uint16_t)buf[18]);
+	hdr->samples_per_buffer |= ((uint16_t)buf[19] << 8);
 
 	hdr->sampling_rate  = ((uint32_t)buf[20]);
 	hdr->sampling_rate |= ((uint32_t)buf[21] << 8);
@@ -228,8 +228,8 @@ int wispr_parse_config(uint8_t *buf, wispr_config_t *hdr)
 	hdr->adc_decimation = buf[25];
 	// 6 more unused
 
-	hdr->awake_time  = ((uint16_t)buf[32]);
-	hdr->awake_time |= ((uint16_t)buf[33] << 8);
+	hdr->acquisition_time  = ((uint16_t)buf[32]);
+	hdr->acquisition_time |= ((uint16_t)buf[33] << 8);
 
 	hdr->sleep_time  = ((uint16_t)buf[34]);
 	hdr->sleep_time |= ((uint16_t)buf[35] << 8);
@@ -267,11 +267,11 @@ int wispr_serialize_config(wispr_config_t *hdr, uint8_t *buf)
 	buf[14] = (uint8_t)(hdr->active_sd_card);
 	buf[15] = (uint8_t)(hdr->sample_size);
 	
-	buf[16] = (uint8_t)(hdr->block_size >> 0);
-	buf[17] = (uint8_t)(hdr->block_size >> 8);
+	buf[16] = (uint8_t)(hdr->buffer_size >> 0);
+	buf[17] = (uint8_t)(hdr->buffer_size >> 8);
 	
-	buf[18] = (uint8_t)(hdr->samples_per_block >> 0);
-	buf[19] = (uint8_t)(hdr->samples_per_block >> 8);
+	buf[18] = (uint8_t)(hdr->samples_per_buffer >> 0);
+	buf[19] = (uint8_t)(hdr->samples_per_buffer >> 8);
 	
 	buf[20] = (uint8_t)(hdr->sampling_rate >> 0);
 	buf[21] = (uint8_t)(hdr->sampling_rate >> 8);
@@ -287,8 +287,8 @@ int wispr_serialize_config(wispr_config_t *hdr, uint8_t *buf)
 	buf[30] = (uint8_t)0;  // reserved
 	buf[31] = (uint8_t)0;  // reserved
 
-	buf[32] = (uint8_t)(hdr->awake_time >> 0);
-	buf[33] = (uint8_t)(hdr->awake_time >> 8);
+	buf[32] = (uint8_t)(hdr->acquisition_time >> 0);
+	buf[33] = (uint8_t)(hdr->acquisition_time >> 8);
 	
 	buf[34] = (uint8_t)(hdr->sleep_time >> 0);
 	buf[35] = (uint8_t)(hdr->sleep_time >> 8);
@@ -314,8 +314,8 @@ void wispr_update_data_header(wispr_config_t *wispr, wispr_data_header_t *hdr)
 	hdr->settings[ADC_SETTINGS_INDEX_2] = 0;
 	hdr->settings[ADC_SETTINGS_INDEX_3] = 0;
 	hdr->sample_size = wispr->sample_size; // number of bytes per sample
-	hdr->block_size = wispr->block_size; // number of bytes in an adc record block
-	hdr->samples_per_block = wispr->samples_per_block;  // number of samples in a block
+	hdr->buffer_size = wispr->buffer_size; // number of bytes in an adc record buffer
+	hdr->samples_per_buffer = wispr->samples_per_buffer;  // number of samples in a buffer
 	hdr->sampling_rate = wispr->sampling_rate; // samples per second
 	hdr->second = wispr->epoch; // epoch time stamp
 	hdr->usec = 0;

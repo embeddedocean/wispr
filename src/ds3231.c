@@ -335,8 +335,8 @@ uint32_t ds3231_init(void)
 	 */
 	controlreg.a1ie		= 1;		// alarm 1 enabled
 	controlreg.a2ie		= 0;		// alarm 2 disabled
-	controlreg.intcn	= 1;		// generate interrupt on alarm match
-	controlreg.rs		= 0;		// square wave frequency 1Hz
+	controlreg.intcn	= 0;		// 0 = 1Hz output, 1 = generate interrupt on alarm match
+	controlreg.rs		= 0;		// not used
 	controlreg.conv		= 1;		// force a temperature conversion and clock adjustment
 	controlreg.bbsqw	= 0;		// square wave output enabled (0=disable)
 	controlreg.eoscnot	= 0;		// oscillator enabled (1=disable)
@@ -734,9 +734,9 @@ uint32_t ds3231_set_alarm( ds3231_datetime *dt )
 	 */
 	controlreg.a1ie		= 1;		// alarm 1 enabled
 	controlreg.a2ie		= 0;		// alarm 2 disabled
-	controlreg.intcn	= 1;		// generate interrupt on alarm match
+	controlreg.intcn	= 1;		// 0 = 1Hz ouput, 1 = generate interrupt on alarm match
 	controlreg.rs		= 0;		// square wave frequency 1khz, if unused
-	controlreg.conv		= 1;		// force a temperature conversion and clock adjustment
+	controlreg.conv		= 0;		// force a temperature conversion and clock adjustment
 	controlreg.bbsqw	= 0;		// square wave output disabled
 	controlreg.eoscnot	= 0;		// oscillator enabled (1 = disable)
 		 

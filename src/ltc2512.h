@@ -21,18 +21,11 @@
 #define LTC2512_BYTES_PER_SAMPLE 3
 #define LTC2512_BITS_PER_SAMPLE 24
 
-// If the header size is a multiple of the sample size
+// If the buffer size is a multiple of the sample size
 // then the buffer will be completely filled by the header and data
 // otherwise the buffer will have a few unused bytes at the end   
-//#define LTC2512_HEADER_NBYTES WISPR_DATA_HEADER_SIZE
 
-//#define LTC2512_SPI_BUFFER_NBLOCKS (6)
-//#define LTC2512_SPI_BUFFER_NBYTES (LTC2512_SPI_BUFFER_NBLOCKS * SD_MMC_BLOCK_SIZE)
-
-//#define LTC2512_BUFFER_NBLOCKS ADC_BLOCKS_PER_BUFFER
-//#define LTC2512_BUFFER_NBYTES ADC_BUFFER_SIZE 
-
-#define LTC2512_MAX_SAMPLES ADC_MAX_SAMPLES_PER_BUFFER //ADC_NUM_SAMPLES
+#define LTC2512_MAX_SAMPLES ADC_MAX_SAMPLES_PER_BUFFER
 
 #define LTC2512_DMA_BITS_PER_SAMPLE (32)
 #define LTC2512_DMA_BYTES_PER_SAMPLE (4)
@@ -64,22 +57,21 @@ typedef struct {
 extern uint32_t ltc2512_init(wispr_config_t *wispr, wispr_data_header_t *hdr);
 extern uint32_t ltc2512_config_mclk(uint32_t fs, uint8_t df);
 
-extern void ltc2512_start_conversion(void);
-extern void ltc2512_stop_conversion(void);
+extern uint32_t ltc2512_trigger(void);
+extern void ltc2512_start(void);
+extern void ltc2512_stop(void);
 extern void ltc2512_shutdown(void);
 
-//extern uint16_t ltc2512_read_dma(uint8_t *hdr, uint8_t *data, uint16_t nsamps);
-extern uint16_t ltc2512_read_dma(wispr_data_header_t *hdr, uint8_t *data, uint16_t nsamps);
+extern uint16_t ltc2512_read_dma(wispr_data_header_t *hdr, uint8_t *data);
 extern uint8_t *ltc2512_get_dma_buffer(void);
-
 extern uint16_t ltc2512_init_dma(uint16_t nsamps);
 extern void ltc2512_start_dma(void);
 extern void ltc2512_stop_dma(void);
 
 extern void ltc2512_init_test(wispr_config_t *wispr, uint16_t nsamps, uint32_t freq, float32_t amp, float32_t noise_amp);
 
-extern void ltc2512_get_date(uint8_t *cent, uint8_t *year, uint8_t *month, uint8_t *day, uint8_t *week);
-extern void ltc2512_get_time(uint8_t *hour, uint8_t *minute, uint8_t *second, uint32_t *usec);
+//extern void ltc2512_get_date(uint8_t *cent, uint8_t *year, uint8_t *month, uint8_t *day, uint8_t *week);
+//extern void ltc2512_get_time(uint8_t *hour, uint8_t *minute, uint8_t *second, uint32_t *usec);
 extern void ltc2512_get_datetime(uint8_t *year, uint8_t *month, uint8_t *day, uint8_t *hour, uint8_t *minute, uint8_t *second, uint32_t *usec);
 
 extern int ltc2512_init2(uint32_t *fs, uint32_t df);

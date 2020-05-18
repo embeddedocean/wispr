@@ -9,8 +9,7 @@ clear all;
 name = fullfile(dpath,file);
 
 % read file
-format = 'ieee-le';
-fp = fopen( name, 'r', format );
+fp = fopen( name, 'r', 'ieee-le' );
 
 N = 1; % number of buffer to concatenate
 

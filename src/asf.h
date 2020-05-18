@@ -62,12 +62,6 @@
 // From module: Delay routines
 #include <delay.h>
 
-// From module: FatFS file system
-#include <diskio.h>
-#include <ff.h>
-#include <ffconf.h>
-#include <integer.h>
-
 // From module: GPBR - General Purpose Backup Register
 #include <gpbr.h>
 
@@ -108,6 +102,9 @@
 // From module: RTC - Real Time Clock
 #include <rtc.h>
 
+// From module: RTT - Real Time Timer
+#include <rtt.h>
+
 // From module: SD/MMC Memory Control Access - Enable
 #include <sd_mmc_mem.h>
 
@@ -126,9 +123,6 @@
 
 // From module: Standard serial I/O (stdio) - SAM implementation
 #include <stdio_serial.h>
-
-// From module: Supported ports of FatFS
-#include <diskio.h>
 
 // From module: System Clock Control - SAM4S implementation
 #include <sysclk.h>

@@ -47,6 +47,7 @@
 #include <stdio.h>
 
 #include <asf.h>
+#include "board_v2.0.h"
 #include "console.h"
 
 /** Current MCK in Hz */
@@ -64,7 +65,6 @@ uint32_t board_pll_clock_list[][4] = {
 	{96000000, 15, 1, PMC_MCKR_PRES_CLK_2},  /* MCK = 12000000 * (15+1) / 1 / 2 = 96 MHz */
 	{100000000, 24, 1, PMC_MCKR_PRES_CLK_3}, /* MCK = 12000000 * (24+1) / 1 / 3 = 100 MHz */
 	{120000000, 19, 1, PMC_MCKR_PRES_CLK_2}  /* MCK = 12000000 * (19+1) / 1 / 2 = 120 MHz */
-
 };
 
 char reset_message[96];
@@ -96,7 +96,10 @@ int board_init(void)
 
   // Initialize the user gpio pins
   board_gpio_init();
-  
+
+  // Initialize the 1Hz timer
+  //board_init_timer();
+    
   /* Output header string  */
   fprintf(stdout, "\r\n-- %s --\r\n", BOARD_NAME );
   fprintf(stdout, "-- Compiled: "__DATE__ " "__TIME__ " --\r\n");
@@ -151,8 +154,8 @@ void board_set_clock(enum board_cpu_freq_hz mck)
 	pmc_switch_mck_to_pllack(pll_pre);
 
 	//pll_enable_source(OSC_MAINCK_BYPASS);
-//	pmc_switch_mainck_to_xtal(PMC_OSC_BYPASS, pmc_us_to_moscxtst(BOARD_OSC_STARTUP_US, OSC_SLCK_32K_RC_HZ));
-//	while (!pmc_osc_is_ready_mainck()) {}
+	pmc_switch_mainck_to_xtal(PMC_OSC_BYPASS, pmc_us_to_moscxtst(BOARD_OSC_STARTUP_US, OSC_SLCK_32K_RC_HZ));
+	while (!pmc_osc_is_ready_mainck()) {}
 	
 	// enable PLLA (need to use pll_mul-1)
 //	pmc_enable_pllack(pll_mul, PLL_COUNT, pll_div);
@@ -169,12 +172,61 @@ void board_set_clock(enum board_cpu_freq_hz mck)
 
 }
 
-static void rtc_int_wakeup_handler(uint32_t ul_id, uint32_t ul_mask)
+static void rtc_wakeup_handler(uint32_t ul_id, uint32_t ul_mask)
 {
 	if (ID_PIOA == ul_id && PIO_PA2 == ul_mask) {
-		//printf("RTC Interrupt Handler\r\n" ); 
+		//printf("RTC Interrupt Handler\r\n");
 	}
 }
+
+void board_init_wakeup(void)
+{
+  // setup RTC_INT_PIN used for wakeup on PA2 (WKUP2)
+  ioport_set_pin_dir(PIN_RTC_INT, IOPORT_DIR_INPUT);
+  ioport_set_pin_mode(PIN_RTC_INT, IOPORT_MODE_PULLUP);
+  
+  // Initialize PIO interrupt handler for PA2 (WKUP2) with falling edge or low detection
+  uint32_t attr = (PIO_PULLUP | PIO_DEBOUNCE | PIO_IT_LOW_LEVEL);
+  pio_handler_set(PIN_RTC_INT_PIO, PIN_RTC_INT_ID, PIN_RTC_INT_MASK, attr, rtc_wakeup_handler);
+
+  //pio_handler_set(PIOA, ID_PIOA, PIO_PA2, (PIO_PULLUP | PIO_DEBOUNCE | PIO_IT_LOW_LEVEL), rtc_wakeup_handler);
+ 
+  // Enable PIOA controller IRQs
+  NVIC_DisableIRQ(PIOA_IRQn);
+  NVIC_ClearPendingIRQ(PIOA_IRQn);
+  NVIC_SetPriority(PIOA_IRQn, 0);
+  NVIC_EnableIRQ(PIOA_IRQn);
+
+  // Enable PIOA line interrupts
+  pio_enable_interrupt(PIN_RTC_INT_PIO, PIN_RTC_INT_MASK);
+
+  uint32_t inputs = 0;
+  uint32_t transitions = 0;
+
+  // wakeup input on WKUP2 (PA2) is the external rtc interrupt line
+  inputs |= SUPC_WUIR_WKUPEN2_ENABLE;
+  transitions |= SUPC_WUIR_WKUPT2_LOW; // wakeup on input transition to low
+
+  // wakeup input on WKUP12 (PB2) is the UART1 RX pin
+  inputs |= SUPC_WUIR_WKUPEN12_ENABLE;
+  transitions |= SUPC_WUIR_WKUPT12_LOW; // wakeup on input transition to low
+
+  // wakeup input on WKUP6 (PA9) is the UART0 RX pin
+  inputs |= SUPC_WUIR_WKUPEN6_ENABLE;
+  transitions |= SUPC_WUIR_WKUPT6_LOW; // wakeup on input transition to low
+
+  // wakeup mode - set debounce counter value 
+  uint32_t mode = SUPC->SUPC_WUMR;
+  //mode |= SUPC_WUMR_WKUPDBC_3_SCLK; // WKUPx shall be in its active state for at least 3 SLCK periods
+  mode |= SUPC_WUMR_WKUPDBC_IMMEDIATE; // no debouncing, active state at least on one Slow Clock edge
+  
+  // enable wakeup input on WKUP2 (PA2) with active low
+  // this is the external rtc interrupt line
+  supc_set_wakeup_inputs(SUPC, inputs, transitions);
+  supc_set_wakeup_mode(SUPC, mode);
+
+}
+
 
 void board_gpio_init(void)
 {
@@ -188,7 +240,7 @@ void board_gpio_init(void)
   pio_configure_pin(PIN_SSC_RF, PIN_SSC_RF_FLAGS);
   pio_configure_pin(PIN_SSC_RK, PIN_SSC_RK_FLAGS);
   pio_configure_pin(PIN_SSC_TD, PIN_SSC_TD_FLAGS);
-  pio_configure_pin(PIN_SSC_TF, PIN_SSC_TF_FLAGS);
+//  pio_configure_pin(PIN_SSC_TF, PIN_SSC_TF_FLAGS);
   pio_configure_pin(PIN_SSC_TK, PIN_SSC_TK_FLAGS);
   
   /* Configure HSMCI pins */
@@ -233,22 +285,6 @@ void board_gpio_init(void)
   ioport_set_pin_dir(PIN_PREAMP_G1, IOPORT_DIR_OUTPUT);
   ioport_set_pin_level(PIN_PREAMP_G1, 0);
 
-  // setup RTC_INT_PIN used for wakeup on PA2 (WKUP2)
-  ioport_set_pin_dir(PIN_RTC_INT, IOPORT_DIR_INPUT);
-  ioport_set_pin_mode(PIN_RTC_INT, IOPORT_MODE_PULLUP);
-	
-  // Initialize PIO interrupt handler for PA2 (WKUP2) with falling edge or low detection
-  //pio_handler_set(PIOA, ID_PIOA, PIO_PA2, (PIO_PULLUP | PIO_DEBOUNCE | PIO_IT_LOW_LEVEL), rtc_int_wakeup_handler);
-  pio_handler_set(PIOA, ID_PIOA, PIO_PA2, (PIO_PULLUP | PIO_DEBOUNCE | PIO_IT_FALL_EDGE), rtc_int_wakeup_handler);
-
-  // Enable PIOA controller IRQs
-  NVIC_EnableIRQ((IRQn_Type)ID_PIOA);
-
-  // Enable PIOA line interrupts
-  pio_enable_interrupt(PIOA, PIO_PA2);
-
-  // enable wakeup input on WKUP2 (PA2) with active low  
-  //supc_set_wakeup_inputs(SUPC, SUPC_WUIR_WKUPEN2_ENABLE, SUPC_WUIR_WKUPT2_LOW);
   
 }
 

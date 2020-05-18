@@ -10,15 +10,17 @@ name = fullfile(dpath,file);
 
 vref = 5.0;
 
-% read file
-format = 'ieee-le';
-fp = fopen( name, 'r', format );
+format long;
 
-N = 3; % number of buffer to concatenate
+% read file
+fp = fopen( name, 'r', 'ieee-le' );
+
+N = 20; % number of buffer to concatenate
 
 count = 0;
 go = 1;
 t0 = 0;
+prev_secs = 0;
 while( go )
 
     data = [];
@@ -47,7 +49,24 @@ while( go )
         dt = 1.0 / hdr.sampling_rate;
         t(:,n) = t0 + (1:length(raw)) * dt;
         t0 = t(end,n);
-    
+
+        if(hdr.usec > 1000000) 
+           fprintf('invalid usecs = %f\n', hdr.usec / 1000000 );
+        end
+        
+        secs = hdr.sec + hdr.usec * 0.000001;     
+        duration = hdr.samples_per_block * dt; 
+        delta = (secs - prev_secs);
+        if( delta ~= duration ) 
+        end
+        prev_secs = secs;
+
+        % print time of first record
+        fprintf(' - second = %f\n', secs );
+        fprintf(' - duration  %f sec\n', duration);
+        fprintf(' - timestamp delta %f sec\n', delta);
+        fprintf(' - difference %f sec (%d samps)\n\n', (duration-delta), round((duration-delta)/dt));
+        
     end
     
     if(go == 0) 
@@ -56,13 +75,12 @@ while( go )
     
     %t = (1:length(data)) / hdr.sampling_rate;
 
-    fprintf('time = %d\n', hdr.sec);
-    
     % plot buffers to make sure data is not lost between buffers
-    figure(1); clf;
+    figure(2); clf;
     plot(t, data,'.-');
     ylabel('Volts');
     xlabel('Seconds');
+    grid on;
     
     nfft = 1024;
     %window = rectwin(nfft);
@@ -70,11 +88,11 @@ while( go )
     overlap = 256;
     fs = hdr.sampling_rate;
     [Spec, freq] = my_psd(data(:),fs,window,overlap);
-    figure(2); clf;
-    plot(freq/1000, 10*log10(Spec),'.-');
-    grid on;
-    xlabel('Frequency [kHz]'), 
-    ylabel('Power Spectrum Magnitude (dB)');
+%    figure(3); clf;
+%    plot(freq/1000, 10*log10(Spec),'.-');
+%    grid on;
+%    xlabel('Frequency [kHz]'), 
+%    ylabel('Power Spectrum Magnitude (dB)');
     %axis([0 freq(end) -130 0]);
 
     total_energy = sum(Spec);

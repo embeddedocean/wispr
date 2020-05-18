@@ -51,6 +51,7 @@
           <option id="sam.drivers.tc.appnote" value="Add" config="" content-id="Atmel.ASF" />
           <option id="sam.drivers.twi" value="Add" config="" content-id="Atmel.ASF" />
           <option id="sam.drivers.wdt" value="Add" config="" content-id="Atmel.ASF" />
+          <option id="sam.drivers.rtt" value="Add" config="" content-id="Atmel.ASF" />
           <option id="sam.utils.linker_scripts#atsam4sd32" value="Add" config="" content-id="Atmel.ASF" />
         </options>
         <configurations>
@@ -259,6 +260,8 @@
           <file path="src/Config/conf_access.h" framework="" version="3.47.0" source="common\services\storage\ctrl_access\module_config\conf_access.h" changed="False" content-id="Atmel.ASF" />
           <file path="src/ASF/common/components/memory/sd_mmc/sd_mmc_mem.c" framework="" version="3.47.0" source="common\components\memory\sd_mmc\sd_mmc_mem.c" changed="False" content-id="Atmel.ASF" />
           <file path="src/ASF/common/components/memory/sd_mmc/sd_mmc_mem.h" framework="" version="3.47.0" source="common\components\memory\sd_mmc\sd_mmc_mem.h" changed="False" content-id="Atmel.ASF" />
+          <file path="src/ASF/sam/drivers/rtt/rtt.c" framework="" version="3.47.0" source="sam\drivers\rtt\rtt.c" changed="False" content-id="Atmel.ASF" />
+          <file path="src/ASF/sam/drivers/rtt/rtt.h" framework="" version="3.47.0" source="sam\drivers\rtt\rtt.h" changed="False" content-id="Atmel.ASF" />
         </files>
         <documentation help="http://asf.atmel.com/docs/3.47.0/common.applications.user_application.user_board.sam4s/html/index.html" />
         <offline-documentation help="" />
@@ -276,6 +279,7 @@
       <ToolOptions>
         <InterfaceProperties>
           <SwdClock>2000000</SwdClock>
+          <JtagDbgClock>7500000</JtagDbgClock>
         </InterfaceProperties>
         <InterfaceName>SWD</InterfaceName>
       </ToolOptions>
@@ -285,6 +289,31 @@
     </com_atmel_avrdbg_tool_atmelice>
     <avrtoolinterface>SWD</avrtoolinterface>
     <avrtoolinterfaceclock>2000000</avrtoolinterfaceclock>
+    <com_atmel_avrdbg_tool_simulator>
+      <ToolOptions xmlns="">
+        <InterfaceProperties>
+        </InterfaceProperties>
+        <InterfaceName>
+        </InterfaceName>
+      </ToolOptions>
+      <ToolType xmlns="">com.atmel.avrdbg.tool.simulator</ToolType>
+      <ToolNumber xmlns="">
+      </ToolNumber>
+      <ToolName xmlns="">Simulator</ToolName>
+    </com_atmel_avrdbg_tool_simulator>
+    <custom>
+      <ToolOptions>
+        <InterfaceProperties>
+          <SwdClock>2000000</SwdClock>
+        </InterfaceProperties>
+        <InterfaceName>
+        </InterfaceName>
+      </ToolOptions>
+      <ToolType>custom</ToolType>
+      <ToolNumber>
+      </ToolNumber>
+      <ToolName>Custom Programming Tool</ToolName>
+    </custom>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)' == 'Release' ">
     <ToolchainSettings>
@@ -342,6 +371,7 @@
       <Value>../src/ASF/sam/drivers/gpbr</Value>
       <Value>../src/ASF/common/services/storage/ctrl_access</Value>
       <Value>../src/fatfs</Value>
+      <Value>../src/ASF/sam/drivers/rtt</Value>
     </ListValues>
   </armgcc.compiler.directories.IncludePaths>
   <armgcc.compiler.optimization.level>Optimize for size (-Os)</armgcc.compiler.optimization.level>
@@ -402,6 +432,7 @@
       <Value>../src/ASF/sam/drivers/supc</Value>
       <Value>../src/ASF/sam/drivers/gpbr</Value>
       <Value>../src/ASF/common/services/storage/ctrl_access</Value>
+      <Value>../src/ASF/sam/drivers/rtt</Value>
     </ListValues>
   </armgcc.assembler.general.IncludePaths>
   <armgcc.preprocessingassembler.general.AssemblerFlags>-DARM_MATH_CM4=true -DBOARD=USER_BOARD -Dprintf=iprintf -Dscanf=iscanf -DSD_MMC_ENABLE</armgcc.preprocessingassembler.general.AssemblerFlags>
@@ -444,6 +475,7 @@
       <Value>../src/ASF/sam/drivers/supc</Value>
       <Value>../src/ASF/sam/drivers/gpbr</Value>
       <Value>../src/ASF/common/services/storage/ctrl_access</Value>
+      <Value>../src/ASF/sam/drivers/rtt</Value>
     </ListValues>
   </armgcc.preprocessingassembler.general.IncludePaths>
 </ArmGcc>
@@ -504,6 +536,8 @@
       <Value>../src/ASF/sam/drivers/supc</Value>
       <Value>../src/ASF/sam/drivers/gpbr</Value>
       <Value>../src/ASF/common/services/storage/ctrl_access</Value>
+      <Value>../src/ASF/sam/drivers/rtt</Value>
+      <Value>../src/fatfs</Value>
     </ListValues>
   </armgcc.compiler.directories.IncludePaths>
   <armgcc.compiler.optimization.level>Optimize (-O1)</armgcc.compiler.optimization.level>
@@ -565,6 +599,7 @@
       <Value>../src/ASF/sam/drivers/supc</Value>
       <Value>../src/ASF/sam/drivers/gpbr</Value>
       <Value>../src/ASF/common/services/storage/ctrl_access</Value>
+      <Value>../src/ASF/sam/drivers/rtt</Value>
     </ListValues>
   </armgcc.assembler.general.IncludePaths>
   <armgcc.assembler.debugging.DebugLevel>Default (-g)</armgcc.assembler.debugging.DebugLevel>
@@ -608,6 +643,7 @@
       <Value>../src/ASF/sam/drivers/supc</Value>
       <Value>../src/ASF/sam/drivers/gpbr</Value>
       <Value>../src/ASF/common/services/storage/ctrl_access</Value>
+      <Value>../src/ASF/sam/drivers/rtt</Value>
     </ListValues>
   </armgcc.preprocessingassembler.general.IncludePaths>
   <armgcc.preprocessingassembler.debugging.DebugLevel>Default (-Wa,-g)</armgcc.preprocessingassembler.debugging.DebugLevel>
@@ -653,6 +689,7 @@
     <Folder Include="src\ASF\sam\drivers\rstc\" />
     <Folder Include="src\ASF\sam\drivers\rstc\example1\" />
     <Folder Include="src\ASF\sam\drivers\rtc\" />
+    <Folder Include="src\ASF\sam\drivers\rtt\" />
     <Folder Include="src\ASF\sam\drivers\ssc\" />
     <Folder Include="src\ASF\sam\drivers\supc\" />
     <Folder Include="src\ASF\sam\drivers\tc\" />
@@ -701,7 +738,19 @@
     <Compile Include="src\ASF\common\services\storage\ctrl_access\ctrl_access.c">
       <SubType>compile</SubType>
     </Compile>
-    <Compile Include="src\wispr_main_fat.c">
+    <Compile Include="src\ASF\sam\drivers\rtt\rtt.c">
+      <SubType>compile</SubType>
+    </Compile>
+    <Compile Include="src\wispr_example1.c">
+      <SubType>compile</SubType>
+    </Compile>
+    <None Include="src\ASF\sam\drivers\rtt\rtt.h">
+      <SubType>compile</SubType>
+    </None>
+    <Compile Include="src\pps_timer.c">
+      <SubType>compile</SubType>
+    </Compile>
+    <Compile Include="src\pps_timer.h">
       <SubType>compile</SubType>
     </Compile>
     <None Include="src\ASF\common\services\storage\ctrl_access\ctrl_access.h">

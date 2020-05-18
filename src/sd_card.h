@@ -10,6 +10,7 @@
 //#include "conf_sd_mmc.h"
 #include "wispr.h"
 #include "rtc_time.h"
+#include "ff.h"
 
 #define NUMBER_SD_CARDS 2
 
@@ -98,15 +99,18 @@ extern int sd_card_read_header(sd_card_t *sd_card);
 extern int sd_card_write_config(uint8_t card_num, wispr_config_t *hdr);
 extern int sd_card_read_config(uint8_t card_num, wispr_config_t *hdr);
 
-extern FRESULT sd_card_format_fat(uint8_t card_num);
-extern FRESULT sd_card_mount_fat(uint8_t card_num);
-extern FRESULT sd_card_umount_fat(uint8_t card_num);
-extern FRESULT sd_card_open_fat(fat_file_t *ff, char *name, unsigned char mode, uint8_t card_num);
-extern FRESULT sd_card_close_fat(fat_file_t *ff);
-extern FRESULT sd_card_write_fat(fat_file_t *ff, uint8_t *buffer, uint16_t nblocks);
-extern FRESULT sd_card_write_config_fat(char *filename, wispr_config_t *hdr);
-extern FRESULT sd_card_read_config_fat(char *filename, wispr_config_t *hdr);
-extern FRESULT sd_card_set_fat_file_size(fat_file_t *ff, uint32_t size);
+// functions for sd card with fat file system 
+extern FRESULT sd_card_mkfs(uint8_t card_num);
+extern FRESULT sd_card_mount(uint8_t card_num);
+extern FRESULT sd_card_unmount(uint8_t card_num);
+extern FRESULT sd_card_fopen(fat_file_t *ff, char *name, unsigned char mode, uint8_t card_num);
+extern FRESULT sd_card_fclose(fat_file_t *ff);
+extern FRESULT sd_card_fwrite(fat_file_t *ff, uint8_t *buffer, uint16_t nblocks);
+extern FRESULT sd_card_fread(fat_file_t *ff, uint8_t *buffer, uint16_t nblocks);
+extern FRESULT sd_card_set_file_size(fat_file_t *ff, uint32_t size);
+extern FRESULT sd_card_fwrite_config(char *filename, wispr_config_t *hdr);
+extern FRESULT sd_card_fread_config(char *filename, wispr_config_t *hdr);
+extern FRESULT sd_card_fwrite_header(char *filename, wispr_config_t *cfg, wispr_data_header_t *hdr);
 
 
 #endif

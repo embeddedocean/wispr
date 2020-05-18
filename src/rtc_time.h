@@ -12,14 +12,15 @@
 
 // return values and error flags
 #define RTC_STATUS_OK      0
-#define RTC_REG_ERR        0x01
-#define RTC_INVALID_ARG    0x02
-#define RTC_INVALID_SECOND 0x04
-#define RTC_INVALID_MINUTE 0x08
-#define RTC_INVALID_HOUR   0x10
-#define RTC_INVALID_DAY    0x20
-#define RTC_INVALID_MONTH  0x40
-#define RTC_INVALID_YEAR   0x80
+#define RTC_REG_ERR        0x001
+#define RTC_INVALID_ARG    0x002
+#define RTC_INVALID_SECOND 0x004
+#define RTC_INVALID_MINUTE 0x008
+#define RTC_INVALID_HOUR   0x010
+#define RTC_INVALID_DAY    0x020
+#define RTC_INVALID_MONTH  0x040
+#define RTC_INVALID_YEAR   0x080
+#define RTC_TIMEOUT_ERR	   0x100
 
 typedef struct {
 	uint8_t century;  // always 20

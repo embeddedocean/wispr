@@ -29,33 +29,46 @@
 // to avoid issues with word alignment when casting
 #define WISPR_DATA_HEADER_SIZE (32)
 
+// Fixed values used to define static buffers
+#define ADC_SAMPLE_SIZE (3)
+#define ADC_BLOCKS_PER_BUFFER (36)
+#define ADC_BUFFER_SIZE (ADC_BLOCKS_PER_BUFFER * WISPR_SD_CARD_BLOCK_SIZE)
+
+// if the header is NOT included in adc buffer use this
+#define ADC_MAX_SAMPLES_PER_BUFFER (ADC_BUFFER_SIZE / ADC_SAMPLE_SIZE)
+
+// if the header is included in adc buffer use this
+//#define ADC_SAMPLES_PER_BUFFER ((ADC_BUFFER_SIZE - WISPR_DATA_HEADER_SIZE) / ADC_SAMPLE_SIZE)
+
+// adc default values
 #define ADC_DEFAULT_SAMPLING_RATE (50000)
-
-// ADC max values used to define maximum sized static buffers
-#define ADC_MIN_SAMPLE_SIZE (2)
-#define ADC_MAX_BLOCKS_PER_BUFFER (32)
-#define ADC_MAX_BUFFER_SIZE (ADC_MAX_BLOCKS_PER_BUFFER * WISPR_SD_CARD_BLOCK_SIZE)
-#define ADC_MAX_SAMPLES_PER_BUFFER ((ADC_MAX_BUFFER_SIZE - WISPR_DATA_HEADER_SIZE) / ADC_MIN_SAMPLE_SIZE)
-
+#define ADC_DEFAULT_SAMPLE_SIZE (3)
 #define ADC_DEFAULT_AWAKE 10
 #define ADC_DEFAULT_SLEEP 10
-
 #define ADC_DEFAULT_GAIN 0
 #define ADC_DEFAULT_DECIMATION 4
 
+// dma status flags
 #define ADC_DMA_OVERFLOW 0x01
 #define ADC_DMA_BUFFER_OVERRUN 0x02
+#define ADC_DMA_MISSED_BUFFER 0x04
 
 // adc reference voltage
 #define ADC_VREF 5.0
 #define ADC_SCALING 5.0
 
 // spectrum max values
-// spectrum uses float32_t ffts, so each freq bin is a float32
+#define PSD_FFT_SIZE (1024)
+#define PSD_BLOCKS_PER_BUFFER (4) 
+#define PSD_BUFFER_SIZE (PSD_BLOCKS_PER_BUFFER * WISPR_SD_CARD_BLOCK_SIZE) 
+
 #define PSD_MAX_FFT_SIZE (1024)
-#define PSD_MAX_BLOCKS_PER_BUFFER (4) 
-#define PSD_MAX_BUFFER_SIZE (PSD_MAX_BLOCKS_PER_BUFFER * WISPR_SD_CARD_BLOCK_SIZE) 
-#define PSD_MAX_BINS_PER_BUFFER ((PSD_MAX_BUFFER_SIZE - WISPR_DATA_HEADER_SIZE) / 4)
+
+// if the header is NOT included in psd buffer use this
+#define PSD_MAX_BINS_PER_BUFFER (PSD_BUFFER_SIZE / 4)
+
+// if the header is included in psd buffer use this
+//#define PSD_MAX_BINS_PER_BUFFER ((PSD_BUFFER_SIZE - WISPR_DATA_HEADER_SIZE) / 4)
 
 // States
 #define WISPR_READING_ADC 0x01
@@ -78,7 +91,7 @@
 #define WISPR_FLOAT32 0x20
 
 // Max file size is in units of 512 blocks
-#define WISPR_MAX_FILE_SIZE (ADC_MAX_BLOCKS_PER_BUFFER * 3052)
+#define WISPR_MAX_FILE_SIZE (ADC_BLOCKS_PER_BUFFER * 3052)
 
 // settings array index for different data header types
 #define ADC_SETTINGS_INDEX_GAIN 0
@@ -108,8 +121,8 @@ typedef struct {
 	uint32_t  usec;
 	uint8_t   settings[4];
 	uint8_t   sample_size; // number of bytes per sample
-	uint16_t  block_size; // number of bytes in an adc data block
-	uint16_t  samples_per_block;  // number of samples in a block
+	uint16_t  buffer_size; // number of bytes in an adc data buffer
+	uint16_t  samples_per_buffer;  // number of samples in a buffer
 	uint32_t  sampling_rate; // samples per second
 	uint8_t   channels;  // number of channels
 	uint8_t   header_chksum;
@@ -126,15 +139,15 @@ typedef struct {
 	uint8_t  mode;
 	uint32_t epoch; // linux time in seconds
 	uint8_t  sample_size; // number of bytes per sample
-	uint16_t block_size;  // number of bytes in a block, this can be different than samples_per_block*sample_size
-	uint16_t samples_per_block; // number of samples in a block
+	uint16_t buffer_size;  // number of bytes in a buffer, this can be different than samples_per_buffer*sample_size
+	uint16_t samples_per_buffer; // number of samples in a buffer
 	uint32_t sampling_rate; // samples per second
 	//uint8_t  settings[8]; // various system and adc settings
 	uint8_t  channels;  // number of channels
 	uint8_t  gain;  // preamp gain
 	uint8_t  adc_decimation;  // 4, 8, 13, or 32
-	uint16_t blocks_per_window; // number of adc record blocks in a sampling window
-	uint16_t awake_time; // time in seconds of the adc record block
+	uint16_t buffers_per_window; // number of adc record buffers in a sampling window
+	uint16_t acquisition_time; // time in seconds of the adc sampling window
 	uint16_t sleep_time; // time in seconds between adc records (must be >= window)
 	uint16_t fft_size; // fft size used for spectrum
 	uint16_t fft_overlap; // fft overlap used for spectrum
