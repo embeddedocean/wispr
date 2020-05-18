@@ -1,13 +1,16 @@
 /*
  * wispr_example1.c
  *
- * - Intermittent data acquisition where samples will be acquired continuously for a finite time window 
- *   then the system will go to sleep. The system will wake up and reboot after a specified amount of time 
- *   or wake up by detecting an input on one of the serial ports.
- * - Data logged to exFat formatted SD card
- * - No data header written with the data buffer   
- * - Fixed sample size
- * - Fixed fft size for spectral analysis
+ * - Intermittent data acquisition where adc samples are acquired continuously for a finite time window 
+ *   then the system goes to sleep. The system wakes up and reboots after a specified amount of time 
+ *   or is waken up by detecting an input on one of the serial ports.
+ * - Data is logged to flat binary data files on the 
+ * - exFat formatted SD card. 
+ * - No data headers are written to the binary files.
+ * - Data buffer header info is written to a separate text file (.txt) with the same name as the data files. 
+ * - To optimize memory usage, the sample size and buffer size are fixed.
+ * - The fft size for spectral analysis is also fixed.
+ * - The user is prompted of other data collection parameters when the system is reset by the user.
  *
  * Support and FAQ: visit <a href="http://www.atmel.com/design-support/">Atmel Support</a>
  */
