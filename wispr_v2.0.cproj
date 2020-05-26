@@ -741,6 +741,12 @@
     <Compile Include="src\ASF\sam\drivers\rtt\rtt.c">
       <SubType>compile</SubType>
     </Compile>
+    <Compile Include="src\wispr_config.c">
+      <SubType>compile</SubType>
+    </Compile>
+    <Compile Include="src\wispr_config.h">
+      <SubType>compile</SubType>
+    </Compile>
     <Compile Include="src\wispr_example1.c">
       <SubType>compile</SubType>
     </Compile>

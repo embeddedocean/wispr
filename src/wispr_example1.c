@@ -19,6 +19,7 @@
 #include <stdio.h>
 
 #include "wispr.h"
+#include "wispr_config.h"
 #include "board.h"
 #include "sd_card.h"
 #include "ltc2512.h"
@@ -59,32 +60,31 @@ uint32_t test_sd_card_nblocks = 0;
 
 // local function prototypes
 void go_to_sleep(void);
-uint8_t swap_sd_cards(void);
-void format_sd_cards(void);
-int initialize_sd_cards(void);
-void set_default_config(void);
-void initialize_config(void);
-void prompt_config_menu(int timeout);
+uint8_t swap_sd_cards(wispr_config_t *config);
+int initialize_sd_cards(wispr_config_t *config);
+void initialize_config(wispr_config_t *config);
 void make_filename(char *name, char *prefix, char *suffix);
-void process_spectrum(char *dat_filename, char *psd_filename, uint16_t nbufs);
+void process_spectrum(wispr_config_t *config, char *dat_filename, char *psd_filename, uint16_t nbufs);
+void change_gain(wispr_config_t *config);
 uint32_t initialize_datetime(void);
 uint32_t initialize_datetime_with_gps(void);
-void change_gain(void);
-FRESULT create_data_header_file(char *filename, wispr_config_t *cfg, wispr_data_header_t *hdr);
+
 
 // local variables
-wispr_config_t wispr; // current configuration
-char config_filename[] = "wispr1.txt";
-wispr_com_msg_t com_msg;
-char com_buf[COM_MAX_MESSAGE_SIZE];
 fat_file_t dat_file;
 fat_file_t psd_file;
+wispr_com_msg_t com_msg;
+char com_buf[COM_MAX_MESSAGE_SIZE];
+
+char config_filename[] = "wispr1.txt";
 
 //
 // main
 //
 int main (void)
 {
+	wispr_config_t wispr; // current configuration
+
 	// initialize global variables
 	wispr.active_sd_card = 0; // no active sd card number yet
 	dat_file.state = SD_FILE_CLOSED;
@@ -136,7 +136,7 @@ int main (void)
 	
 	// check all sd cards and configure them if needed
 	// this also sets the active sd card number 
-	FRESULT res = initialize_sd_cards();
+	FRESULT res = initialize_sd_cards(&wispr);
 	if( res != FR_OK) {
 		printf("SD Cards failed to initialize: error %d\n\r", res);
 		return(0);
@@ -150,7 +150,7 @@ int main (void)
 	// skip if reset from backup because there typically will be no user at the console
 	// this means that the configuration can only be changed after a user reset or power up
 	if( reset_type != BOARD_BACKUP_RESET ) {
-		initialize_config();
+		initialize_config(&wispr);
 	}
 
 	// set the fixed configuration values
@@ -173,7 +173,7 @@ int main (void)
 	sd_card_fwrite_config(config_filename, &wispr);
 
 	// save the config because it could have changed
-	wispr_print_config(&wispr);
+	wispr_config_print(&wispr);
 	
 	// setup INA260 power monitor
 	uint32_t volts; // mVolts
@@ -199,7 +199,7 @@ int main (void)
 		sd_card_fclose(&dat_file);
 		sd_card_fclose(&psd_file);
 		// toggle between the available sd cards
-		swap_sd_cards();
+		swap_sd_cards(&wispr);
 	}
 	
 	// open a new data file
@@ -229,7 +229,8 @@ int main (void)
 	
 	// loop over adc read buffers in the sampling window
 	uint16_t count = 0;
-	while ( count < adc_buffers_per_window ) {
+	uint8_t go = 1;
+	while (go) {
 		
 		// check for a com message, no wait timeout 
 		int nrd = com_read_msg (BOARD_COM_PORT, com_buf, 0);
@@ -265,8 +266,10 @@ int main (void)
 			
 		//ina260_read_power(&amps, &volts);
 		//printf("ina260: mA = %lu, mV = %lu\r\n", amps, volts);
+
+		if( count >= adc_buffers_per_window ) break;
 		
-		// sleep between dma buffers, the next dma interrupt will wake from sleep
+		// sleep between buffers, the next interrupt will wake from sleep
 		pmc_sleep(SAM_PM_SMODE_SLEEP_WFI);
 
 	}
@@ -279,13 +282,12 @@ int main (void)
 	sd_card_fwrite_header(hdr_filename, &wispr, &adc_header);
 	
 	ltc2512_stop();
-	ltc2512_stop_dma();
 	
 	// run spectrum analysis on the data just collected
 	if( wispr.mode & WISPR_SPECTRUM ) {
 		char psd_filename[32];
 		sprintf(psd_filename, "%WISPR_%02d%02d%02d_%02d%02d%02d.psd", time.year, time.month,time.day, time.hour, time.minute, time.second);
-		process_spectrum(dat_filename, psd_filename, adc_buffers_per_window);
+		process_spectrum(&wispr, dat_filename, psd_filename, adc_buffers_per_window);
 	}
 	
 	// go to deep sleep 
@@ -330,27 +332,27 @@ int main (void)
 	exit(0);
 }
 
-void process_spectrum(char *dat_filename, char *psd_filename, uint16_t nbufs)
+void process_spectrum(wispr_config_t *config, char *dat_filename, char *psd_filename, uint16_t nbufs)
 {	
 	printf("\r\nProcessing spectrum and creating file %s\r\n", psd_filename);
 	
 	// Initialize spectrum
-	uint16_t nbins = wispr.fft_size / 2;
-	spectrum_init_q31(&nbins, wispr.fft_size, wispr.fft_overlap, wispr.fft_window_type);
+	uint16_t nbins = config->fft_size / 2;
+	spectrum_init_q31(&nbins, config->fft_size, config->fft_overlap, config->fft_window_type);
 	
 	//pdc_buffer_locked = 1;
 	
 	// open the data file
-	if( sd_card_fopen(&dat_file, dat_filename, FA_OPEN_ALWAYS | FA_READ, wispr.active_sd_card) != FR_OK ) {
+	if( sd_card_fopen(&dat_file, dat_filename, FA_OPEN_ALWAYS | FA_READ, config->active_sd_card) != FR_OK ) {
 		printf("Error opening data file: %s\r\n", dat_file.name);
 	}
 
 	// open a new psd file
-	if( sd_card_fopen(&psd_file, psd_filename, FA_OPEN_ALWAYS | FA_WRITE, wispr.active_sd_card) != FR_OK ) {
+	if( sd_card_fopen(&psd_file, psd_filename, FA_OPEN_ALWAYS | FA_WRITE, config->active_sd_card) != FR_OK ) {
 		printf("Error opening data file: %s\r\n", psd_file.name);
 	}
 	
-	uint16_t adc_nsamps = wispr.samples_per_buffer;
+	uint16_t adc_nsamps = config->samples_per_buffer;
 	uint16_t adc_nblocks = ADC_BLOCKS_PER_BUFFER;
 	uint16_t psd_nblocks = PSD_BLOCKS_PER_BUFFER;
 	
@@ -413,17 +415,17 @@ void go_to_sleep(void)
 
 }
 
-uint8_t swap_sd_cards(void)
+uint8_t swap_sd_cards(wispr_config_t *config)
 {	
-	if( wispr.active_sd_card == 1 ) {
+	if( config->active_sd_card == 1 ) {
 		sd_card_unmount(1);
 		sd_card_mount(2);
-		wispr.active_sd_card = 2;
+		config->active_sd_card = 2;
 	}
-	else if( wispr.active_sd_card == 2 ) {
+	else if( config->active_sd_card == 2 ) {
 		sd_card_unmount(2);
 		sd_card_mount(1);
-		wispr.active_sd_card = 1;
+		config->active_sd_card = 1;
 	} else {
 		printf("SD Card Swap Failed\n\r");
 		return(0);
@@ -433,62 +435,29 @@ uint8_t swap_sd_cards(void)
 	if( test_sd_card_nblocks > 0 ) {
 		
 		// grow the card size - used for testing
-		uint32_t nblocks = sd_card_get_number_of_blocks(wispr.active_sd_card);
-		sd_card_set_number_of_blocks(wispr.active_sd_card, nblocks + test_sd_card_nblocks);
+		uint32_t nblocks = sd_card_get_number_of_blocks(config->active_sd_card);
+		sd_card_set_number_of_blocks(config->active_sd_card, nblocks + test_sd_card_nblocks);
 
 		uint32_t epoch = 0;
 		rtc_get_epoch(&epoch);
-		printf("\r\nSwitch to Card %d at %s\r\n", wispr.active_sd_card, epoch_time_string(epoch));
+		printf("\r\nSwitch to Card %d at %s\r\n", config->active_sd_card, epoch_time_string(epoch));
 
-		//sd_card_print_info(wispr.active_sd_card);
+		//sd_card_print_info(config->active_sd_card);
 
 	}
 
 	// update the config time and save it to preserve the active card number
-	rtc_get_epoch(&wispr.epoch);
-	sd_card_fwrite_config(config_filename, &wispr);
+	rtc_get_epoch(&config->epoch);
+	sd_card_fwrite_config(config_filename, config);
 
-	return(wispr.active_sd_card);
+	return(config->active_sd_card);
 }
-
-void set_default_config(void)
-{
-	// set config mod time
-	rtc_get_epoch(&wispr.epoch);
-	
-	wispr.version[1] = WISPR_VERSION;
-	wispr.version[0] = WISPR_SUBVERSION;
-	
-	wispr.buffer_size = ADC_BLOCKS_PER_BUFFER * SD_MMC_BLOCK_SIZE;
-	wispr.sample_size = ADC_SAMPLE_SIZE;
-	wispr.sampling_rate = ADC_DEFAULT_SAMPLING_RATE;
-
-	wispr.acquisition_time = ADC_DEFAULT_AWAKE;
-	wispr.sleep_time = ADC_DEFAULT_SLEEP;
-
-	wispr.samples_per_buffer = (uint32_t)(wispr.buffer_size - WISPR_DATA_HEADER_SIZE) / (uint32_t)wispr.sample_size;
-
-	wispr.gain = ADC_DEFAULT_GAIN; // adc gain
-	wispr.adc_decimation = LTC2512_DF8; // adc df
-
-	wispr.state = 0; //
-	wispr.mode = WISPR_WAVEFORM; //
-
-	wispr.fft_size = 1024;
-	wispr.fft_overlap = 0;
-	wispr.fft_window_type = RECT_WINDOW; 
-	
-	wispr.file_size = WISPR_MAX_FILE_SIZE;  // about 50Mb
-	
-	wispr.active_sd_card = 1;
-}
-
 // 
 // Open each sd card and check the free storage.
 // Stop and return when a card has space, making that card active.
 // Exits with active card mounted and config updated with values from the active card.
 //
-int initialize_sd_cards(void)
+int initialize_sd_cards(wispr_config_t *config)
 {
 	FRESULT res;
 	
@@ -518,12 +487,12 @@ int initialize_sd_cards(void)
 		}
 
 		// read the configuration
-		res = sd_card_fread_config(config_filename, &wispr);
+		res = sd_card_fread_config(config_filename, config);
 		if( res != FR_OK) {
 			if( res == FR_NO_FILE) {
 				// set defaults config and write it 
-				set_default_config();
-				if( sd_card_fwrite_config(config_filename, &wispr) == FR_OK ) {
+				wispr_config_set_default(config);
+				if( sd_card_fwrite_config(config_filename, config) == FR_OK ) {
 					printf("Default configuration set and written to card %d\r\n", n);
 				}
 			} else {			
@@ -532,7 +501,7 @@ int initialize_sd_cards(void)
 		}
 		
 		// use this card and break from loop
-		wispr.active_sd_card = n;
+		config->active_sd_card = n;
 		
 		//printf("initialize_sd_cards: card %d selected\r\n", n);
 		
@@ -542,155 +511,26 @@ int initialize_sd_cards(void)
 	return(res);
 }
 
-void initialize_config(void)
+void initialize_config(wispr_config_t *config)
 {		
-	//uint8_t card_num = wispr.active_sd_card;
+	//uint8_t card_num = config->active_sd_card;
 	// writes config to whatever card that is currently mounted	
 
 	// display the config
-	wispr_print_config(&wispr);
+	wispr_config_print(config);
 			
 	// Prompt to set new configuration
 	while(1) {
 		if( console_prompt_int("Change configuration?", 0, 8) ) {
-			prompt_config_menu(60);
+			wispr_config_menu(config, 60);
 		} else break;	
-		wispr_print_config(&wispr);
+		wispr_config_print(config);
 	}
 	
 	// save the new config and close the card
-	sd_card_fwrite_config(config_filename, &wispr);
+	sd_card_fwrite_config(config_filename, config);
 
 }
-
-void prompt_config_menu(int timeout)
-{	
-	uint32_t u32;
-	uint16_t u16;
-	uint8_t u8;
-	
-	wispr.version[1] = WISPR_VERSION;
-	wispr.version[0] = WISPR_SUBVERSION;
-	
-	wispr.buffer_size = ADC_BLOCKS_PER_BUFFER * SD_MMC_BLOCK_SIZE;
-	wispr.samples_per_buffer = (wispr.buffer_size - WISPR_DATA_HEADER_SIZE) / 3;
-	
-	uint16_t blocks_per_buffer = ADC_BLOCKS_PER_BUFFER;
-	//blocks_per_buffer = console_prompt_uint32("Enter number of blocks (512 bytes) per buffer", blocks_per_buffer, timeout);
-	
-	// commented out for fixed sample size 
-	//u8 = console_prompt_uint8("Enter sample size in bytes", wispr.sample_size, timeout);
-	//if( u8 >= 2 && u8 <= 3 ) wispr.sample_size = u8;
-	wispr.sample_size = ADC_SAMPLE_SIZE;
-	printf("\r\nFixed sample size: %d bytes\r\n", wispr.sample_size);
-
-	u32 = console_prompt_uint32("Enter sampling rate in Hz", wispr.sampling_rate, timeout);
-	if( u32 > 0 && u32 <= 350000 ) wispr.sampling_rate = u32;
-
-	u8 = wispr.gain;
-	u8 = console_prompt_uint8("Enter preamp gain setting (0 to 4)", u8, timeout);
-	if( u8 >= 0 && u8 <= 4 ) wispr.gain = u8;
-
-	u8 = wispr.adc_decimation;
-	u8 = console_prompt_uint8("Enter adc decimation factor (4, 8, 16, or 32)", u8, timeout);
-	if( u8 == 4 || u8 == 8 || u8 == 16 || u8 == 32) wispr.adc_decimation = u8;
-
-	// prompt for sampling interval
-	u16 = wispr.acquisition_time;
-	u16 = console_prompt_uint16("Enter sampling time window in seconds", wispr.acquisition_time, timeout);
-	if( u16 >= 1 ) wispr.acquisition_time = u16;
-	u16 = console_prompt_uint16("Enter sleep time between sampling windows in seconds", wispr.sleep_time, timeout);
-	if( u16 >= 0 ) wispr.sleep_time = u16;
-	
-	// update variables based on new input
-	wispr.buffer_size = (uint16_t)(blocks_per_buffer * SD_MMC_BLOCK_SIZE);
-	wispr.samples_per_buffer = (wispr.buffer_size - WISPR_DATA_HEADER_SIZE) / (uint16_t)wispr.sample_size;
-	float adc_buffer_duration =  (float)wispr.samples_per_buffer / (float)wispr.sampling_rate; // seconds
-	wispr.buffers_per_window = (uint16_t)( (float)wispr.acquisition_time / adc_buffer_duration ); // truncated number of buffers
-	
-	wispr.state = WISPR_READY;
-	uint8_t mode = 0;
-
-	// prompt file file
-	//u32 = wispr.file_size;
-	//u32 = console_prompt_int("Enter max size of data file in blocks", u32, timeout);
-	//wispr.file_size = u32;
-	wispr.file_size = wispr.buffers_per_window;
-	
-	// prompt to record waveform data
-	int record_waveform = 0;
-	if(wispr.mode & WISPR_WAVEFORM) record_waveform = 1;	
-	if( console_prompt_int("Record_waveform?", record_waveform, timeout) ) {
-		mode |= WISPR_WAVEFORM;
-	}
-
-	// prompt for spectrum parameters
-	int record_spectrum = 0;
-	if(wispr.mode & WISPR_SPECTRUM) record_spectrum = 1;
-	if( console_prompt_int("Record spectrum?", record_spectrum, timeout) ) {
-	
-		//u16 = wispr.fft_size;
-		//u16 = console_prompt_uint16("Enter fft size (32, 64, 126, 512 or 1024)", u16, timeout);
-		//wispr.fft_size = u16;
-		wispr.fft_size = PSD_FFT_SIZE;
-		printf("\r\nFixed fft size: %d\r\n", wispr.fft_size);
-	
-		u16 = wispr.fft_overlap;
-		u16 = console_prompt_uint16("Enter fft overlap size", u16, timeout);	
-		wispr.fft_overlap = u16;
-
-		u8 = wispr.fft_window_type;
-		u8 = console_prompt_uint8("Enter fft window type (0=Rect, 1=Hamming)", u8, timeout);
-		wispr.fft_window_type = u8;
-	
-		mode |= WISPR_SPECTRUM;
-	} 	
-	
-	//psd_nfft = wispr.fft_size;
-	//psd_nbins = wispr.fft_size / 2;
-	//psd_overlap = wispr.fft_overlap;
-
-	// set the new mode
-	wispr.mode = mode;
-	
-	// prompt to  reset the time
-	if( console_prompt_int("Enter new time?", 0, timeout) ) {
-		int go = 1;
-		rtc_time_t dt;
-		ds3231_get_datetime(&dt);  // get current time
-		while(go) {
-			dt.year = console_prompt_uint8("Enter year in century (0 to 99)", dt.year, timeout);
-			dt.month = console_prompt_uint8("Enter month (1 to 12)", dt.month, timeout);
-			dt.day = console_prompt_uint8("Enter day (1 to 31)", dt.day, timeout);
-			dt.hour = console_prompt_uint8("Enter hour (0 to 23)", dt.hour, timeout);
-			dt.minute = console_prompt_uint8("Enter minute (0 to 59)", dt.minute, timeout);
-			dt.second = console_prompt_uint8("Enter second (0 to 59)", dt.second, timeout);
-			// set the internal RTC 
-			uint32_t status = rtc_init(&dt);
-			if( status != RTC_STATUS_OK ) {
-				printf("Failed to initialize RTC with new time\r\n");
-				rtc_print_error(status);
-				continue;
-			}
-			// set the external RTC
-			status = ds3231_set_datetime(&dt);
-			if( status != RTC_STATUS_OK) {
-				printf("Failed to initialize DS3231 with new time\r\n");
-				rtc_print_error(status);
-				continue;
-			}
-			break;
-		}
-		ds3231_get_datetime(&dt);  // read back time
-		printf("\r\nExternal RTC set to %02d/%02d/%02d %02d:%02d:%02d\r\n",
-			dt.year, dt.month, dt.day, dt.hour, dt.minute, dt.second);
-	}
-	
-	// set config mod time
-	rtc_get_epoch(&wispr.epoch);
-	
-}
-
 
 uint32_t initialize_datetime(void)
 {
@@ -716,86 +556,36 @@ uint32_t initialize_datetime(void)
 	return(status);
 }
 
+
 uint32_t initialize_datetime_with_gps(void)
 {
 	uint32_t status;
-	uint16_t timeout=1000; // wait for COM0 input
+	uint16_t timeout=10000; //10 sec wait for COM0 input
 	rtc_time_t dt;
 	
-	//Set RTC time by GPS epoch sec received at COM0. Gain is also changed. HM
-	printf("Requesting GPS message to set DS3231 & RTC.\r\n");
-	com_msg.lat = 0.0; com_msg.lon = 0.0;
-	//Sends $GPS* que to MPC as a request for GPS time and Location
-	com_write_msg(BOARD_COM_PORT, "GPS");
-	//reply $GPS,1588589815,-35.000000,19.000000*
-	if( ds3231_init() != STATUS_OK ) {
-		printf("Error initializing DS3231 RTC\r\n");
-	}
-		
-	int nrd = com_read_msg (BOARD_COM_PORT, com_buf, timeout);
-		
-	if(nrd > 0) {
-		
-		com_parse_msg(&com_msg, com_buf, nrd);
-		epoch_to_rtc_time(&dt, com_msg.sec); //Convert epoch time to RTC datetime format
-		//ds3231_epoch_to_datetime(&dt, com_msg.sec); //HM year is wrong. Use epoch_rtc_time()
-		// set DS3231 RTC using epoch time received from GPS
-		status = ds3231_set_datetime(&dt);
-		status = rtc_init(&dt);
-		printf("\r\nResetting DS3231 and built-in RTC successful\n\r");
-		printf("lat=%f, lon=%f\n\r", com_msg.lat, com_msg.lon); //debug Remove this
-		//status = ds3231_get_datetime(&dt);  // read back time
-		status = rtc_get_datetime(&dt);
-		//printf("DS3231 RTC set to %02d/%02d/%02d %02d:%02d:%02d\r\n", dt.year, dt.month, dt.day, dt.hour, dt.minute, dt.second);
-		printf("RTC time %02d/%02d/%02d %02d:%02d:%02d\r\n", dt.year, dt.month, dt.day, dt.hour, dt.minute, dt.second);
-			
-	} else {//NO GPS time available. Sync RTC by DS3231,
+	// request a gps message
+	int nrd = com_request_gps(&com_msg, timeout);
 	
+	// if a gps message os received use it to set the time
+	if(nrd > 0) {
+		//Convert epoch time to RTC datetime format
+		epoch_to_rtc_time(&dt, com_msg.sec);
+		} else { // else NO GPS time available. Sync RTC by DS3231,
 		printf("No GPS message received from COM0. Sync int RTC by DS3231\n\r");
-			
-		// read and display the ds3231 time
+		// read ds3231 time
 		ds3231_get_datetime(&dt);
-		//printf("\r\n");
-		//printf("External RTC time is %02d/%02d/%02d %02d:%02d:%02d\r\n",
-		//	dt.year, dt.month, dt.day, dt.hour, dt.minute, dt.second);
-			
-		// Initialize the internal RTC using ds3231 RTC time
-		status = rtc_init(&dt);
-		while ( status != RTC_STATUS_OK ) {
-			printf("Waiting for RTC, status %d\r\n", status);
-			status = rtc_init(&dt);
-		}
-		printf("\r\nRTC set to  %02d/%02d/%02d %02d:%02d:%02d\r\n",
-			dt.year, dt.month, dt.day, dt.hour, dt.minute, dt.second);
-		printf("\r\n");
 	}
+	
+	// Initialize the internal RTC using ds3231 RTC time
+	status = rtc_init(&dt);
+	while ( status != RTC_STATUS_OK ) {
+		printf("Waiting for RTC, status %d\r\n", status);
+		status = rtc_init(&dt);
+	}
+	printf("RTC set to %02d/%02d/%02d %02d:%02d:%02d\r\n",
+	dt.year, dt.month, dt.day, dt.hour, dt.minute, dt.second);
+	printf("\r\n");
+	
 	return(status);
 }
-
-void change_gain(void)
-{
-	uint16_t timeout=10000; //10 sec wait for COM0 input
-	uint8_t new_gain;
-	
-	//HM added to check if a gain change is requested
-	com_write_msg(BOARD_COM_PORT, "NGN");
-	printf("Type at com0 $NGN,1*\r\n");//HM For debug. Remove this
-	int nrd = com_read_msg (BOARD_COM_PORT, com_buf, timeout);
-
-	new_gain = ADC_DEFAULT_GAIN;
-			
-	if(nrd > 0) {
-		com_parse_msg(&com_msg, com_buf, nrd);
-		//printf("%d\n\r",com_msg.gain);//  HM debug
-		//printf("new gain = %d\n\r", com_msg.gain);//HM debug
-		if((com_msg.gain <4) && (com_msg.gain >= 0)) {
-			new_gain=com_msg.gain;//HM Gain update is ready. config.settings[0] will be updated in initialize_config()
-		}
-	}
-
-	// set the global config with the new gain 
-	wispr.gain = new_gain;
-
-}
-
 

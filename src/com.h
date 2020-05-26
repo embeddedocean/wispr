@@ -17,13 +17,14 @@
 #define COM_PAUSE 3
 #define COM_RESET 4
 #define COM_SLEEP 5
-#define COM_GPS 6
-#define COM_TIME 7
-#define COM_GAIN 8
-#define COM_STATUS 9
-#define COM_SDF 10
+#define COM_STATUS 6
+#define COM_SET 7
+#define COM_GPS 8
+#define COM_TIME 9
+#define COM_GAIN 10
+#define COM_SDF 11
 
-// this contains all information sent in all the message types
+// this contains the application specific message information
 typedef struct {
 	uint32_t sec; // msg time
 	int type;
@@ -40,6 +41,8 @@ extern void com_stop(int port);
 extern int com_read_msg(int port, char *buf, int timeout);
 extern int com_write_msg(int port, char *buf);
 extern int com_parse_msg(wispr_com_msg_t *msg, char *buf, int len);
+extern int com_request_gps(wispr_com_msg_t *msg, uint16_t timeout);
+extern int com_request_gain(wispr_com_msg_t *msg, uint16_t timeout);
 
 //extern int com_send_dtx(wispr_com_t *com, int max_ndtx);
 //extern void com_reset_msg(wispr_com_t *com);

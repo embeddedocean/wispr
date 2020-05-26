@@ -170,11 +170,17 @@ int com_parse_msg (wispr_com_msg_t *msg, char *buf, int len)
   if (strncmp (buf, "PAU", 3) == 0) {  // Pause command
     msg->type = COM_PAUSE;
   }
-  if (strncmp (buf, "RES", 3) == 0) {  // Reset command
+  if (strncmp (buf, "RST", 3) == 0) {  // Reset command
     msg->type = COM_RESET;
   }
   if (strncmp (buf, "SLP", 3) == 0) {  // Sleep command
     msg->type = COM_SLEEP;
+  }
+  if (strncmp (buf, "STA", 3) == 0) { // Status command
+	  msg->type = COM_STATUS;
+  }
+  if (strncmp (buf, "SET", 3) == 0) { // Set command
+	  msg->type = COM_SET;
   }
 
   // GPS message
@@ -187,10 +193,6 @@ int com_parse_msg (wispr_com_msg_t *msg, char *buf, int len)
     }
   }
 
-  if (strncmp (buf, "STA", 3) == 0) {
-    msg->type = COM_STATUS;
-  }
-  
   // set time
   if (strncmp (buf, "TME", 3) == 0) { 
      msg->type = COM_TIME;
@@ -217,4 +219,56 @@ int com_parse_msg (wispr_com_msg_t *msg, char *buf, int len)
   return (msg->type);
 }
 
+
+int com_request_gps(wispr_com_msg_t *msg, uint16_t timeout)
+{
+	char buf[COM_MAX_MESSAGE_SIZE]; 
+	
+	//Set RTC time by GPS epoch sec received at COM0. Gain is also changed. HM
+	printf("Requesting GPS message to set DS3231 & RTC.\r\n");
+	msg->lat = 0.0; 
+	msg->lon = 0.0;
+	
+	//Sends $GPS* que to MPC as a request for GPS time and Location
+	com_write_msg(BOARD_COM_PORT, "GPS");
+	
+	int nrd = com_read_msg (BOARD_COM_PORT, buf, timeout);
+	
+	if(nrd > 0) {
+		com_parse_msg(msg, buf, nrd);
+		printf("lat=%f, lon=%f\n\r", msg->lat, msg->lon); //debug Remove this
+	}
+	
+	return(nrd);
+}
+
+int com_request_gain(wispr_com_msg_t *msg, uint16_t timeout)
+{
+	uint8_t new_gain;
+	char buf[COM_MAX_MESSAGE_SIZE];
+	
+	//HM added to check if a gain change is requested
+	com_write_msg(BOARD_COM_PORT, "NGN");
+
+	printf("Type at com0 $NGN,1*\r\n");//HM For debug. Remove this
+
+	int nrd = com_read_msg (BOARD_COM_PORT, buf, timeout);
+
+	new_gain = ADC_DEFAULT_GAIN;
+	
+	if(nrd > 0) {
+		com_parse_msg(msg, buf, nrd);
+		//printf("%d\n\r",com_msg.gain);//  HM debug
+		//printf("new gain = %d\n\r", com_msg.gain);//HM debug
+		if((msg->gain < 4) && (msg->gain >= 0)) {
+			new_gain = msg->gain;//HM Gain update is ready. config.settings[0] will be updated in initialize_config()
+		}
+	}
+
+	// set the global config with the new gain
+	msg->gain = new_gain;
+	
+	return(nrd);
+
+}
 
