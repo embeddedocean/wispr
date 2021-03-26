@@ -88,11 +88,11 @@ while( go )
     overlap = 256;
     fs = hdr.sampling_rate;
     [Spec, freq] = my_psd(data(:),fs,window,overlap);
-%    figure(3); clf;
-%    plot(freq/1000, 10*log10(Spec),'.-');
-%    grid on;
-%    xlabel('Frequency [kHz]'), 
-%    ylabel('Power Spectrum Magnitude (dB)');
+    figure(3); clf;
+    plot(freq/1000, 10*log10(Spec),'.-');
+    grid on;
+    xlabel('Frequency [kHz]'), 
+    ylabel('Power Spectrum Magnitude (dB)');
     %axis([0 freq(end) -130 0]);
 
     total_energy = sum(Spec);

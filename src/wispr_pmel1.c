@@ -1,5 +1,5 @@
 /*
- * wispr_example1.c
+ * wispr_pmel1.c
  *
  * - Intermittent data acquisition where adc samples are acquired continuously for a finite time window 
  *   then the system goes to sleep. The system wakes up and reboots after a specified amount of time 
@@ -31,7 +31,6 @@
 #include "pcf2129.h"
 #include "ina260.h"
 #include "pcf8574.h"
-#include "com.h"
 #include "pps_timer.h"
 
 #include "spectrum.h"
@@ -39,6 +38,8 @@
 #include "arm_const_structs.h"
 
 #include "ff.h"
+
+#include "pmel_com.h"
 
 // Allocate fixed size buffers
 // Using the COMPILER_WORD_ALIGNED macro will avoid any memory alignment problem,
@@ -165,18 +166,18 @@ int main (void)
 	// set the fixed configuration values
 	wispr.sample_size = ADC_SAMPLE_SIZE;
 	wispr.samples_per_buffer = ADC_MAX_SAMPLES_PER_BUFFER;
-	wispr.fft_size = PSD_MAX_FFT_SIZE;
+	wispr.fft_size = PSD_DEFAULT_FFT_SIZE;
 
 	// Define the variables that control the window and interval timing.
 	uint16_t samples_per_adc_buffer = wispr.samples_per_buffer;
 	float adc_buffer_duration =  (float)wispr.samples_per_buffer / (float)wispr.sampling_rate; // seconds
-	uint16_t adc_buffers_per_window = (uint16_t)( (float)wispr.acquisition_time / adc_buffer_duration ); 
+	uint16_t adc_buffers_per_file = (uint16_t)( (float)wispr.acquisition_time / adc_buffer_duration ); 
 	// since the adc buffer duration is defined by a fixed number of blocks
 	// the actual sampling window may be different than the requested
-	float actual_sampling_time = (float)adc_buffers_per_window * adc_buffer_duration;
+	float actual_sampling_time = (float)adc_buffers_per_file * adc_buffer_duration;
 
-	wispr.buffers_per_window = adc_buffers_per_window;
-	wispr.file_size = adc_buffers_per_window;
+	wispr.buffers_per_window = adc_buffers_per_file;
+	wispr.file_size = adc_buffers_per_file;
 
 	// save the updated config
 	sd_card_fwrite_config(config_filename, &wispr);
@@ -225,6 +226,25 @@ int main (void)
 		printf("Creating new data file: %s\r\n", dat_filename);
 	}
 	
+	// run spectrum analysis on the data just collected
+	uint16_t psd_nblocks = 0;
+	if( wispr.mode & WISPR_SPECTRUM ) {
+		
+		char psd_filename[32];
+		sprintf(psd_filename, "%WISPR_%02d%02d%02d_%02d%02d%02d.psd", time.year, time.month,time.day, time.hour, time.minute, time.second);
+		// open a new psd file
+		if( sd_card_fopen(&psd_file, psd_filename, FA_OPEN_ALWAYS | FA_WRITE, wispr.active_sd_card) != FR_OK ) {
+			printf("Error opening data file: %s\r\n", psd_file.name);
+		}
+		printf("Creating new psd file: %s\r\n", psd_filename);
+
+		// Initialize spectrum
+		uint16_t nbins = wispr.fft_size / 2;
+		psd_nblocks = nbins * PSD_SAMPLE_SIZE / WISPR_SD_CARD_BLOCK_SIZE;
+		spectrum_init_q31(&nbins, wispr.fft_size, wispr.fft_overlap, wispr.fft_window_type);
+
+	}
+
 	// turn on power to adc board
 	ioport_set_pin_level(PIN_ENABLE_5V5, 1); 
 
@@ -232,6 +252,16 @@ int main (void)
 	
 	// initialize the adc with the current config
 	ltc2512_init(&wispr, &adc_header);
+	
+	// write the ascii pmel data file header to the new file, using the adc buffer as a temporary buffer
+	// so the first block of the data file will be ascii header information
+	// this call is after the adc initialization because the exact sampling rate is defined in the adc init function
+	memset(adc_buffer, 0, 512); // zero out the first block so it can be used to buffer the file header
+	int hdr_size = pmel_file_header((char *)adc_buffer, &wispr, &adc_header);
+	if( sd_card_fwrite(&dat_file, adc_buffer, 1) != FR_OK ) {
+		printf("Error writing to file: %s\r\n", dat_file.name);
+	}
+	//printf("File Header size %d bytes\r\n", hdr_size);
 	
 	// start adc - this starts the receiver and conversion clock, but doesn't trigger the adc
 	ltc2512_start();
@@ -242,14 +272,15 @@ int main (void)
 	start_sec = pps_timer_sync( ltc2512_trigger );
 	//start_sec = ltc2512_trigger();
 
-	// loop over adc read buffers in the sampling window
+	// loop over adc read buffers
 	uint16_t count = 0;
-	while ( count < adc_buffers_per_window ) {
+	while ( count < adc_buffers_per_file ) {
 		
 		// check for a com message, no wait timeout 
 		int nrd = com_read_msg (BOARD_COM_PORT, com_buf, 0);
+		
 		if( nrd > 0) {
-			com_parse_msg(&com_msg, com_buf, nrd);
+			pmel_parse_msg(&wispr, com_buf, nrd);
 			printf("com message received: %s\r\n", com_buf);
 		}
 		
@@ -262,26 +293,45 @@ int main (void)
 			// reset the wdt every time a buffer is read
 			wdt_restart(WDT);
 			
-			// serialize the buffer header - write the latest adc header onto the front of the buffer
-			//wispr_serialize_data_header(&adc_header, adc_buffer);
+			// debug gpio 
+			ioport_set_pin_level(PIN_PB10, 1);
+
+			//write the waveform to the active sd card
+			if( wispr.mode & WISPR_WAVEFORM ) {
 			
-			// write the adc buffer - both header and data
-			//ioport_set_pin_level(PIN_PB10, 1);
-			if( sd_card_fwrite(&dat_file, adc_buffer, adc_write_size) != FR_OK ) {
-				printf("Error writing to file: %s\r\n", dat_file.name);
+				if( sd_card_fwrite(&dat_file, adc_buffer, adc_write_size) != FR_OK ) {
+					printf("Error writing to file: %s\r\n", dat_file.name);
+				}
+			
 			}
-			//ioport_set_pin_level(PIN_PB10, 0);
 			
 			//printf("usec = %d, delta = %d\r\n", adc_header.usec, adc_header.usec-prev_usec);
 			//prev_usec = adc_header.usec;
 			
+			if( wispr.mode & WISPR_SPECTRUM ) {
+		
+				// call spectrum function
+				spectrum_q31(&psd_header, psd_buffer, &adc_header, adc_buffer, nsamps);
+				//spectrum_f32(&psd_header, psd_buffer, &adc_header, adc_buffer, adc_nsamps);
+		
+				// serialize the buffer header - write the latest header onto the front of the buffer
+				//wispr_serialize_data_header(&psd_header, psd_buffer);
+		
+				// write the psd buffer, which contains both header and data
+				if( sd_card_fwrite(&psd_file, psd_buffer, psd_nblocks) != FR_OK ) {
+					printf("Error writing to file: %s\r\n", psd_file.name);
+				}
+			}
+			
+			ioport_set_pin_level(PIN_PB10, 0);
+
 			// increment buffer count
 			count++;
-			
+
 		}
 			
 		// sleep between buffers, the next interrupt will wake from sleep
-		if( count < adc_buffers_per_window ) {
+		if( count < adc_buffers_per_file ) {
 			//pmc_enable_sleepmode(SAM_PM_SMODE_SLEEP_WFI);
 			pmc_sleep(SAM_PM_SMODE_SLEEP_WFI); // wait for interrupt
 		}
@@ -296,13 +346,8 @@ int main (void)
 	
 	// make sure to close the data file, otherwise it may be lost
 	sd_card_fclose(&dat_file);
-	
-	// run spectrum analysis on the data just collected
-	if( wispr.mode & WISPR_SPECTRUM ) {
-		char psd_filename[32];
-		sprintf(psd_filename, "%WISPR_%02d%02d%02d_%02d%02d%02d.psd", time.year, time.month,time.day, time.hour, time.minute, time.second);
-		process_spectrum(&wispr, dat_filename, psd_filename, adc_buffers_per_window);
-	}
+
+	sd_card_fclose(&psd_file);
 	
 	// create a header file with the logging parameters and start time
 	adc_header.second = start_sec; // adc trigger start time
@@ -350,6 +395,7 @@ int main (void)
 	exit(0);
 }
 
+
 void process_spectrum(wispr_config_t *config, char *dat_filename, char *psd_filename, uint16_t nbufs)
 {	
 	printf("\r\nProcessing spectrum and creating file %s\r\n", psd_filename);
@@ -371,6 +417,15 @@ void process_spectrum(wispr_config_t *config, char *dat_filename, char *psd_file
 		printf("Error opening data file: %s\r\n", psd_file.name);
 	}
 	
+	// read the file header - first block
+	if( sd_card_fread(&dat_file, adc_buffer, 1) != FR_OK ) {
+		printf("Error reading file: %s\r\n", dat_file.name);
+	}
+
+	printf("File Header: %s\r\n", adc_buffer);
+	
+	// could parse the data file header, but assume it is consistent with the current adc_header
+
 	uint16_t adc_nsamps = config->samples_per_buffer;
 	uint16_t adc_nblocks = ADC_BLOCKS_PER_BUFFER;
 	uint16_t psd_nblocks = PSD_MAX_BLOCKS_PER_BUFFER;
@@ -382,7 +437,7 @@ void process_spectrum(wispr_config_t *config, char *dat_filename, char *psd_file
 	
 		//printf("Processing buffer %d\r\n", n);
 
-		// write the adc buffer - both header and data
+		// read the adc data block into the buffer
 		if( sd_card_fread(&dat_file, adc_buffer, adc_nblocks) != FR_OK ) {
 			printf("Error reading file: %s\r\n", dat_file.name);
 		}
@@ -395,7 +450,7 @@ void process_spectrum(wispr_config_t *config, char *dat_filename, char *psd_file
 		//wispr_serialize_data_header(&psd_header, psd_buffer);
 		
 		// write the psd buffer, which contains both header and data
-		if( sd_card_fwrite(&psd_file, (uint8_t *)psd_buffer, psd_nblocks) != FR_OK ) {
+		if( sd_card_fwrite(&psd_file, psd_buffer, psd_nblocks) != FR_OK ) {
 			printf("Error writing to file: %s\r\n", psd_file.name);
 		}
 		

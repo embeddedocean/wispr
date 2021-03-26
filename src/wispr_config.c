@@ -1,18 +1,19 @@
 /*
  * wispr_config.c
  *
- * Created: 5/26/2020 10:18:46 AM
+ * Created: 5/26/2020
  *  Author: Chris
  */ 
 
 #include <string.h>
 #include <stdio.h>
 #include "wispr.h"
+#include "wispr_config.h"
 #include "console.h"
 #include "rtc_time.h"
 #include "ltc2512.h"
 #include "spectrum.h"
-#include "ds3231.h"
+#include "pcf2129.h"
 
 void wispr_config_set_default(wispr_config_t *config)
 {
@@ -116,7 +117,7 @@ void wispr_config_menu(wispr_config_t *config, int timeout)
 		//u16 = config->fft_size;
 		//u16 = console_prompt_uint16("Enter fft size (32, 64, 126, 512 or 1024)", u16, timeout);
 		//config->fft_size = u16;
-		config->fft_size = PSD_FFT_SIZE;
+		config->fft_size = PSD_DEFAULT_FFT_SIZE;
 		printf("\r\nFixed fft size: %d\r\n", config->fft_size);
 		
 		u16 = config->fft_overlap;
@@ -141,7 +142,7 @@ void wispr_config_menu(wispr_config_t *config, int timeout)
 	if( console_prompt_int("Enter new time?", 0, timeout) ) {
 		int go = 1;
 		rtc_time_t dt;
-		ds3231_get_datetime(&dt);  // get current time
+		pcf2129_get_datetime(&dt);  // get current time
 		while(go) {
 			dt.year = console_prompt_uint8("Enter year in century (0 to 99)", dt.year, timeout);
 			dt.month = console_prompt_uint8("Enter month (1 to 12)", dt.month, timeout);
@@ -157,7 +158,7 @@ void wispr_config_menu(wispr_config_t *config, int timeout)
 				continue;
 			}
 			// set the external RTC
-			status = ds3231_set_datetime(&dt);
+			status = pcf2129_set_datetime(&dt);
 			if( status != RTC_STATUS_OK) {
 				printf("Failed to initialize DS3231 with new time\r\n");
 				rtc_print_error(status);
@@ -165,7 +166,7 @@ void wispr_config_menu(wispr_config_t *config, int timeout)
 			}
 			break;
 		}
-		ds3231_get_datetime(&dt);  // read back time
+		pcf2129_get_datetime(&dt);  // read back time
 		printf("\r\nExternal RTC set to %02d/%02d/%02d %02d:%02d:%02d\r\n",
 		dt.year, dt.month, dt.day, dt.hour, dt.minute, dt.second);
 	}

@@ -71,9 +71,9 @@ void spectrum_update_header(wispr_data_header_t *psd, wispr_data_header_t *adc)
 	psd->version[0] = adc->version[0];
 	psd->version[1] = adc->version[1];
 	psd->type = WISPR_SPECTRUM;
-	psd->sample_size = 4;
+	psd->sample_size = PSD_SAMPLE_SIZE;
 	psd->samples_per_buffer = num_freq_bins;
-	psd->buffer_size = PSD_BUFFER_SIZE; // number of bytes in an psd buffer
+	psd->buffer_size = num_freq_bins * PSD_SAMPLE_SIZE; // number of bytes in psd buffer
 	psd->sampling_rate = adc->sampling_rate;
 	psd->second = 0; // time gets updated with the adc data time when the spectrum is processed
 	psd->usec = 0;
@@ -250,7 +250,7 @@ int spectrum_f32(wispr_data_header_t *psd, float32_t *psd_data, wispr_data_heade
 	}
 	else if( sample_size == 2 ) { // 16 bits per sample
 		//adc_scaling = ADC_SCALING / 32767.0; // 2^15 - 1
-		fft_shift_bits = 8;
+		fft_shift_bits = 0;
 	}
 		
 	// clear output vector
@@ -279,9 +279,10 @@ int spectrum_f32(wispr_data_header_t *psd, float32_t *psd_data, wispr_data_heade
 		if( sample_size == 2 ) {
 			// load the 16 bit word into a 32 bit float
 			for(n = istart; n < iend; n++, m++) {
-				//int32_t v = (int32_t)(((uint32_t)input[2*n+0] << 16) | ((uint32_t)input[2*n+1] << 24));
-				//buf1[m] = (float32_t)v;
-				buf1[m] = (float32_t)(LOAD_INT16(input,n) << fft_shift_bits);
+				int32_t v = (int32_t)(((uint32_t)input[2*n+0] << 16) | ((uint32_t)input[2*n+1] << 24));
+				buf1[m] = (float32_t)v;
+				//buf1[m] = (float32_t)(LOAD_INT16(input,n) << fft_shift_bits);
+				//buf1[m] = (float32_t)(INT16_to_INT32(input,n));
 			}
 		} else if ( sample_size == 3 ) {
 			// load the 24 bit word into a 32 bit float
@@ -301,7 +302,7 @@ int spectrum_f32(wispr_data_header_t *psd, float32_t *psd_data, wispr_data_heade
 		
 		//if(k == 0 ) {
 		//	printf("ibuf = [");
-		//	for(n = 0; n < nfft; n++) {
+		//	for(n = 0; n < 8; n++) {
 		//		printf("%f ", buf2[n]);
 		//	}
 		//	printf("];\r\n");	
@@ -366,13 +367,13 @@ int spectrum_init_q31(uint16_t *nbins, uint16_t nfft, uint16_t overlap, uint8_t 
 	// check spectrum size
 	if( *nbins > nfft/2 ) {
 		*nbins = nfft/2;
-		if(verbose) printf("spectrum_init_q31: number of bin truncated to %d\r\n", *nbins);
+		if(verbose) printf("spectrum_init_q31: number of bins truncated to %d\r\n", *nbins);
 	}
 	
 	// check number of bins
 	if(*nbins > PSD_MAX_BINS_PER_BUFFER) {
 		*nbins = PSD_MAX_BINS_PER_BUFFER;
-		if(verbose) printf("spectrum_init_q31: number of bin truncated to %d\r\n", *nbins);
+		if(verbose) printf("spectrum_init_q31: number of bins truncated to %d\r\n", *nbins);
 	}
 	num_freq_bins = *nbins;
 	
@@ -472,7 +473,7 @@ int spectrum_q31(wispr_data_header_t *psd, float32_t *psd_data, wispr_data_heade
 	}
 	else if( sample_size == 2 ) { // 16 bits per sample
 		//adc_scaling = ADC_SCALING / 32767.0; // 2^15 - 1
-		fft_shift_bits = 8;
+		fft_shift_bits = 0;
 	}
 		
 	// clear output vector
@@ -502,17 +503,17 @@ int spectrum_q31(wispr_data_header_t *psd, float32_t *psd_data, wispr_data_heade
 		if( sample_size == 2 ) {
 			// load the 16 bit word into a 32 bit q31_t
 			for(n = istart; n < iend; n++) {
-				//int32_t v = (int32_t)( ((uint32_t)input[2*n+0] << 16) | ((uint32_t)input[2*n+1] << 24) );
-				//buf1[m] = (q31_t)(win[m] * (float32_t)v);
-				buf1[m] = (q31_t)(win[m] * (float32_t)(LOAD_INT16(input,n) << fft_shift_bits));
+				int32_t v = (int32_t)( ((uint32_t)input[2*n+0] << 16) | ((uint32_t)input[2*n+1] << 24) );
+				buf1[m] = (q31_t)(win[m] * (float32_t)v);
+				//buf1[m] = (q31_t)(win[m] * (float32_t)(LOAD_INT16(input,n) << fft_shift_bits));
 				m++;
 			}
 		} else if ( sample_size == 3 ) {
 			// load the 24 bit word into a 32 bit q31
 			for(n = istart; n < iend; n++) {
-				//int32_t v = (int32_t)(((uint32_t)input[3*n+0] << 8) | ((uint32_t)input[3*n+1] << 16) | ((uint32_t)input[3*n+2] << 24));
-				//buf1[m] = (q31_t)(win[m] * (float32_t)v);
-				buf1[m] = (q31_t)(win[m] * (float32_t)(LOAD_INT24(input,n) << fft_shift_bits));
+				int32_t v = (int32_t)(((uint32_t)input[3*n+0] << 8) | ((uint32_t)input[3*n+1] << 16) | ((uint32_t)input[3*n+2] << 24));
+				buf1[m] = (q31_t)(win[m] * (float32_t)v);
+				//buf1[m] = (q31_t)(win[m] * (float32_t)(LOAD_INT24(input,n) << fft_shift_bits));
 				m++;
 			}
 		} else {

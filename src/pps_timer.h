@@ -10,7 +10,7 @@
 #define PPS_TIMER_H_
 
 /* The PPS interrupt IRQ priority. */
-#define PPS_IRQ_PRIO 0
+#define PPS_IRQ_PRIO 1
 
 // RTT prescaler defines the rtt resolution, 3 is the minimum value (1,2 are forbidden).
 // With the 32K clock driving the rtt, the timer resolution is prescaler/32768 seconds per count

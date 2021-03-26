@@ -75,6 +75,7 @@ extern int sd_card_select(uint8_t card_num);
 extern int sd_card_enable(uint8_t card_num);
 extern int sd_card_disable(uint8_t card_num);
 extern uint8_t sd_card_init(uint8_t card_num);
+extern void sd_card_shutdown(void);
 
 extern void sd_card_print_info(uint8_t card_num);
 extern uint8_t sd_card_state(uint8_t card_num, uint8_t state);
@@ -111,6 +112,7 @@ extern FRESULT sd_card_set_file_size(fat_file_t *ff, uint32_t size);
 extern FRESULT sd_card_fwrite_config(char *filename, wispr_config_t *hdr);
 extern FRESULT sd_card_fread_config(char *filename, wispr_config_t *hdr);
 extern FRESULT sd_card_fwrite_header(char *filename, wispr_config_t *cfg, wispr_data_header_t *hdr);
+extern FRESULT sd_card_create_header_file(char *filename, wispr_config_t *cfg, wispr_data_header_t *hdr);
 
 
 #endif

@@ -1,7 +1,7 @@
 /*
  * wispr.h
  *
- * Created: 12/24/2019 4:59:31 AM
+ * Created: 12/24/2019
  *  Author: Chris
  */ 
 
@@ -11,18 +11,23 @@
 #include "epoch.h"
 //#include "sd_card.h"
 
+#include "board_v2.1.h"
+
 #define WISPR_VERSION 2
-#define WISPR_SUBVERSION 0
+#define WISPR_SUBVERSION 1
+
+#define WISPR_I2C_SPEED 100000UL
 
 #define WISPR_SD_CARD_HEADER_BLOCK (30)
 #define WISPR_SD_CARD_CONFIG_BLOCK (31)
 #define WISPR_SD_CARD_START_BLOCK (32)
 
-// sd cards only read in blocks, not bytes, 
+// sd cards I/O is in blocks, not bytes, 
 // so reads and writes must be done in blocks of this size
 // fixed at 512 bytes for standard SD cards
 #define WISPR_SD_CARD_BLOCK_SIZE (512)
 
+// number of blacks in a file
 #define WISPR_FILE_SIZE (512)
 
 // The header size should be a multiple of a word size (4 bytes)
@@ -30,8 +35,8 @@
 #define WISPR_DATA_HEADER_SIZE (32)
 
 // Fixed values used to define static buffers
-#define ADC_SAMPLE_SIZE (3)
-#define ADC_BLOCKS_PER_BUFFER (36)
+#define ADC_SAMPLE_SIZE (2)
+#define ADC_BLOCKS_PER_BUFFER (32)
 #define ADC_BUFFER_SIZE (ADC_BLOCKS_PER_BUFFER * WISPR_SD_CARD_BLOCK_SIZE)
 
 // if the header is NOT included in adc buffer use this
@@ -42,7 +47,7 @@
 
 // adc default values
 #define ADC_DEFAULT_SAMPLING_RATE (50000)
-#define ADC_DEFAULT_SAMPLE_SIZE (3)
+#define ADC_DEFAULT_SAMPLE_SIZE (2)
 #define ADC_DEFAULT_AWAKE 10
 #define ADC_DEFAULT_SLEEP 10
 #define ADC_DEFAULT_GAIN 0
@@ -57,27 +62,29 @@
 #define ADC_VREF 5.0
 #define ADC_SCALING 5.0
 
-// spectrum max values
-#define PSD_FFT_SIZE (1024)
-#define PSD_BLOCKS_PER_BUFFER (4) 
-#define PSD_BUFFER_SIZE (PSD_BLOCKS_PER_BUFFER * WISPR_SD_CARD_BLOCK_SIZE) 
+// spectrum max buffer size
+#define PSD_DEFAULT_FFT_SIZE (2048)
+#define PSD_MAX_FFT_SIZE (2048)
+#define PSD_MAX_NUM_BINS (PSD_MAX_FFT_SIZE / 2)
 
-#define PSD_MAX_FFT_SIZE (1024)
+// only float32 or q31 (4 bytes)
+#define PSD_SAMPLE_SIZE (4)
+
+// max buffer size in sd card blocks
+#define PSD_MAX_BLOCKS_PER_BUFFER (PSD_MAX_NUM_BINS * PSD_SAMPLE_SIZE / WISPR_SD_CARD_BLOCK_SIZE) 
+#define PSD_MAX_BUFFER_SIZE (PSD_MAX_BLOCKS_PER_BUFFER * WISPR_SD_CARD_BLOCK_SIZE) 
 
 // if the header is NOT included in psd buffer use this
-#define PSD_MAX_BINS_PER_BUFFER (PSD_BUFFER_SIZE / 4)
+#define PSD_MAX_BINS_PER_BUFFER (PSD_MAX_BUFFER_SIZE / PSD_SAMPLE_SIZE)
 
 // if the header is included in psd buffer use this
-//#define PSD_MAX_BINS_PER_BUFFER ((PSD_BUFFER_SIZE - WISPR_DATA_HEADER_SIZE) / 4)
+//#define PSD_MAX_BINS_PER_BUFFER ((PSD_BUFFER_SIZE - WISPR_DATA_HEADER_SIZE) / PSD_SAMPLE_SIZE)
 
 // States
-#define WISPR_READING_ADC 0x01
-#define WISPR_WRITING_SD1 0x02
-#define WISPR_WRITING_SD2 0x04
-#define WISPR_POWER_OFF 0x10
-#define WISPR_READY 0x20
-#define WISPR_BOOTING 0x40
-#define WISPR_SHUTTING_DOWN 0x80
+#define WISPR_RUNNING 0x01
+#define WISPR_PAUSED 0x02
+#define WISPR_SLEEP_WFI 0x04
+#define WISPR_SLEEP_BACKUP 0x08
 
 // Modes
 #define WISPR_WAVEFORM 0x01
@@ -105,10 +112,12 @@
 #define PSD_SETTINGS_INDEX_FFT_OVERLAP 3
 
 // Bit shifting macro with casting to load an int32 from a little-endian buffer containing an int24
-#define LOAD_INT24(u8,n) ((int32_t)(((uint32_t)u8[3*n+0] << 8) | ((uint32_t)u8[3*n+1] << 16) | ((uint32_t)u8[3*n+2] << 24)) >> 8)
+#define LOAD_INT24(u8,n) ((int32_t)( ((uint32_t)u8[3*n+0] << 8) | ((uint32_t)u8[3*n+1] << 16) | ((uint32_t)u8[3*n+2] << 24) ) >> 8)
 
 // Bit shifting macro with casting to load an int32 from a little-endian buffer containing an int16
-#define LOAD_INT16(u8,n) ((int16_t)(((uint16_t)u8[2*n+0] << 0) | ((uint16_t)u8[2*n+1] << 8)))
+#define LOAD_INT16(u8,n) ((int16_t)( ((uint16_t)u8[2*n+0] << 0) | ((uint16_t)u8[2*n+1] << 8) ))
+
+#define INT16_to_INT32(u8,n) ((int32_t)( (((uint32_t)u8[2*n+0] << 16) | ((uint32_t)u8[2*n+1] << 24) ) >> 8))
 
 //
 // Data header object written to the front of each data buffer

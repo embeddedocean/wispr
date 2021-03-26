@@ -11,6 +11,8 @@
 #ifndef CONF_BOARD_H
 #define CONF_BOARD_H
 
+#include "board_v2.1.h"
+
 /** Enable SD MMC interface pins through HSMCI */
 #define CONF_BOARD_SD_MMC_HSMCI
 

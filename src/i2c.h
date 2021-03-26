@@ -10,6 +10,7 @@
 #define I2C_H_
 
 #include <status_codes.h>
+#include "twi.h"
 
 int i2c_init(Twi *twi, uint32_t speed);
 int i2c_write(Twi *twi, uint16_t addr, uint8_t *buf, uint16_t len);

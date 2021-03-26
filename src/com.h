@@ -39,7 +39,7 @@ typedef struct {
 extern int com_init(int port, uint32_t baud);
 extern void com_stop(int port);
 extern int com_read_msg(int port, char *buf, int timeout);
-extern int com_write_msg(int port, char *buf);
+extern int com_write_msg(int port, const char *buf);
 extern int com_parse_msg(wispr_com_msg_t *msg, char *buf, int len);
 extern int com_request_gps(wispr_com_msg_t *msg, uint16_t timeout);
 extern int com_request_gain(wispr_com_msg_t *msg, uint16_t timeout);

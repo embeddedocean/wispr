@@ -16,10 +16,9 @@
 #include <string.h>
 
 // SSC bus serial bit clock frequency (Hz)
-#define LTC2512_SSC_RSCK (12000000)
-
-#define LTC2512_BYTES_PER_SAMPLE 3
-#define LTC2512_BITS_PER_SAMPLE 24
+// Make this a factor of the CPU clock so there's no jitter
+//#define LTC2512_SSC_RSCK (16000000)
+#define LTC2512_SSC_RSCK (24000000)
 
 // If the buffer size is a multiple of the sample size
 // then the buffer will be completely filled by the header and data
@@ -32,8 +31,8 @@
 #define LTC2512_DMA_BUFFER_NBYTES (LTC2512_MAX_SAMPLES * LTC2512_DMA_BYTES_PER_SAMPLE)
 
 // MCLK modes
-#define	LTC2512_MAX_MCLK  1600000  // MCLK supplied by TC
-#define	LTC2512_MIN_MCLK  1000  // MCLK supplied by TC
+#define	LTC2512_MAX_MCLK  1600000  /* MCLK supplied by TC */
+#define	LTC2512_MIN_MCLK  1000  /* MCLK supplied by TC */
 
 // Down sampling factors
 #define	LTC2512_DF4  4
@@ -61,6 +60,7 @@ extern uint32_t ltc2512_trigger(void);
 extern void ltc2512_start(void);
 extern void ltc2512_stop(void);
 extern void ltc2512_shutdown(void);
+extern void ltc2512_pause(void);
 
 extern uint16_t ltc2512_read_dma(wispr_data_header_t *hdr, uint8_t *data);
 extern uint8_t *ltc2512_get_dma_buffer(void);

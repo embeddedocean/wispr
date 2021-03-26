@@ -14,7 +14,7 @@
 #include "pps_timer.h"
 
 /* The SSC interrupt IRQ priority. */
-#define SSC_ADC_IRQ_PRIO 1
+#define SSC_ADC_IRQ_PRIO 0
 
 /* DMA channel */
 //#define SSC_ADC_DMA_CH 0
@@ -93,11 +93,34 @@ uint32_t ltc2512_init(wispr_config_t *wispr, wispr_data_header_t *hdr)
 		printf("ltc2512_init: invalid decimation factor %d\n\r", df);
 		df = ADC_DEFAULT_DECIMATION;
 	}
-	 
+	
 	if( (gain < 0) || (gain > 3) ) {
 		printf("ltc2512_init: invalid gain %d\n\r", gain);
 		gain = ADC_DEFAULT_GAIN;
 	}
+
+	// ADC control pins
+	ioport_set_pin_dir(PIN_ENABLE_ADC_PWR, IOPORT_DIR_OUTPUT);
+	ioport_set_pin_level(PIN_ENABLE_ADC_PWR, 0); // low is off
+
+	ioport_set_pin_dir(PIN_ADC_SYNC, IOPORT_DIR_OUTPUT);
+	ioport_set_pin_level(PIN_ADC_SYNC, 0);
+
+	ioport_set_pin_dir(PIN_ADC_SEL0, IOPORT_DIR_OUTPUT);
+	ioport_set_pin_level(PIN_ADC_SEL0, 0);
+
+	ioport_set_pin_dir(PIN_ADC_SEL1, IOPORT_DIR_OUTPUT);
+	ioport_set_pin_level(PIN_ADC_SEL1, 0);
+
+	// ADC Preamp control pins
+	ioport_set_pin_dir(PIN_PREAMP_SHDN, IOPORT_DIR_OUTPUT);
+	ioport_set_pin_level(PIN_PREAMP_SHDN, 0);
+
+	ioport_set_pin_dir(PIN_PREAMP_G0, IOPORT_DIR_OUTPUT);
+	ioport_set_pin_level(PIN_PREAMP_G0, 0);
+
+	ioport_set_pin_dir(PIN_PREAMP_G1, IOPORT_DIR_OUTPUT);
+	ioport_set_pin_level(PIN_PREAMP_G1, 0);
 
 	// power up and initialize adc
 	ioport_set_pin_level(PIN_ENABLE_ADC_PWR, 1);
@@ -128,12 +151,20 @@ uint32_t ltc2512_init(wispr_config_t *wispr, wispr_data_header_t *hdr)
 	ioport_set_pin_level(PIN_PREAMP_G0, (gain & 0x01));
 	ioport_set_pin_level(PIN_PREAMP_G1, (gain & 0x02));
 	//printf("pre-amp gain = 0x%d%d \n\r", (gain & 0x02), (gain & 0x01));
-	 
+	
 	/* Initialize the local variable. */
 	clock_opt_t rx_clk_option;
 	data_frame_opt_t rx_data_frame_option;
 	memset((uint8_t *)&rx_clk_option, 0, sizeof(clock_opt_t));
 	memset((uint8_t *)&rx_data_frame_option, 0, sizeof(data_frame_opt_t));
+
+	// Configure SSC pins
+	pio_configure_pin(PIN_SSC_RD, PIN_SSC_RD_FLAGS);
+	pio_configure_pin(PIN_SSC_RF, PIN_SSC_RF_FLAGS);
+	pio_configure_pin(PIN_SSC_RK, PIN_SSC_RK_FLAGS);
+	pio_configure_pin(PIN_SSC_TD, PIN_SSC_TD_FLAGS);
+	//  pio_configure_pin(PIN_SSC_TF, PIN_SSC_TF_FLAGS);
+	pio_configure_pin(PIN_SSC_TK, PIN_SSC_TK_FLAGS);
 
 	/* Initialize the SSC module */
 	pmc_enable_periph_clk(ID_SSC);
@@ -148,20 +179,18 @@ uint32_t ltc2512_init(wispr_config_t *wispr, wispr_data_header_t *hdr)
 	rsck = sclk / rsck_div /2;
 
 	SSC->SSC_CMR = SSC_CMR_DIV(rsck_div);
-	 
+	
 	/* Receiver clock mode configuration. */
+	// It's really easy to loose the first received bit of the data word, which really messes up the sign of the word
+	// So test any changes to these rx clock and frame registers
 	rx_clk_option.ul_cks = SSC_RCMR_CKS_MCK;  // select divided clock source
 	rx_clk_option.ul_cko = SSC_RCMR_CKO_TRANSFER; // Receive Clock only during data transfers, RK pin is an output
-	//rx_clk_option.ul_cko = SSC_RCMR_CKO_CONTINUOUS; // Receive Clock only during data transfers, RK pin is an output
-	//rx_clk_option.ul_cki = 1; // sampled on Receive Clock rising edge.
-	rx_clk_option.ul_cki = 0; // sampled on Receive Clock falling edge - adc clocks out data on rising edge.
+	rx_clk_option.ul_cki = 1; // sampled on Receive Clock rising edge - adc clocks out data on rising edge.
 	rx_clk_option.ul_ckg = SSC_RCMR_CKG_EN_RF_LOW; // clock gating selection, enable clock only when RF is low
-	//rx_clk_option.ul_start_sel = SSC_RCMR_START_RF_LOW; // Detection of a low level on RF signal
 	rx_clk_option.ul_start_sel = SSC_RCMR_START_RF_FALLING; // Detection of a falling edge on RF signal
-	//rx_clk_option.ul_start_sel = SSC_RCMR_START_CONTINUOUS; // receive start selection
-	rx_clk_option.ul_sttdly = 1; // num clock cycles delay between start event and reception
+	rx_clk_option.ul_sttdly = 0; // num clock cycles delay between start event and reception
 	rx_clk_option.ul_period = 0; //ul_rfck_div;  // length of frame in clock cycles
-	 
+	
 	/* Receiver frame mode configuration. */
 	rx_data_frame_option.ul_datlen = 31; //LTC2512_BITS_PER_SAMPLE - 1; // number of bits per data word, should be 0 to 31
 
@@ -175,10 +204,10 @@ uint32_t ltc2512_init(wispr_config_t *wispr, wispr_data_header_t *hdr)
 	rx_data_frame_option.ul_fslen_ext = 1; // Frame Sync. length extension field, should be 0 to 15.
 	rx_data_frame_option.ul_fsos = SSC_RFMR_FSOS_NONE; // Frame Sync. is an input
 	rx_data_frame_option.ul_fsedge = SSC_RFMR_FSEDGE_NEGATIVE; // Frame Sync. edge detection
-	 
+	
 	/* Configure the SSC receiver. */
 	ssc_set_receiver(SSC, &rx_clk_option, &rx_data_frame_option);
-	 
+	
 	// config the adc master clock and return the actual sampling rate
 	uint32_t actual_fs = ltc2512_config_mclk(fs, df);
 
@@ -186,8 +215,8 @@ uint32_t ltc2512_init(wispr_config_t *wispr, wispr_data_header_t *hdr)
 	ltc2512_init_dma(ltc_samples_per_buffer);
 	
 	if(actual_fs != fs) {
-		printf("Actual sampling rate: %lu Hz\n\r", actual_fs);	
-	} 
+		printf("Actual sampling rate: %lu Hz\n\r", actual_fs);
+	}
 
 	// update local static variables, in case they have changed
 	ltc_samples_per_buffer = wispr->samples_per_buffer;
@@ -196,7 +225,7 @@ uint32_t ltc2512_init(wispr_config_t *wispr, wispr_data_header_t *hdr)
 	ltc_adc_sampling_freq = actual_fs;
 	ltc_adc_status = 0;
 
-	// update adc data header structure with the current config	 
+	// update adc data header structure with the current config
 	// make sure to set all the fields because this is what gets written to storage
 	hdr->version[0] = wispr->version[0];
 	hdr->version[1] = wispr->version[1];
@@ -212,15 +241,18 @@ uint32_t ltc2512_init(wispr_config_t *wispr, wispr_data_header_t *hdr)
 	hdr->second = 0;
 	hdr->usec = 0;
 
-	// set sysn high - adc won't start until sync goes low
+	// set sync high - adc won't start until sync goes low
 	ioport_set_pin_level(PIN_ADC_SYNC, 1);
-	 
+	
 	return(actual_fs);
 }
 
 //
 // Configure TC0_TIOA to supply MCLK for the ADC
 //
+
+uint8_t enable_sw_sync = 0;
+
 uint32_t ltc2512_config_mclk(uint32_t fs, uint8_t df)
 {
 	// Configure TC TC_CHANNEL_WAVEFORM in waveform operating mode.
@@ -235,27 +267,34 @@ uint32_t ltc2512_config_mclk(uint32_t fs, uint8_t df)
 	// configure PA1 as either a clock or gpio
 	ioport_set_pin_mode(PIN_TC0_TIOB0, PIN_TC0_TIOB0_MUX);
 	ioport_disable_pin(PIN_TC0_TIOB0);
-	//ioport_set_pin_dir(PIN_TC0_TIOB0, IOPORT_DIR_OUTPUT);
-	//ioport_set_pin_level(PIN_TC0_TIOB0, 0);
+
+	if(enable_sw_sync) {
+		ioport_set_pin_dir(PIN_TC0_TIOB0, IOPORT_DIR_OUTPUT);
+		ioport_set_pin_level(PIN_TC0_TIOB0, 0);	
+	}
 	
 	// Configure the PMC to enable the TC module.
 	sysclk_enable_peripheral_clock(ID_TC0);
 	
 	// Init TC to waveform mode. 
-	tc_init(TC0, 0, TC_CMR_TCCLKS_TIMER_CLOCK1	//MCK/2
-		| TC_CMR_WAVE	//waveform mode
-		| TC_CMR_WAVSEL_UP_RC	//UP mode with automatic trigger on RC Compare
-		| TC_CMR_ACPA_TOGGLE	//toggle TIOA on RA match
-		| TC_CMR_ACPC_TOGGLE	//toggle TIOA on RC match
-		//| TC_CMR_BCPB_TOGGLE	//toggle TIOB on RB match
-		//| TC_CMR_BCPC_TOGGLE	//toggle TIOB on RC match
-		// for TIOB to configured as an output an external event needs to be selected
-		//| TC_CMR_EEVT_XC0 | TC_CMR_AEEVT_NONE | TC_CMR_BEEVT_NONE | TC_CMR_EEVTEDG_NONE
-	);
+	uint32_t mode =	  TC_CMR_TCCLKS_TIMER_CLOCK1	//MCK/2
+					| TC_CMR_WAVE	//waveform mode
+					| TC_CMR_WAVSEL_UP_RC	//UP mode with automatic trigger on RC Compare
+					| TC_CMR_ACPA_TOGGLE	//toggle TIOA on RA match
+					| TC_CMR_ACPC_TOGGLE;	//toggle TIOA on RC match
+
+	if(enable_sw_sync) {
+		mode |=   TC_CMR_BCPB_TOGGLE	//toggle TIOB on RB match
+			    | TC_CMR_BCPC_TOGGLE	//toggle TIOB on RC match
+			    // for TIOB to configured as an output an external event needs to be selected
+			    | TC_CMR_EEVT_XC0 | TC_CMR_AEEVT_NONE | TC_CMR_BEEVT_NONE | TC_CMR_EEVTEDG_NONE;
+	}
 	
+	tc_init(TC0, 0, mode);
+
 	// Configure waveform frequency and duty cycle. 
 	uint32_t ra, rc;
-	//uint32_t rb;
+	uint32_t rb;
 	uint32_t dutycycle = 10; // Duty cycle in percent (positive).
 	uint32_t mclk;
 	
@@ -277,7 +316,7 @@ uint32_t ltc2512_config_mclk(uint32_t fs, uint8_t df)
 	//mclk = sck / 2 / rc; // actual mclk
 	
 	ra = (100 - dutycycle) * rc / 100;
-	//rb = ra;
+	rb = ra;
 	
 	// actual sampling freq
 	uint32_t act_fs = mclk / (uint32_t)df;
@@ -288,6 +327,7 @@ uint32_t ltc2512_config_mclk(uint32_t fs, uint8_t df)
 
 	tc_write_rc(TC0, 0, rc);
 	tc_write_ra(TC0, 0, ra);
+	if(enable_sw_sync) 	tc_write_rb(TC0, 0, rb);
 
 	/* Enable TC0 Channel 0. */
 	//tc_start(TC0, 0);
@@ -323,6 +363,11 @@ void ltc2512_stop(void)
 	//ioport_set_pin_level(PIN_ADC_SYNC, 1);
 }
 
+void ltc2512_pause(void)
+{
+	ioport_set_pin_level(PIN_ADC_SYNC, 1);
+}
+
 void ltc2512_shutdown(void)
 {
 	ltc2512_stop();
@@ -332,6 +377,22 @@ void ltc2512_shutdown(void)
 
 	// power down adc
 	ioport_set_pin_level(PIN_ENABLE_ADC_PWR, 0);
+
+	ioport_set_pin_dir(PIN_ENABLE_ADC_PWR, IOPORT_DIR_INPUT);
+	ioport_set_pin_dir(PIN_ADC_SYNC, IOPORT_DIR_INPUT);
+	ioport_set_pin_dir(PIN_ADC_SEL0, IOPORT_DIR_INPUT);
+	ioport_set_pin_dir(PIN_ADC_SEL1, IOPORT_DIR_INPUT);
+	ioport_set_pin_dir(PIN_PREAMP_SHDN, IOPORT_DIR_INPUT);
+	ioport_set_pin_dir(PIN_PREAMP_G0, IOPORT_DIR_INPUT);
+	ioport_set_pin_dir(PIN_PREAMP_G1, IOPORT_DIR_INPUT);
+
+	ioport_set_pin_dir(PIN_PA20, IOPORT_DIR_INPUT);
+	ioport_set_pin_dir(PIN_PA19, IOPORT_DIR_INPUT);
+	ioport_set_pin_dir(PIN_PA18, IOPORT_DIR_INPUT);
+	ioport_set_pin_dir(PIN_PA17, IOPORT_DIR_INPUT);
+	ioport_set_pin_dir(PIN_PA16, IOPORT_DIR_INPUT);
+	ioport_set_pin_dir(PIN_PA15, IOPORT_DIR_INPUT);
+
 }
 
 /**
@@ -438,15 +499,24 @@ void SSC_Handler(void)
 {
 	volatile uint32_t status = ssc_get_status(SSC);
 
-	if ( pdc_buffer_locked ) {
-		printf("SSC_Handler: buffer locked\r\n");
-		ltc_adc_status |= ADC_DMA_MISSED_BUFFER;
-		return;
-	}
+	// not sure this is necessary and might cause a race condition
+	//if ( pdc_buffer_locked ) {
+	//	if( ltc_adc_status & (~ADC_DMA_MISSED_BUFFER) ) {
+	//		// only print this message once
+	//		printf("SSC_Handler: buffer locked\r\n");
+	//	}
+	//	ltc_adc_status |= ADC_DMA_MISSED_BUFFER;
+	//	return;
+	//}
 
 	/* Get SSC status and check if the current PDC receive buffer is full */
 	// ENDRX flag is set when the PDC Receive Counter register (PERIPH_RCR) reaches zero.
-	if ( ((status & SSC_SR_ENDRX) == SSC_SR_ENDRX) && !pdc_buffer_locked ) {
+	if ( (status & SSC_SR_ENDRX) == SSC_SR_ENDRX ) {
+
+		// if 
+		if(ltc_adc_buffer != NULL) {
+			printf("SSC_Handler: buffer overwrite\r\n");
+		}
 
 		// get time stamp for the end the buffer that just finished
 		uint32_t sec, usec;
@@ -461,7 +531,7 @@ void SSC_Handler(void)
 			// buffer1 is done, the dma is now reading buffer2, so set buffer1 as next buffer
 			pdc_rx_init(ssc_pdc, NULL, &pdc_ssc_packet1);
 			
-			ltc_adc_buffer = ltc_adc_dma_buffer1;
+			ltc_adc_buffer = ltc_adc_dma_buffer1; // set buffer 1 as ready to read
 			ltc_adc_sec = ltc_adc_sec1;
 			ltc_adc_usec = ltc_adc_usec1;
 
@@ -471,14 +541,15 @@ void SSC_Handler(void)
 			ltc_adc_usec2 = usec;
 						
 			//fprintf(stdout, "SSC_Handler: buffer 1 done, status = %x\r\n", status);
-			//ioport_set_pin_level(SSC_ADC_BUF_PIN, 0);
+			
+			ioport_set_pin_level(PIN_PB11, 1); // debug pin
 	
 		} else if( pdc_active_buffer_number == 2 ) {
 
 			// buffer2 is done, now reading buffer1, set buffer2 as next
 			pdc_rx_init(ssc_pdc, NULL, &pdc_ssc_packet2); // set buffer2 as next rx buffer
 
-			ltc_adc_buffer = ltc_adc_dma_buffer2;
+			ltc_adc_buffer = ltc_adc_dma_buffer2; // set buffer 2 as ready to read
 			ltc_adc_sec = ltc_adc_sec2;
 			ltc_adc_usec = ltc_adc_usec2;
 
@@ -487,8 +558,10 @@ void SSC_Handler(void)
 			ltc_adc_sec1 = sec;
 			ltc_adc_usec1 = usec;
 
-			//ioport_set_pin_level(SSC_ADC_BUF_PIN, 1);
+			ioport_set_pin_level(PIN_PB11, 0);  // debug pin
+			
 			//fprintf(stdout, "SSC_Handler: buffer 2 done, status = %x\r\n", status);
+
 		} 
 		else {
 			fprintf(stdout, "SSC_Handler: confused\r\n");
@@ -571,7 +644,7 @@ static inline uint8_t ltc2512_copy_dma_int24(uint8_t *ibuf, uint8_t *obuf, uint1
 		obuf[m++] = ibuf[n+1]; // LSB
 		obuf[m++] = ibuf[n+2];
 		obuf[m++] = ibuf[n+3]; // MSB
-		chksum += ibuf[n+1] + ibuf[n+2] + ibuf[n+3];
+		//chksum += ibuf[n+1] + ibuf[n+2] + ibuf[n+3]; // not used and it takes too long
 		//if(n < 256) printf("'%02x%02x%02x'; ", ibuf[n+3], ibuf[n+2], ibuf[n+1]);
 	}
 	//printf("\r\n");
@@ -588,10 +661,10 @@ static inline uint8_t ltc2512_copy_dma_int16(uint8_t *ibuf, uint8_t *obuf, uint1
 	uint32_t nbytes = nsamps * 4;
 	uint32_t m = 0;
 	for(uint32_t n = 0; n < nbytes; n += 4) {
-		//obuf[m++] = ibuf[n]; // LSB
+		//obuf[m++] = ibuf[n+1]; // LSB
 		obuf[m++] = ibuf[n+2]; // 
 		obuf[m++] = ibuf[n+3]; // MSB
-		chksum += ibuf[n+2] + ibuf[n+3];
+		//chksum += ibuf[n+2] + ibuf[n+3]; // this takes too long
 		//if(n < 32) printf("%x%x ", ibuf[n+3], ibuf[n+2]);
 	}
 	//printf("\r\n");
@@ -618,6 +691,8 @@ uint16_t ltc2512_read_dma(wispr_data_header_t *hdr, uint8_t *data)
 	
 	pdc_buffer_locked = 1;
 	
+	ioport_set_pin_level(PIN_PB10, 1);  // debug signal to check timing
+	
 	if( ltc_adc_sample_size == 3) {
 		chksum = ltc2512_copy_dma_int24(buffer, data, nsamps);
 	}
@@ -627,15 +702,17 @@ uint16_t ltc2512_read_dma(wispr_data_header_t *hdr, uint8_t *data)
 
 	pdc_buffer_locked = 0;
 	
+	ioport_set_pin_level(PIN_PB10, 0);  // debug signal to check timing
+	
 	// check to see if the buffer pointer has changed during copy
 	// this could mean that the data is corrupted.
 	uint8_t status = ltc_adc_status;
 	//if( !ltc_dma_test && (ltc_adc_buffer != buffer) ) {
 	if( ltc_adc_buffer != buffer ) {
-		status |= ADC_DMA_BUFFER_OVERRUN;
+		status |= ADC_DMA_BUFFER_OVERRUN; // set the status bit
 		printf("ltc2512_read_dma: buffer overrun\r\n");
 	} else {
-		status &= ~ADC_DMA_BUFFER_OVERRUN;
+		status &= ~ADC_DMA_BUFFER_OVERRUN; // clear the status bit
 	}
 
 	// update the data header info

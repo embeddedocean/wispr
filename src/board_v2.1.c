@@ -47,25 +47,12 @@
 #include <stdio.h>
 
 #include <asf.h>
-#include "board_v2.0.h"
+#include "board_v2.1.h"
 #include "console.h"
 
 /** Current MCK in Hz */
 uint32_t board_current_cpu_hz;
 uint32_t board_current_main_hz;
-
-/** PLL settings for each cpu freq in above list*/
-uint32_t board_pll_clock_list[][4] = {
-	/* MCK, MUL, DIV, PRES */
-	{24000000, 7, 1, PMC_MCKR_PRES_CLK_4}, 	 /* MCK = 12000000 * (7+1) / 1 / 4 = 24 MHz */
-	{32000000, 7, 1, PMC_MCKR_PRES_CLK_3},	 /* MCK = 12000000 * (7+1) / 1 / 3 = 32 MHz */
-	{48000000, 7, 1, PMC_MCKR_PRES_CLK_2}, 	 /* MCK = 12000000 * (7+1) / 1 / 2 = 48 MHz */
-	{64000000, 31, 3, PMC_MCKR_PRES_CLK_2},  /* MCK = 12000000 * (4+1) / 2 / 2 = 60 MHz */
-	{84000000, 13, 1, PMC_MCKR_PRES_CLK_2},  /* MCK = 12000000 * (15+1) / 1 / 2 = 96 MHz */
-	{96000000, 15, 1, PMC_MCKR_PRES_CLK_2},  /* MCK = 12000000 * (15+1) / 1 / 2 = 96 MHz */
-	{100000000, 24, 1, PMC_MCKR_PRES_CLK_3}, /* MCK = 12000000 * (24+1) / 1 / 3 = 100 MHz */
-	{120000000, 19, 1, PMC_MCKR_PRES_CLK_2}  /* MCK = 12000000 * (19+1) / 1 / 2 = 120 MHz */
-};
 
 char reset_message[96];
 
@@ -73,6 +60,9 @@ int board_init(void)
 {
   // initialize PLL and main clock with the settings in confog_clock.h 
   sysclk_init();
+  
+  //!< External 32kHz bypass oscillator as master source clock
+  
   board_current_cpu_hz = sysclk_get_cpu_hz(); 
   board_current_main_hz = sysclk_get_main_hz();
 
@@ -81,18 +71,20 @@ int board_init(void)
   // now it relies on constants in conf_clock.h
   	
   // Use the RTC 32kHz output as the 32kHz xtal input
-  //pmc_switch_sclk_to_32kxtal(PMC_OSC_XTAL);  // enable external 32.768kHz crystal
+//  pmc_switch_sclk_to_32kxtal(PMC_OSC_XTAL);  // enable external 32.768kHz crystal
   pmc_switch_sclk_to_32kxtal(PMC_OSC_BYPASS);  // enable external 32.768kHz clock - such as the DS3231 32khz output
-  while (!pmc_osc_is_ready_32kxtal()) { }
+//  while (!pmc_osc_is_ready_32kxtal()) { }
 
-  ioport_init();
+  //ioport_init();
+  pmc_enable_periph_clk(ID_PIOA);
+  pmc_enable_periph_clk(ID_PIOB);
 
   // Configure all PIOs as inputs to save power
 //  pio_set_input(PIOA, 0xFFFFFFFF, PIO_PULLUP);
 //  pio_set_input(PIOB, 0xFFFFFFFF, PIO_PULLUP);
 
   // Initialize the console uart first so printf works
-  console_init(BOARD_CONSOLE_PORT, BOARD_CONSOLE_BAUDRATE);  
+  console_init(BOARD_CONSOLE_PORT, BOARD_CONSOLE_BAUDRATE);
 
   // Initialize the user gpio pins
   board_gpio_init();
@@ -105,8 +97,8 @@ int board_init(void)
   fprintf(stdout, "-- Compiled: "__DATE__ " "__TIME__ " --\r\n");
 
   fprintf(stdout, "-- CPU clock: %lu MHz\n\r", board_current_cpu_hz/1000000);
-  fprintf(stdout, "-- Main clock: %lu MHz\n\r", board_current_main_hz/1000000);
-  //printf("-- Peripheral bus clock: %lu Hz\n\r",  sysclk_get_peripheral_hz()); //sysclk_get_peripheral_bus_hz(TC0)/1000000);
+  //fprintf(stdout, "-- Main clock: %lu MHz\n\r", board_current_main_hz/1000000);
+  printf("-- Peripheral bus clock: %lu MHz\n\r",  sysclk_get_peripheral_hz()/1000000); //sysclk_get_peripheral_bus_hz(TC0)/1000000);
 
   // get the reset reasons
   uint8_t reset_type = 0;
@@ -130,32 +122,36 @@ uint32_t board_get_main_clock_hz(void)
 	return(board_current_main_hz);
 }
 
-void board_set_clock(enum board_cpu_freq_hz mck)
+void board_set_clock(enum board_cpu_freq_hz cpu_hz)
 {
-	// this replaces sysclk_init with direct pmc function call to simplify the clock init
-	// - overrides settings in conf_clock.h
-	// Fpll = Fclk * pll_mul / pll_div
-	// Fmck = Fxtal * Fppl / pll_pre
-	// Fxtal = 12M
-	board_current_cpu_hz = board_pll_clock_list[mck][0];
-	uint32_t pll_mul = board_pll_clock_list[mck][1];
-	uint32_t pll_div = board_pll_clock_list[mck][2];
-	uint32_t pll_pre = board_pll_clock_list[mck][3];
-
-	board_current_main_hz = BOARD_FREQ_MAINCK_BYPASS * (pll_mul+1) / pll_div;
+	// redefines the pll multiplier
+	// everything else in conf_clock.h stays the same
+	// 
+	
+	uint32_t osc_hz = osc_get_rate(CONFIG_PLL0_SOURCE);
+	uint32_t pll_div = CONFIG_PLL0_DIV;
+	uint32_t pll_mul = cpu_hz / osc_hz; 
+	
+	board_current_cpu_hz = osc_hz * pll_mul / pll_div;
 
 	pmc_set_writeprotect(0);
 
 	struct pll_config pllcfg;
-	pll_enable_source(PLL_SRC_MAINCK_BYPASS);
-	pll_config_init(&pllcfg, PLL_SRC_MAINCK_BYPASS, pll_div, pll_mul+1);
+	pll_enable_source(CONFIG_PLL0_SOURCE);
+	pll_config_init(&pllcfg, CONFIG_PLL0_SOURCE, pll_div, pll_mul);
 	pll_enable(&pllcfg, 0);
 	pll_wait_for_lock(0);
-	pmc_switch_mck_to_pllack(pll_pre);
+	pmc_switch_mck_to_pllack(CONFIG_SYSCLK_PRES);
+
+	/* Update the SystemFrequency variable */
+	SystemCoreClockUpdate();
+
+	/* Set a flash wait state depending on the new cpu frequency */
+	system_init_flash(sysclk_get_cpu_hz());
 
 	//pll_enable_source(OSC_MAINCK_BYPASS);
-	pmc_switch_mainck_to_xtal(PMC_OSC_BYPASS, pmc_us_to_moscxtst(BOARD_OSC_STARTUP_US, OSC_SLCK_32K_RC_HZ));
-	while (!pmc_osc_is_ready_mainck()) {}
+	//pmc_switch_mainck_to_xtal(PMC_OSC_BYPASS, pmc_us_to_moscxtst(BOARD_OSC_STARTUP_US, OSC_SLCK_32K_RC_HZ));
+	//while (!pmc_osc_is_ready_mainck()) {}
 	
 	// enable PLLA (need to use pll_mul-1)
 //	pmc_enable_pllack(pll_mul, PLL_COUNT, pll_div);
@@ -192,9 +188,9 @@ void board_init_wakeup(void)
   //pio_handler_set(PIOA, ID_PIOA, PIO_PA2, (PIO_PULLUP | PIO_DEBOUNCE | PIO_IT_LOW_LEVEL), rtc_wakeup_handler);
  
   // Enable PIOA controller IRQs
-  NVIC_DisableIRQ(PIOA_IRQn);
-  NVIC_ClearPendingIRQ(PIOA_IRQn);
-  NVIC_SetPriority(PIOA_IRQn, 0);
+  //NVIC_DisableIRQ(PIOA_IRQn);
+  //NVIC_ClearPendingIRQ(PIOA_IRQn);
+  //NVIC_SetPriority(PIOA_IRQn, 0);
   NVIC_EnableIRQ(PIOA_IRQn);
 
   // Enable PIOA line interrupts
@@ -235,45 +231,31 @@ void board_gpio_init(void)
   REG_CCFG_SYSIO |= CCFG_SYSIO_SYSIO10;
   REG_CCFG_SYSIO |= CCFG_SYSIO_SYSIO11;
 
-  /* Configure SSC pins */
-  pio_configure_pin(PIN_SSC_RD, PIN_SSC_RD_FLAGS);
-  pio_configure_pin(PIN_SSC_RF, PIN_SSC_RF_FLAGS);
-  pio_configure_pin(PIN_SSC_RK, PIN_SSC_RK_FLAGS);
-  pio_configure_pin(PIN_SSC_TD, PIN_SSC_TD_FLAGS);
-//  pio_configure_pin(PIN_SSC_TF, PIN_SSC_TF_FLAGS);
-  pio_configure_pin(PIN_SSC_TK, PIN_SSC_TK_FLAGS);
-  
-  /* Configure HSMCI pins */
-  pio_configure_pin(PIN_HSMCI_MCCDA_GPIO, PIN_HSMCI_MCCDA_FLAGS);
-  pio_configure_pin(PIN_HSMCI_MCCK_GPIO, PIN_HSMCI_MCCK_FLAGS);
-  pio_configure_pin(PIN_HSMCI_MCDA0_GPIO, PIN_HSMCI_MCDA0_FLAGS);
-  pio_configure_pin(PIN_HSMCI_MCDA1_GPIO, PIN_HSMCI_MCDA1_FLAGS);
-  pio_configure_pin(PIN_HSMCI_MCDA2_GPIO, PIN_HSMCI_MCDA2_FLAGS);
-  pio_configure_pin(PIN_HSMCI_MCDA3_GPIO, PIN_HSMCI_MCDA3_FLAGS);
+  // debug pins - when not used for USB
+  ioport_set_pin_dir(PIN_PB10, IOPORT_DIR_OUTPUT);
+  ioport_set_pin_level(PIN_PB10, 0);
+  ioport_set_pin_dir(PIN_PB11, IOPORT_DIR_OUTPUT);
+  ioport_set_pin_level(PIN_PB11, 0);
 
   // Power control pins
-  ioport_set_pin_dir(PIN_ENABLE_PI_5V, IOPORT_DIR_OUTPUT);
-  ioport_set_pin_level(PIN_ENABLE_PI_5V, 0); // low is off
+  ioport_set_pin_dir(PIN_ENABLE_5V, IOPORT_DIR_OUTPUT);
+  ioport_set_pin_level(PIN_ENABLE_5V, 0); // low is off
+
+  ioport_set_pin_dir(PIN_ENABLE_5V5, IOPORT_DIR_OUTPUT);
+  ioport_set_pin_level(PIN_ENABLE_5V5, 0); // low is off
 
   // ADC control pins
   ioport_set_pin_dir(PIN_ENABLE_ADC_PWR, IOPORT_DIR_OUTPUT);
   ioport_set_pin_level(PIN_ENABLE_ADC_PWR, 0); // low is off
+
   ioport_set_pin_dir(PIN_ADC_SYNC, IOPORT_DIR_OUTPUT);
   ioport_set_pin_level(PIN_ADC_SYNC, 0);
+
   ioport_set_pin_dir(PIN_ADC_SEL0, IOPORT_DIR_OUTPUT);
   ioport_set_pin_level(PIN_ADC_SEL0, 0);
+
   ioport_set_pin_dir(PIN_ADC_SEL1, IOPORT_DIR_OUTPUT);
   ioport_set_pin_level(PIN_ADC_SEL1, 0);
-
-  // SD Card pins
-  ioport_set_pin_dir(PIN_SELECT_SD, IOPORT_DIR_OUTPUT);
-  ioport_set_pin_level(PIN_SELECT_SD, SELECT_SD1);
-
-  ioport_set_pin_dir(PIN_ENABLE_SD1, IOPORT_DIR_OUTPUT);
-  ioport_set_pin_level(PIN_ENABLE_SD1, SD_DISABLE);
-
-  ioport_set_pin_dir(PIN_ENABLE_SD2, IOPORT_DIR_OUTPUT);
-  ioport_set_pin_level(PIN_ENABLE_SD2, SD_DISABLE);
 
   // ADC Preamp control pins
   ioport_set_pin_dir(PIN_PREAMP_SHDN, IOPORT_DIR_OUTPUT);
@@ -285,7 +267,35 @@ void board_gpio_init(void)
   ioport_set_pin_dir(PIN_PREAMP_G1, IOPORT_DIR_OUTPUT);
   ioport_set_pin_level(PIN_PREAMP_G1, 0);
 
-  
+  // SD Card pins
+  /* mnoved to driver
+  ioport_set_pin_dir(PIN_SELECT_SD, IOPORT_DIR_OUTPUT);
+  ioport_set_pin_level(PIN_SELECT_SD, SELECT_SD1);
+
+  ioport_set_pin_dir(PIN_ENABLE_SD1, IOPORT_DIR_OUTPUT);
+  ioport_set_pin_level(PIN_ENABLE_SD1, SD_DISABLE);
+
+  ioport_set_pin_dir(PIN_ENABLE_SD2, IOPORT_DIR_OUTPUT);
+  ioport_set_pin_level(PIN_ENABLE_SD2, SD_DISABLE);
+
+  // Configure HSMCI pins 
+  pio_configure_pin(PIN_HSMCI_MCCDA_GPIO, PIN_HSMCI_MCCDA_FLAGS);
+  pio_configure_pin(PIN_HSMCI_MCCK_GPIO, PIN_HSMCI_MCCK_FLAGS);
+  pio_configure_pin(PIN_HSMCI_MCDA0_GPIO, PIN_HSMCI_MCDA0_FLAGS);
+  pio_configure_pin(PIN_HSMCI_MCDA1_GPIO, PIN_HSMCI_MCDA1_FLAGS);
+  pio_configure_pin(PIN_HSMCI_MCDA2_GPIO, PIN_HSMCI_MCDA2_FLAGS);
+  pio_configure_pin(PIN_HSMCI_MCDA3_GPIO, PIN_HSMCI_MCDA3_FLAGS);
+  */
+
+  /* Configure SSC pins  - moved to driver
+  pio_configure_pin(PIN_SSC_RD, PIN_SSC_RD_FLAGS);
+  pio_configure_pin(PIN_SSC_RF, PIN_SSC_RF_FLAGS);
+  pio_configure_pin(PIN_SSC_RK, PIN_SSC_RK_FLAGS);
+  pio_configure_pin(PIN_SSC_TD, PIN_SSC_TD_FLAGS);
+//  pio_configure_pin(PIN_SSC_TF, PIN_SSC_TF_FLAGS);
+  pio_configure_pin(PIN_SSC_TK, PIN_SSC_TK_FLAGS);
+  */ 
+    
 }
 
 // 
@@ -423,7 +433,7 @@ uint32_t board_wdt_init(void)
 		strcat(&msg[0], " NRST=1,");		
 	}
 	else {
-		*nrst = 1;
+		*nrst = 0;
 		strcat(&msg[0], " NRST=0,");
 	}
 

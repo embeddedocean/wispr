@@ -41,10 +41,19 @@ master.
 int pcf8574_write(uint8_t byte)
 {
 	int status = ~TWI_SUCCESS;
-	status = i2c_write(PCF8574_TWI, PCF8574_ADDR, &byte, 1);
+	uint8_t buf = byte;
+
+	
+//	status = twi_probe(PCF8574_TWI, PCF8574_ADDR);
+//	if( status != TWI_SUCCESS ) {
+//		printf("I2C probe FAILED: 0x%x\r\n", status);
+//	}
+	
+	status = i2c_write(PCF8574_TWI, PCF8574_ADDR, &buf, 1);
 	if ( status != TWI_SUCCESS) {
 		printf("pcf8574: error writing (0x%02x)\r\n", status);
 	}
+
 	return status;
 }
 
@@ -55,7 +64,7 @@ int pcf8574_read(uint8_t *byte)
 	int status = ~TWI_SUCCESS;
 	status = i2c_read(PCF8574_TWI, PCF8574_ADDR, byte, 1);
 	if ( status != TWI_SUCCESS) {
-		printf("pcf8574: error reading (0x%02x)\r\n", status);
+		//printf("pcf8574: error reading (0x%02x)\r\n", status);
 	}
 	return status;
 }

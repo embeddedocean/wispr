@@ -34,7 +34,7 @@ if(sample_size == 2)
    q = adc_vref/32767.0;  % 16 bit scaling to volts
    fmt = 'int16';
 elseif(sample_size == 3)
-   q = adc_vref/8388608.0;  % l24 bit scaling to volts
+   q = adc_vref/8388608.0;  % 24 bit scaling to volts
    fmt = 'bit24';
 elseif(sample_size == 4)
    q = 1.0;
@@ -56,6 +56,8 @@ count = 0;
 go = 1;
 t0 = 0;
 prev_secs = 0;
+hack = 1;
+
 while( go )
     
     data = [];
@@ -87,9 +89,8 @@ while( go )
             if( isempty(S) ) 
                 break; 
             end
-            max_adc_value = 2^(sample_size*8-1)-1;
-            adc_scaling = adc_vref / max_adc_value;  
-            scale = (adc_scaling / fft_size)^2;
+            psd_scaling = adc_vref / (2^(4*8-1)-1);  % see spectrum.c
+            scale = (psd_scaling / fft_size)^2;
             if(fft_window_type == 1) % hamming 
                 scale = scale / 4.0;
             end
@@ -115,15 +116,16 @@ while( go )
         ylabel('Volts');
         xlabel('Seconds');
         grid on;
+        axis([min(min(time)) max(max(time)) -5.1 5.1]);
 
         window = rectwin(fft_size);
         %window = hamming(nfft);
         overlap = 256;
         fs = sampling_rate;
-        [Spec, freq] = my_psd(data(:),fs,window,overlap);
+        [Spec, f] = my_psd(data(:),fs,window,overlap);
         
         figure(2); clf;
-        plot(freq/1000, 10*log10(Spec),'.-');
+        plot(f/1000, 10*log10(Spec),'.-');
         grid on;
         xlabel('Frequency [kHz]'), 
         ylabel('Power Spectrum Magnitude (dB)');
@@ -137,7 +139,7 @@ while( go )
 
     if(psd_name) 
         figure(3); clf;
-        plot(10*log10(psd),'.-');
+        plot(freq/1000, 10*log10(psd),'.-');
         grid on;
         xlabel('Frequency [kHz]'), 
         ylabel('Power Spectrum Magnitude (dB)');

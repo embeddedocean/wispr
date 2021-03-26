@@ -37,7 +37,7 @@
 #include "wav_file.h"                                                                                                                                                                                                                           
 #include "sd_card_lite.h"
 
-uint8_t buffer[ADC_MAX_BUFFER_SIZE];
+uint8_t buffer[ADC_BUFFER_SIZE];
 uint8_t *buffer_header = buffer;  // header is at start of buffer
 uint8_t *buffer_data = &buffer[WISPR_DATA_HEADER_SIZE]; // data follows header
 
@@ -190,7 +190,7 @@ int main(int argc, char **argv)
     //wispr_print_data_header(&hdr);
 
     // Read data buffer
-    buffer_size = (size_t)hdr.block_size - WISPR_DATA_HEADER_SIZE;
+    buffer_size = (size_t)hdr.buffer_size - WISPR_DATA_HEADER_SIZE;
     nrd = fread(buffer_data, 1, buffer_size, input_fp);
     if (nrd != buffer_size) {
        fprintf(stdout, "failed to read data block: %d\n", nrd);
@@ -254,7 +254,7 @@ int main(int argc, char **argv)
     
 		// Write the whole buffer (header and data) to output file
 		if(psd_fp != NULL) {
-			buffer_size = (size_t)hdr.block_size;
+			buffer_size = (size_t)hdr.buffer_size;
 			//nwrt = write_data_header(&hdr, psd_fp);
 			//nwrt += fwrite(buffer_data, 1, hdr.samples_per_block * 4, psd_fp);
 			nwrt = fwrite(buffer, 1, buffer_size, psd_fp);
@@ -290,9 +290,9 @@ int write_data_header(wispr_data_header_t *hdr, FILE *fp)
 	nwrt += fwrite(&hdr->second, 1, 4, fp);
 	nwrt += fwrite(&hdr->usec, 1, 4, fp);
 	nwrt += fwrite(hdr->settings, 1, 4, fp);
-	nwrt += fwrite(&hdr->block_size, 1, 2, fp);
+	nwrt += fwrite(&hdr->buffer_size, 1, 2, fp);
 	nwrt += fwrite(&hdr->sample_size, 1, 1, fp);
-	nwrt += fwrite(&hdr->samples_per_block, 1, 2, fp);
+	nwrt += fwrite(&hdr->samples_per_buffer, 1, 2, fp);
 	nwrt += fwrite(&hdr->sampling_rate, 1, 4, fp);
 	nwrt += fwrite(&hdr->header_chksum, 1, 1, fp);
 	nwrt += fwrite(&hdr->data_chksum, 1, 1, fp);

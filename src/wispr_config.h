@@ -1,7 +1,7 @@
 /*
  * wispr_config.h
  *
- * Created: 5/26/2020 10:19:08 AM
+ * Created: 5/26/2020
  *  Author: Chris
  */ 
 

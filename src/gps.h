@@ -12,6 +12,7 @@
 #include "rtc_time.h"
 
 typedef struct {
+	uint32_t second;
 	double lat;
 	double lon;
 } gps_t;

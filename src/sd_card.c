@@ -13,6 +13,8 @@
 #include "sd_card.h"
 #include "rtc_time.h"
 
+#include "ina260.h"
+
 /* IRQ priority for PIO (The lower the value, the greater the priority) */
 #define IRQ_PRIOR_PIO 0
 
@@ -92,7 +94,30 @@ uint8_t sd_card_init(uint8_t card_num)
 	//card->state &= !SD_CARD_OK;
 	card->state = 0;
 
-	// hardware controls
+	//uint32_t volts; // mVolts
+	//int32_t amps;   // mAmps
+	//ina260_read_power(&amps, &volts);
+	//printf("sd card off: mA = %lu, mV = %lu\r\n", amps, volts);
+
+	/* Configure HSMCI pins */
+	pio_configure_pin(PIN_HSMCI_MCCDA_GPIO, PIN_HSMCI_MCCDA_FLAGS);
+	pio_configure_pin(PIN_HSMCI_MCCK_GPIO, PIN_HSMCI_MCCK_FLAGS);
+	pio_configure_pin(PIN_HSMCI_MCDA0_GPIO, PIN_HSMCI_MCDA0_FLAGS);
+	pio_configure_pin(PIN_HSMCI_MCDA1_GPIO, PIN_HSMCI_MCDA1_FLAGS);
+	pio_configure_pin(PIN_HSMCI_MCDA2_GPIO, PIN_HSMCI_MCDA2_FLAGS);
+	pio_configure_pin(PIN_HSMCI_MCDA3_GPIO, PIN_HSMCI_MCDA3_FLAGS);
+
+	// Configure SD Card control pins
+	ioport_set_pin_dir(PIN_SELECT_SD, IOPORT_DIR_OUTPUT);
+	ioport_set_pin_level(PIN_SELECT_SD, SELECT_SD1);
+
+	ioport_set_pin_dir(PIN_ENABLE_SD1, IOPORT_DIR_OUTPUT);
+	ioport_set_pin_level(PIN_ENABLE_SD1, SD_DISABLE);
+
+	ioport_set_pin_dir(PIN_ENABLE_SD2, IOPORT_DIR_OUTPUT);
+	ioport_set_pin_level(PIN_ENABLE_SD2, SD_DISABLE);
+
+	// turn on power to card and select it
 	sd_card_enable(card_num);
 	sd_card_select(card_num);
 
@@ -130,8 +155,30 @@ uint8_t sd_card_init(uint8_t card_num)
 
 	card->version[0] = WISPR_VERSION;
 	card->version[1] = WISPR_SUBVERSION;
-	
+
+	//ina260_read_power(&amps, &volts);
+	//printf("sd card on: mA = %lu, mV = %lu\r\n", amps, volts);
+		
 	return( card->state );
+}
+
+/*
+ * sd_card_init enables, selects, and checks the sd card, leaving it in an active state
+ */
+void sd_card_shutdown(void)
+{
+	/* Configure HSMCI pins as inputs */
+	ioport_set_pin_dir(PIN_PA26, IOPORT_DIR_INPUT);
+	ioport_set_pin_dir(PIN_PA27, IOPORT_DIR_INPUT);
+	ioport_set_pin_dir(PIN_PA28, IOPORT_DIR_INPUT);
+	ioport_set_pin_dir(PIN_PA29, IOPORT_DIR_INPUT);
+	ioport_set_pin_dir(PIN_PA30, IOPORT_DIR_INPUT);
+	ioport_set_pin_dir(PIN_PA31, IOPORT_DIR_INPUT);
+
+	ioport_set_pin_dir(PIN_ENABLE_SD1, IOPORT_DIR_INPUT);
+	ioport_set_pin_dir(PIN_ENABLE_SD2, IOPORT_DIR_INPUT);
+	ioport_set_pin_dir(PIN_SELECT_SD, IOPORT_DIR_INPUT);
+	
 }
 
 void sd_card_print_info(uint8_t card_num)
@@ -224,7 +271,7 @@ int sd_card_set_number_of_blocks(uint8_t card_num, uint32_t nblocks)
 	uint32_t first = SD_CARD_START_BLOCK;
 	uint32_t last = card->capacity * (1024 / SD_MMC_BLOCK_SIZE);
 	if( (nblocks <= 0) || (nblocks > (last - first)) ) {
-		printf("sd_card_set_number_of_blocks: failed to set %d\n\r", nblocks);
+		printf("sd_card_set_number_of_blocks: failed to set %u\n\r", nblocks);
 		return(0);
 	}
 	card->end = card->start + nblocks;
@@ -263,7 +310,7 @@ uint32_t sd_card_free_space(uint8_t card_num)
 
 
 //------------------------------------------------------------------------
-// No file system (nfs) SD card utility functions
+// No file system (raw) SD card utility functions
 // There's no file system on the sd card, just a header and configuration block.
 
 uint8_t sd_card_format(uint8_t card_num, char *name)
@@ -888,7 +935,7 @@ FRESULT sd_card_fread_config(char *filename, wispr_config_t *hdr)
 	res = f_open(&file, filename, FA_OPEN_EXISTING | FA_READ);
 	if( res != FR_OK ) {
 		if( res == FR_NO_FILE ) {
-			printf("No configuration file found\r\n", res);
+			printf("No configuration file found\r\n");
 		} else {
 			printf("sd_card_fread_config: f_open failed res %d\r\n", res);
 		}
@@ -986,6 +1033,11 @@ FRESULT sd_card_fwrite_config(char *filename, wispr_config_t *hdr)
 	return(nwrt);
 }
 
+FRESULT sd_card_create_header_file(char *filename, wispr_config_t *cfg, wispr_data_header_t *hdr)
+{
+	return(sd_card_fwrite_header(filename, cfg, hdr));
+}
+
 FRESULT sd_card_fwrite_header(char *filename, wispr_config_t *cfg, wispr_data_header_t *hdr)
 {
 	FRESULT res;
@@ -1021,8 +1073,6 @@ FRESULT sd_card_fwrite_header(char *filename, wispr_config_t *cfg, wispr_data_he
 	nwrt += f_printf(&file, "fft_overlap = %d;\r\n", cfg->fft_overlap);
 	nwrt += f_printf(&file, "fft_window_type = %d;\r\n", cfg->fft_window_type);
 	nwrt += f_printf(&file, "adc_decimation = %d;\r\n", cfg->adc_decimation);
-	//sprintf(str, "%f", ADC_VREF );
-	//nwrt += f_printf(&file, "adc_vref = %s;\r\n", str); // no %f
 	nwrt += f_printf(&file, "adc_vref = %d.%02d;\r\n", (int)ADC_VREF, (int)(ADC_VREF*100) - 100*(int)ADC_VREF ); // no %f
 
 	res = f_close(&file);

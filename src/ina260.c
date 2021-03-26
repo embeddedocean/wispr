@@ -7,25 +7,28 @@
 
 #include	<asf.h>
 #include	<assert.h>
+#include	<stdio.h>
 #include	<string.h>
 
 #include "ina260.h"
 #include "i2c.h"
+#include "com.h"
 
 #define INA260_ADDR  (0x80 >> 1)
 
+#define INA260_CNRF 0x08
+
 Twi *INA260_TWI = TWI0;
 
-// INA260 Control Registers
-typedef struct 
-{
-	uint8_t mode	: 3;	// Operating more
-	uint8_t ishct	: 3;	// Shunt Current Conversion Time
-	uint8_t vbusct	: 3;	// Bus Voltage Conversion Time
-	uint8_t avg	: 3;	// Averaging Mode
-	uint8_t mbz	: 3;	// 110
-	uint8_t rst	: 1;	// Reset Bit
-} ina260_control_register;
+static uint16_t ina260_config = 0;
+static uint8_t ina260_send_com_msg = 0;
+
+float32_t ina260_V = 0.0; // Volts
+float32_t ina260_mA = 0.0;  // mAmps
+float32_t ina260_mW = 0.0;  // mWatts
+float32_t ina260_mWh = 0.0;  // mWh
+
+float32_t ina260_dt = 0.0011; // sampling interval in seconds
 
 /*
 Writing to a register begins with the first byte transmitted by the master. This byte is the slave address, with the
@@ -35,7 +38,7 @@ desired register. The next two bytes are written to the register addressed by th
 acknowledges receipt of each data byte. The master may terminate data transfer by generating a start or stop
 condition.
 */
-int ina260_write_register(uint8_t regnum, uint8_t *reg)
+static int ina260_write_register(uint8_t regnum, uint8_t *reg)
 {
 	uint8_t data[3];
 	int status = ~TWI_SUCCESS;
@@ -44,8 +47,8 @@ int ina260_write_register(uint8_t regnum, uint8_t *reg)
 	 * Send the register number we are trying to write to the device followed by the data to be written.
 	 */
 	data[0] = regnum;
-	data[1] = reg[0];
-	data[2] = reg[1];
+	data[1] = reg[1];
+	data[2] = reg[0];
 
 	status = i2c_write(INA260_TWI, INA260_ADDR, data, 3);
 
@@ -65,7 +68,7 @@ Acknowledge after receiving any data byte, or generating a start or stop conditi
 same register are desired, it is not necessary to continually send the register pointer bytes; the device retains the
 register pointer value until it is changed by the next write operation.
 */
-int ina260_read_register( uint8_t regnum, uint8_t *reg)
+static int ina260_read_register( uint8_t regnum, uint8_t *reg)
 {
 	int status = ~TWI_SUCCESS;
 
@@ -80,66 +83,218 @@ int ina260_read_register( uint8_t regnum, uint8_t *reg)
 	if((status = i2c_read(INA260_TWI, INA260_ADDR, reg, 2)) != TWI_SUCCESS) {
 		return status;
 	}
-	//printf("ina260_read_register: 0x%02x 0x%02x\r\n", reg[0], reg[1]);
+	//printf("ina260_read_register %d: 0x%02x 0x%02x\r\n", regnum, reg[0], reg[1]);
 
 	return status;
 }
 
-
-int ina260_init()
+static void ina260_alarm_handler(uint32_t ul_id, uint32_t ul_mask)
 {
-	int status = ~TWI_SUCCESS;
+	if (ID_PIOA == ul_id && PIO_PA5 == ul_mask) {
+
+		ina260_read(&ina260_mA, &ina260_V, 2);
+
+		//ina260_mW = ina260_mA * ina260_V;
+		//ina260_mWh += (ina260_mW * ina260_dt * 0.0002778); //  mWh
+				
+		//printf("INA260 Alarm: I = %f mA, V = %f V\r\n", ina260_mA, ina260_V);
+
+		if(ina260_send_com_msg) {
+			char str[64];
+			sprintf(str, "PWR,%.2f,%.2f,%.2f", ina260_mA, ina260_V, ina260_mA*ina260_V);
+			//sprintf(str, "PWR,%.2f,%.2f,%.2f", ina260_mA, ina260_V, ina260_mWh);
+			com_write_msg(BOARD_COM_PORT, str);			
+		}
+
+	}
+}
+
+int ina260_init(uint16_t config, uint16_t alarm, uint8_t send_com_msg)
+{
+ 	int status = ~TWI_SUCCESS;
+	uint16_t reg = 0;
 	
-	ina260_control_register ctrl;
+	if( alarm > 0) {
+		
+		// setup pin used for alarm
+		ioport_set_pin_dir(PIN_INA260_ALARM, IOPORT_DIR_INPUT);
+		ioport_set_pin_mode(PIN_INA260_ALARM, IOPORT_MODE_PULLUP);
+
+		/* Adjust PIO debounce filter parameters, using 10 Hz filter. */
+		pio_set_debounce_filter(PIN_INA260_ALARM_PIO, PIN_INA260_ALARM_MASK, 10);
 	
-	ctrl.mode = 7;		// Shunt Current and Bus Voltage, Continuous
-	ctrl.ishct = 7;		// conversion time = 8.244 ms
-	ctrl.vbusct = 7;	// conversion time = 8.244 ms
-	ctrl.avg = 7;		// number of averages = 1024
-	ctrl.mbz = 6;		// constant
-	ctrl.rst = 1;		// reset
+		// Initialize PIO interrupt handler for alarm pin with falling edge or low detection
+		uint32_t attr = (PIO_PULLUP | PIO_DEBOUNCE | PIO_IT_FALL_EDGE ); //PIO_IT_LOW_LEVEL);
+		pio_handler_set(PIN_INA260_ALARM_PIO, PIN_INA260_ALARM_ID, PIN_INA260_ALARM_MASK, attr, ina260_alarm_handler);
+
+		// Enable PIOA controller IRQs
+		//NVIC_DisableIRQ(PIOA_IRQn);
+		//NVIC_ClearPendingIRQ(PIOA_IRQn);
+		NVIC_SetPriority(PIOA_IRQn, 2);
+		//NVIC_EnableIRQ((IRQn_Type)PIN_INA260_ALARM_ID);
+		NVIC_EnableIRQ(PIOA_IRQn);		
+		
+		// Enable line interrupts
+		pio_enable_interrupt(PIN_INA260_ALARM_PIO, PIN_INA260_ALARM_MASK);
+		
+	}
+	
+	ina260_send_com_msg = send_com_msg;
+
+	// reset - control is register 0
+	reg = 0x8000;
+	status = ina260_write_register(0, (uint8_t *)&reg);
+	if ( status != TWI_SUCCESS) {
+		printf("ina260_init: error writing control_register (0x%02x)\r\n", status);
+	}
+	delay_ms(1);
+
+	// read defaults config regs values
+	status = ina260_read_register(0, (uint8_t *)&reg);
+	if ( status != TWI_SUCCESS) {
+		printf("ina260_init: error writing control_register (0x%02x)\r\n", status);
+	}
+
+	// set configure register bits
+	reg = config;
+	
+	// save config because the config needs to be re-written after each conversion in triggered mode
+	ina260_config = reg; 
 
 	// control is register 0
-	status = ina260_write_register(0, (uint8_t *)&ctrl);
+	status = ina260_write_register(0, (uint8_t *)&reg);
 	if ( status != TWI_SUCCESS) {
-		printf("ina260_configure: error writing control_register (0x%02x)\r\n", status);
+		printf("ina260_init: error writing control_register (0x%02x)\r\n", status);
 	}
 
-	ctrl.rst = 0;		// reset
-	status = ina260_write_register(0, (uint8_t *)&ctrl);
+	// enable alarms
+	reg = alarm; 
+	
+	// mask/enable is register 6
+	status = ina260_write_register(6, (uint8_t *)&reg);
 	if ( status != TWI_SUCCESS) {
-		printf("ina260_configure: error writing control_register (0x%02x)\r\n", status);
+		printf("ina260_init: error writing enable register (0x%02x)\r\n", status);
 	}
+
+	// initialize local variables
+	ina260_mA = 0;
+	ina260_V = 0;
+	ina260_mW = 0;
+	ina260_mWh = 0;
+	ina260_dt = 0.0011;
+
+	uint16_t ct = (config & 0x01F8);
+	if(ct == INA260_CONFIG_CT_140us)  ina260_dt = 0.000140;
+	else if(ct == INA260_CONFIG_CT_204us)  ina260_dt = 0.000204;
+	else if(ct == INA260_CONFIG_CT_332us)  ina260_dt = 0.000332;
+	else if(ct == INA260_CONFIG_CT_588us)  ina260_dt = 0.000588;
+	else if(ct == INA260_CONFIG_CT_1100us) ina260_dt = 0.0011;
+	else if(ct == INA260_CONFIG_CT_2116us) ina260_dt = 0.002116;
+	else if(ct == INA260_CONFIG_CT_4156us) ina260_dt = 0.004156;
+	else if(ct == INA260_CONFIG_CT_8244us) ina260_dt = 0.008244;
+	
+	uint16_t avg = (config & 0x0E00);
+	if(avg == INA260_CONFIG_AVG_1)  ina260_dt *= 1.0;
+	else if(avg == INA260_CONFIG_AVG_4) ina260_dt *= 4.0;
+	else if(avg == INA260_CONFIG_AVG_16) ina260_dt *= 16.0;
+	else if(avg == INA260_CONFIG_AVG_64) ina260_dt *= 64.0;
+	else if(avg == INA260_CONFIG_AVG_128) ina260_dt *= 128.0;
+	else if(avg == INA260_CONFIG_AVG_256) ina260_dt *= 256.0;
+	else if(avg == INA260_CONFIG_AVG_512) ina260_dt *= 512.0;
+	else if(avg == INA260_CONFIG_AVG_1024) ina260_dt *= 1024.0;
+
+	//printf("ina260_init: config register 0x%04x\r\n", config);
+	//printf("ina260_init: sampling interval %f\r\n", ina260_dt);
 	
 	return status;
 }
 
-int ina260_read_power(int32_t *amps, uint32_t *volts)
+
+int ina260_stop()
+{
+	int status = ~TWI_SUCCESS;
+	uint16_t reg = 0;  // shutdown
+		
+	// disable conversion
+	reg = 0; 
+	
+	// enable is register 6
+	status = ina260_write_register(6, (uint8_t *)&reg);
+	if ( status != TWI_SUCCESS) {
+		printf("ina260_init: error writing enable register (0x%02x)\r\n", status);
+	}
+	
+	// control is register 0
+	status = ina260_write_register(0, (uint8_t *)&reg);
+	if ( status != TWI_SUCCESS) {
+		printf("ina260_stop: error writing control_register (0x%02x)\r\n", status);
+	}
+
+	// disable line interrupts
+	pio_disable_interrupt(PIN_INA260_ALARM_PIO, PIN_INA260_ALARM_MASK);
+
+	return status;
+}
+
+int ina260_read(float32_t *mA, float32_t *V, uint32_t timeout)
 {
 	int  status = ~TWI_SUCCESS;
 	uint8_t reg[2];
+	int16_t wait = 1;
+
+	// read mask/enable register and wait until a new conversion is ready
+	if(timeout == 0) wait = 1; // just read the reg once
+	else wait = timeout;
+	
+	while( wait > 0 ) {	
+		// read Mask/Enable Register (06h)
+		status = ina260_read_register(6, (uint8_t *)reg);
+		if ( status != TWI_SUCCESS) {
+			printf("ina260_read: error reading MAsk/Enable register (0x%02x)\r\n", status);
+		}
+		if( reg[1] == INA260_CNRF  ) { // check if CVRF bit is set 
+			//printf("ina260_read_power: cnrf at %d\r\n", wait);
+			break;
+		} 
+		else wait--;
+		delay_ms(10); // slow things down
+	}
+	
+	if(wait == 0) {
+		// return the last measurements
+		*mA = ina260_mA;
+		*V = ina260_V;
+		//printf("ina260_read: timeout\r\n");
+		return(0);
+	}
 	
 	// current is register 1
-	int16_t mA;
+	int16_t iv;
 	status = ina260_read_register(1, reg);
 	if ( status != TWI_SUCCESS) {
-		printf("ina260_read_power: error reading current register (0x%02x)\r\n", status);
+		printf("ina260_read: error reading current register (0x%02x)\r\n", status);
 	}
 	// swap the bytes in the LSB regs to convert to an int16
-	mA = ((int16_t)reg[0] << 8) | ((int16_t)reg[1] << 0);
-	*amps = (int32_t)(1.25f * (float)mA);
+	iv = ((int16_t)reg[0] << 8) | ((int16_t)reg[1] << 0);
+	*mA = (1.25f * (float32_t)iv);
 	
 	// voltage is register 2
-	uint16_t mV;
+	uint16_t uv;
 	status = ina260_read_register(2, reg);
 	if ( status != TWI_SUCCESS) {
-		printf("ina260_read_power: error reading  register (0x%02x)\r\n", status);
+		printf("ina260_read: error reading  register (0x%02x)\r\n", status);
 	}
 	// swap the bytes in the LSB regs to convert to an uint16
-	mV = ((uint16_t)reg[0] << 8) | ((uint16_t)reg[1] << 0);
-	*volts = (uint32_t)(1.25f * (float)mV);
+	uv = ((uint16_t)reg[0] << 8) | ((uint16_t)reg[1] << 0);
+	*V = 0.001 * (float32_t)(1.25f * (float32_t)uv);
+
+	// control is register 0
+	status = ina260_write_register(0, (uint8_t *)&ina260_config);
+	if ( status != TWI_SUCCESS) {
+		printf("ina260_read: error rewriting control_register (0x%02x)\r\n", status);
+	}
 	
-	return status;
+	return(1);
 }
 
  

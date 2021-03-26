@@ -9,7 +9,7 @@
 #include <stdio.h>
 #include <stdint.h>
 
-#include "board_v2.0.h"
+#include "board_v2.1.h"
 #include "rtc_time.h"
 #include "pps_timer.h"
 
@@ -42,6 +42,8 @@ void RTT_Handler(void)
 
 //
 // PPS Timer Setup
+// Make sure there's a PPS signal configured to drive the PIN_PPS_INT pin
+// Typically the PPS comes from the external RTC chip
 //
 uint32_t pps_timer_init(void)
 {
@@ -61,12 +63,13 @@ uint32_t pps_timer_init(void)
 	
 	// setup the pin used for pp input
 	ioport_set_pin_dir(PIN_PPS_INT, IOPORT_DIR_INPUT);
-	ioport_set_pin_mode(PIN_PPS_INT, IOPORT_MODE_PULLDOWN|IOPORT_MODE_GLITCH_FILTER);
+	//ioport_set_pin_mode(PIN_PPS_INT, IOPORT_MODE_PULLDOWN|IOPORT_MODE_GLITCH_FILTER);
+	ioport_set_pin_mode(PIN_PPS_INT, IOPORT_MODE_PULLUP|IOPORT_MODE_GLITCH_FILTER);
 
 	// Enable RTT controller IRQs
 	NVIC_DisableIRQ(RTT_IRQn);
 	NVIC_ClearPendingIRQ(RTT_IRQn);
-	NVIC_SetPriority(RTT_IRQn, PPS_IRQ_PRIO+1);
+	NVIC_SetPriority(RTT_IRQn, PPS_IRQ_PRIO);
 	NVIC_EnableIRQ(RTT_IRQn);
 	
 	return(status);
@@ -75,8 +78,8 @@ uint32_t pps_timer_init(void)
 void pps_timer_stop(void)
 {
 	// Disable PIOA line interrupts
-	NVIC_DisableIRQ((IRQn_Type)ID_PIOA);
-	//pio_disable_interrupt(PIOA, PIO_PA2);
+//	NVIC_DisableIRQ((IRQn_Type)ID_PIOA);
+
 	pio_disable_interrupt(PIN_PPS_PIO, PIN_PPS_MASK);
 
 	// stop the rtt
@@ -118,7 +121,7 @@ static void pps_sync_cb_handler(uint32_t id, uint32_t mask)
 			rtt_enable(RTT);
 
 			// Disable PIOA line interrupts after the first sync interrupt
-			NVIC_DisableIRQ((IRQn_Type)PIN_PPS_ID);
+			//NVIC_DisableIRQ((IRQn_Type)PIN_PPS_ID);
 			pio_disable_interrupt(PIN_PPS_PIO, PIN_PPS_MASK);
 			
 			// Execute the callback function
@@ -202,7 +205,7 @@ static void pps_cal_handler(uint32_t id, uint32_t mask)
 			if(pps_timer_cal_count == 1) { 
 				pps_timer_cal_stop_value = rtt_read_timer_value(RTT);
 				// disable future interrupts
-				NVIC_DisableIRQ((IRQn_Type)ID_PIOA);
+				//NVIC_DisableIRQ((IRQn_Type)ID_PIOA);
 				pio_disable_interrupt(PIOA, PIO_PA2);
 			}
 			

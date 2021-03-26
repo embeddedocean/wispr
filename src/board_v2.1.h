@@ -2,23 +2,24 @@
  * WISPR V2.0 PINS Definitions
  */
 
-#ifndef _WISPR_V2_0_BOARD_H
-#define _WISPR_V2_0_BOARD_H
+#ifndef _WISPR_V2_1_BOARD_H
+#define _WISPR_V2_1_BOARD_H
 
 #include <conf_board.h>
 #include <stdint.h>
 #include <sam4sd32b.h>
 
 //! Name string macro
-#define BOARD_NAME    "WISPR V2.0"
+#define BOARD_NAME    "WISPR V2.1"
 
 // COM UART 
-#define BOARD_COM_PORT 0
+#define BOARD_COM_PORT 1
 #define BOARD_COM_BAUDRATE 9600
 
 // Console UART
-#define BOARD_CONSOLE_PORT  1
-#define BOARD_CONSOLE_BAUDRATE   115200
+#define BOARD_CONSOLE_PORT  0
+//#define BOARD_CONSOLE_BAUDRATE   115200
+#define BOARD_CONSOLE_BAUDRATE   9600
 
 //! Resonator definitions
 #define BOARD_FREQ_SLCK_XTAL      (32768U)
@@ -27,16 +28,15 @@
 #define BOARD_FREQ_MAINCK_BYPASS  (12000000U)
 #define BOARD_OSC_STARTUP_US      15625
 
-/* Valid CPU frequency list */
+// Valid CPU frequency list 
+// Make sure this list is consistent with the ppl src defined cof_clock.h
 enum board_cpu_freq_hz {
-	BOARD_CPU_FREQ_24M,
-	BOARD_CPU_FREQ_32M,
-	BOARD_CPU_FREQ_48M,
-	BOARD_CPU_FREQ_64M,
-	BOARD_CPU_FREQ_84M,
-	BOARD_CPU_FREQ_96M,
-	BOARD_CPU_FREQ_100M,
-	BOARD_CPU_FREQ_120M
+	BOARD_CPU_FREQ_24M = 24000000,
+	BOARD_CPU_FREQ_32M = 32000000,
+	BOARD_CPU_FREQ_48M = 48000000,
+	BOARD_CPU_FREQ_64M = 64000000,
+	BOARD_CPU_FREQ_96M = 96000000,
+	BOARD_CPU_FREQ_120M = 120000000
 };
 
 // Reset types
@@ -82,13 +82,20 @@ extern void board_reset_reason(uint8_t *reason, uint8_t *nrst, uint8_t *user);
 #define PIN_PA23    IOPORT_CREATE_PIN(PIOA, 23)
 #define PIN_PA24    IOPORT_CREATE_PIN(PIOA, 24)
 #define PIN_PA25    IOPORT_CREATE_PIN(PIOA, 25)
+#define PIN_PA26    IOPORT_CREATE_PIN(PIOA, 26)
 #define PIN_PA27    IOPORT_CREATE_PIN(PIOA, 27)
+#define PIN_PA28    IOPORT_CREATE_PIN(PIOA, 28)
+#define PIN_PA29    IOPORT_CREATE_PIN(PIOA, 29)
+#define PIN_PA30    IOPORT_CREATE_PIN(PIOA, 30)
+#define PIN_PA31    IOPORT_CREATE_PIN(PIOA, 31)
 #define PIN_PB0     IOPORT_CREATE_PIN(PIOB, 0)
 #define PIN_PB1     IOPORT_CREATE_PIN(PIOB, 1)
 #define PIN_PB2     IOPORT_CREATE_PIN(PIOB, 2)
 #define PIN_PB3     IOPORT_CREATE_PIN(PIOB, 3)
 #define PIN_PB4     IOPORT_CREATE_PIN(PIOB, 4)
 #define PIN_PB5     IOPORT_CREATE_PIN(PIOB, 5)
+#define PIN_PB8     IOPORT_CREATE_PIN(PIOB, 8)
+#define PIN_PB9     IOPORT_CREATE_PIN(PIOB, 9)
 #define PIN_PB10     IOPORT_CREATE_PIN(PIOB, 10)
 #define PIN_PB11     IOPORT_CREATE_PIN(PIOB, 11)
 #define PIN_PB12     IOPORT_CREATE_PIN(PIOB, 12)
@@ -114,22 +121,23 @@ extern void board_reset_reason(uint8_t *reason, uint8_t *nrst, uint8_t *user);
 #define PIN_J8_22    PIN_PA23
 
 // Power control pins
-#define PIN_ENABLE_PI_5V    PIN_PA5
+#define PIN_ENABLE_5V   PIN_PB14
+#define PIN_ENABLE_5V5  PIN_PA6
 
 // ADC control pins
-#define PIN_ENABLE_ADC_PWR  PIN_PB10
+#define PIN_ENABLE_ADC_PWR  PIN_PB8
 #define PIN_ADC_SEL1		PIN_PB13
-#define PIN_ADC_SEL0		PIN_PB11
+#define PIN_ADC_SEL0		PIN_PB9
 #define PIN_ADC_SYNC		PIN_PA23
 
 // PIN to enable SD Cards
-#define PIN_SELECT_SD   PIN_PA6
+#define PIN_SELECT_SD   PIN_PA25
 #define PIN_ENABLE_SD1   PIN_PB1
 #define PIN_ENABLE_SD2   PIN_PB0
-#define SD_ENABLE   0
-#define SD_DISABLE  1
-#define SELECT_SD1   1
-#define SELECT_SD2   0
+#define SD_ENABLE   1
+#define SD_DISABLE  0
+#define SELECT_SD1   0
+#define SELECT_SD2   1
 
 // ADC preamp control pins
 #define PIN_PREAMP_G0 PIN_PB4
@@ -158,6 +166,13 @@ extern void board_reset_reason(uint8_t *reason, uint8_t *nrst, uint8_t *user);
 
 //! Number of on-board buttons
 #define BUTTON_COUNT 0
+
+#define PIN_INA260_ALARM        (PIO_PA5_IDX)
+#define PIN_INA260_ALARM_FLAGS  (PIO_PERIPH_A | PIO_DEFAULT)
+#define PIN_INA260_ALARM_MASK   (PIO_PA5)
+#define PIN_INA260_ALARM_PIO    (PIOA)
+#define PIN_INA260_ALARM_ID     (ID_PIOA)
+
 
 //! Number of on-board UARTs
 #define UART_COUNT 2

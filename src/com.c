@@ -1,6 +1,6 @@
 /*
  * com.c: 
- * UART serial command interface
+ * Serial port command interface
  * Embedded Ocean Systems (EOS), 2019
  *
  *----------------------------------------------------------------
@@ -17,6 +17,38 @@
 #include <delay.h>
 
 static int verbose_level = 0;
+static 	char com_buffer[COM_MAX_MESSAGE_SIZE];
+
+/*CRC codes*/
+
+/* CRC accumulator */
+static uint32_t accum_crc(uint32_t acmul, uint8_t ch)
+{
+	uint8_t i;
+
+	acmul |= ch & 0xFF;
+	for( i=0; i<8; i++ )
+	{
+		acmul <<= 1;
+		if( acmul & 0x1000000L ) acmul ^= 0x102100L;
+	}
+	return acmul;
+}
+
+/* calculate CRC of buffer */
+static uint16_t Calc_CRC(uint8_t *buf, uint16_t cnt)
+{
+	uint32_t accum= 0;
+	while(cnt-- )
+	{
+		accum=accum_crc(accum, *buf++ );
+	}
+	/*The next 2 lines forces compatibility with XMODEM CRC */
+	accum=accum_crc(accum, 0 );
+	accum=accum_crc(accum, 0 );
+	return(unsigned short) (accum>> 8 );
+}
+
 
 int com_init(int port, uint32_t baud)
 {
@@ -62,9 +94,10 @@ void com_stop(int port)
 int com_read_msg (int port, char *msg, int timeout)
 {
   int nrd = 0;
-  char tmp[COM_MAX_MESSAGE_SIZE];  // input buffer
+  char *tmp = com_buffer; //[COM_MAX_MESSAGE_SIZE];  // input buffer
   int len;
   char *head, *tail;
+  uint8_t crc = 0;
 
   // clear message buffers
   memset(tmp, 0, COM_MAX_MESSAGE_SIZE);  
@@ -91,47 +124,68 @@ int com_read_msg (int port, char *msg, int timeout)
   // otherwise something was read, so
   // check if it's a valid message 
   if(nrd > 0) {
-    // find start, end, and size of the msg in buffer
+    
+	// find start, end, and size of the msg in buffer
     head = strchr(tmp, COM_MESSAGE_PREFIX);	// find start of msg
     tail = strchr(tmp, COM_MESSAGE_SUFFIX);	// find end of msg
     len = (int)(tail - head - 1);	// size of message
     if ((len > 0) && (len < COM_MAX_MESSAGE_SIZE)) {
        // copy message into msg buffer, skipping the prefix char
        strncpy (msg, head + 1, len);
+	   // copy crc value into buffer
+	   crc = (uint8_t)strtoul(tail+1, NULL, 16); // convert hex string to an uint 
        // terminate with NULL, overwriting the suffix char
        msg[len] = 0x00;
     }
+    
+	// Check CRC
+    if(crc != Calc_CRC(msg, len)) {
+	   printf( "com_read_msg: CRC Error - %s\r\n", msg, nrd);
+    }
+	
   }
+  
   
   // return the length of the message, 
   // which will be 0 if it's not valid
   nrd = strlen(msg);
+  
   if((verbose_level >= 2) && (nrd > 0)) { 
 	printf( "com_read_msg: %s, %d bytes\r\n", msg, nrd);
   }
+  
   return (nrd);
 
 }
 
 //---------------------------------------------------------------------
-int com_write_msg (int port, char *msg)
+int com_write_msg (int port, const char *msg)
 {
   int len, nwrt;
-  char obuf[COM_MAX_MESSAGE_SIZE];  // output buffer
+  char *obuf = com_buffer; //[COM_MAX_MESSAGE_SIZE];  // output buffer
+  uint8_t crc = 0;
 
   len = strlen(msg);  // length of the message
 
   // check to make sure message is not too long to fix in output buffer
-  if(len > (COM_MAX_MESSAGE_SIZE - 4)) len = COM_MAX_MESSAGE_SIZE - 4;
+  if(len > (COM_MAX_MESSAGE_SIZE - 6)) len = COM_MAX_MESSAGE_SIZE - 6;
 
+  // calcultate crc
+  crc = Calc_CRC((uint8_t *)msg, len);
+  
   // copy msg into transmit buffer
-  strncpy (obuf + 1, msg, len);  
+  sprintf(obuf, "$%s*%02x\r\n", msg, crc);
+
+//  strncpy (obuf + 1, msg, len);
+//  char crc_str[3];
+//  sprintf(cksum_str, "%02x", cksum);
 
   // Add prefix, suffix, and a NL to the end and null terminate
-  obuf[0] = COM_MESSAGE_PREFIX;  // add prefix
-  obuf[len + 1] = COM_MESSAGE_SUFFIX; // add suffix
-  obuf[len + 2] = 0x0a;	// <LF> newline 
-  obuf[len + 3] = 0x00;	// null terminate the string
+//  obuf[0] = COM_MESSAGE_PREFIX;  // add prefix
+//  obuf[len + 1] = COM_MESSAGE_SUFFIX; // add suffix
+//  obuf[len + 2] = cksum_str;	// 
+//  obuf[len + 3] = 0x0a;	// <LF> newline
+//  obuf[len + 4] = 0x00;	// null terminate the string
 
   len = strlen(obuf);
   enum status_code stat;
@@ -151,7 +205,7 @@ int com_write_msg (int port, char *msg)
 //
 int com_parse_msg (wispr_com_msg_t *msg, char *buf, int len)
 {
-  char args[COM_MAX_MESSAGE_SIZE-4];
+  char *args = com_buffer;
 
   if (verbose_level) {
     printf("com_parse_msg: %s\r\n", buf);
@@ -222,7 +276,7 @@ int com_parse_msg (wispr_com_msg_t *msg, char *buf, int len)
 
 int com_request_gps(wispr_com_msg_t *msg, uint16_t timeout)
 {
-	char buf[COM_MAX_MESSAGE_SIZE]; 
+	char *buf = com_buffer;
 	
 	//Set RTC time by GPS epoch sec received at COM0. Gain is also changed. HM
 	printf("Requesting GPS message to set DS3231 & RTC.\r\n");
@@ -245,7 +299,7 @@ int com_request_gps(wispr_com_msg_t *msg, uint16_t timeout)
 int com_request_gain(wispr_com_msg_t *msg, uint16_t timeout)
 {
 	uint8_t new_gain;
-	char buf[COM_MAX_MESSAGE_SIZE];
+	char *buf = com_buffer;
 	
 	//HM added to check if a gain change is requested
 	com_write_msg(BOARD_COM_PORT, "NGN");

@@ -1,7 +1,7 @@
 /*
  * wispr.c
  *
- * Created: 12/24/2019 5:02:40 AM
+ * Created: 12/24/2019
  *  Author: Chris
  */ 
 

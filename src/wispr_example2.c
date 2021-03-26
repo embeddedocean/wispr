@@ -1,7 +1,20 @@
-/**
+/*
+ * wispr_example2.c
+ *
+ * - Continuous data acquisition using a double buffering scheme where 
+ * - one data buffer is written to the SD card while the the adc dma fills the other.
+ * - Uninterrupted data acquisition is limited by the write speed of the sd card and whatever processing
+ * - is done on the data between buffer reads, such as spectral analysis.
+ * - To optimize write speed there is no file system on the SD card. The card is used as non-volatile memory.
+ * - Each data buffer has a header that included the timestamp and sampling parameters.
+ * - The program will read/write data until interrupted by a serial port input.
+ * - To optimize memory usage, the sample size and buffer size are fixed.
+ * - The fft size for spectral analysis is also fixed.
+ * - The user is prompted of other data collection parameters when the system is reset by the user.
  *
  * Support and FAQ: visit <a href="http://www.atmel.com/design-support/">Atmel Support</a>
  */
+
 #include <asf.h>
 #include <string.h>
 #include <stdio.h>
@@ -251,6 +264,20 @@ int main (void)
 
 		}
 
+		// handle com actions
+		switch (com_msg.type) {
+			case COM_SLEEP:
+			  go_to_sleep();
+			  break;
+			case COM_EXIT:
+			  go = 0;
+			  break;
+			case COM_:
+			  go = 0;
+			  break;
+		}
+
+		
 	}
 	
 	ltc2512_stop();
@@ -296,6 +323,33 @@ uint8_t swap_sd_cards(wispr_config_t *config)
 	sd_card_write_config(config->active_sd_card, config);
 
 	return(config->active_sd_card);
+}
+
+//
+// Enter backup mode sleep, shutting down as much as possible to save power
+//
+void go_to_sleep(void)
+{
+	// save config, close the active card, and disable all the sd cards
+	sd_card_disable(1);
+	sd_card_disable(2);
+	
+	ltc2512_shutdown();
+	
+	// flush the uarts
+	while (!uart_is_tx_empty(UART1)) {}
+
+	/* Switch MCK to slow clock  */
+	pmc_switch_mck_to_sclk(PMC_MCKR_PRES_CLK_1);
+
+	/* Disable unused clock to save power */
+	pmc_osc_disable_xtal(1);
+	pmc_disable_pllack();
+	pmc_disable_all_periph_clk();
+
+	// Enter into backup mode
+	pmc_enable_backupmode();
+
 }
 
 
@@ -452,7 +506,7 @@ uint32_t initialize_datetime_with_gps(void)
 	// request a gps message
 	int nrd = com_request_gps(&com_msg, timeout);
 	
-	// if a gps message os received use it to set the time		
+	// if a gps message is received use it to set the time		
 	if(nrd > 0) {
 		//Convert epoch time to RTC datetime format
 		epoch_to_rtc_time(&dt, com_msg.sec);

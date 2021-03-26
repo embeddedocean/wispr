@@ -233,8 +233,15 @@ enum status_code uart_start_queue(int port)
 	uart_enable_interrupt(uart, UART_IER_RXRDY);
 	uart_enable_rx(uart);
 
-	if( port == 0) NVIC_EnableIRQ(UART0_IRQn);
-	if( port == 1) NVIC_EnableIRQ(UART1_IRQn);
+
+	if( port == 0) {
+		NVIC_SetPriority(UART0_IRQn, 3);
+		NVIC_EnableIRQ(UART0_IRQn);
+	}
+	if( port == 1) {
+		NVIC_SetPriority(UART1_IRQn, 3);
+		NVIC_EnableIRQ(UART1_IRQn);
+	}
 	
 	return(stat);
 }

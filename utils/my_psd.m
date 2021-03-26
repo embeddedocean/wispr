@@ -9,9 +9,9 @@ function [Spec, freq] = my_psd(x,fs,win,noverlap)
 x = x(:);		
 win = win(:);
 
-n = length(x);		    % Number of data points
-nfft = length(win); % length of window
-if n < nfft            % zero-pad x if it has length less than the window length
+n = length(x);		  % Number of data points
+nfft = length(win);   % length of window
+if n < nfft           % zero-pad x if it has length less than the window length
     x((n+1):nfft)=0;  
     n=nfft;
 end

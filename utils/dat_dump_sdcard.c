@@ -38,7 +38,7 @@
 #include "wispr.h"
 #include "wav_file.h"                                                                                                                                                                                                                           
 
-uint8_t buffer[ADC_MAX_BUFFER_SIZE];
+uint8_t buffer[ADC_BUFFER_SIZE];
 uint8_t *buffer_header = buffer;  // header is at start of buffer
 uint8_t *buffer_data = &buffer[WISPR_DATA_HEADER_SIZE]; // data follows header
 
@@ -192,7 +192,7 @@ int main(int argc, char **argv)
     //wispr_print_data_header(&hdr);
 
     // Read data buffer
-    buffer_size = (size_t)hdr.block_size - WISPR_DATA_HEADER_SIZE;
+    buffer_size = (size_t)hdr.buffer_size - WISPR_DATA_HEADER_SIZE;
     nrd = fread(buffer_data, 1, buffer_size, input_fp);
     if (nrd != buffer_size) {
        fprintf(stdout, "failed to read data block: %d\n", nrd);
@@ -204,7 +204,7 @@ int main(int argc, char **argv)
 		if(prev_sec == 0) prev_sec = hdr.second;
 
 		// check the data buffer time to determine total duration of data written to file
-		duration += ((float)hdr.samples_per_block / (float)hdr.sampling_rate);
+		duration += ((float)hdr.samples_per_buffer / (float)hdr.sampling_rate);
 		if( duration >= (float)seconds_per_file ) {
 			open_new_file = 1;
 			duration = 0.0;
@@ -236,7 +236,7 @@ int main(int argc, char **argv)
 			}
 			sprintf(out_filename,"%s/%s_%02d%02d%02d_%02d%02d%02d.dat", output_path, prefix, 
                rtc.year, rtc.month, rtc.day, rtc.hour, rtc.minute, rtc.second);
-			dat_fp = fopen(out_filename, "w");
+			dat_fp = fopen(out_filename, "a+");
 			fprintf(stdout, "Opening raw data file %s\n", out_filename);
 			if(dat_fp == NULL) {
               fprintf(stdout, "Failed to open output file\n");
@@ -246,7 +246,7 @@ int main(int argc, char **argv)
           
 		// Write the whole buffer (header and data) to output file
 		if(dat_fp != NULL) {
-           buffer_size = (size_t)hdr.block_size;
+           buffer_size = (size_t)hdr.buffer_size;
            nwrt = fwrite(buffer, 1, buffer_size, dat_fp);
            if (nwrt != buffer_size) {
              fprintf(stdout, "failed to write buffer: %d\n", nwrt);
