@@ -27,8 +27,8 @@
 // fixed at 512 bytes for standard SD cards
 #define WISPR_SD_CARD_BLOCK_SIZE (512)
 
-// number of blacks in a file
-#define WISPR_FILE_SIZE (512)
+// number of blocks in a file
+//#define WISPR_FILE_SIZE (512)
 
 // The header size should be a multiple of a word size (4 bytes)
 // to avoid issues with word alignment when casting
@@ -62,8 +62,11 @@
 #define ADC_VREF 5.0
 #define ADC_SCALING 5.0
 
-// spectrum max buffer size
+// spectrum defaults
 #define PSD_DEFAULT_FFT_SIZE (2048)
+#define PSD_DEFAULT_OVERLAP (0)
+
+// spectrum max buffer size
 #define PSD_MAX_FFT_SIZE (2048)
 #define PSD_MAX_NUM_BINS (PSD_MAX_FFT_SIZE / 2)
 
@@ -81,7 +84,8 @@
 //#define PSD_MAX_BINS_PER_BUFFER ((PSD_BUFFER_SIZE - WISPR_DATA_HEADER_SIZE) / PSD_SAMPLE_SIZE)
 
 // States
-#define WISPR_RUNNING 0x01
+#define WISPR_IDLE 0x00
+#define WISPR_ACTIVE 0x01
 #define WISPR_PAUSED 0x02
 #define WISPR_SLEEP_WFI 0x04
 #define WISPR_SLEEP_BACKUP 0x08
@@ -97,8 +101,10 @@
 #define WISPR_FLOAT16 0x10
 #define WISPR_FLOAT32 0x20
 
-// Max file size is in units of 512 blocks
-#define WISPR_MAX_FILE_SIZE (ADC_BLOCKS_PER_BUFFER * 3052)
+// Max file size is in units of 512 blocks, 50Mb is a good value 
+//#define WISPR_MAX_FILE_SIZE (ADC_BLOCKS_PER_BUFFER * 3052)
+//#define WISPR_MAX_FILE_SIZE (50003968 / 512)
+#define WISPR_MAX_FILE_SIZE (10000000 / 512)
 
 // settings array index for different data header types
 #define ADC_SETTINGS_INDEX_GAIN 0
@@ -155,7 +161,7 @@ typedef struct {
 	uint8_t  channels;  // number of channels
 	uint8_t  gain;  // preamp gain
 	uint8_t  adc_decimation;  // 4, 8, 13, or 32
-	uint16_t buffers_per_window; // number of adc record buffers in a sampling window
+	//uint16_t buffers_per_window; // number of adc record buffers in a sampling window
 	uint16_t acquisition_time; // time in seconds of the adc sampling window
 	uint16_t sleep_time; // time in seconds between adc records (must be >= window)
 	uint16_t fft_size; // fft size used for spectrum
@@ -164,6 +170,17 @@ typedef struct {
 	uint32_t file_size; // number of block (512 byte) per file
 	uint8_t active_sd_card; // last card written to
 } wispr_config_t;
+
+//typedef struct {
+//	uint8_t  state;
+//	uint8_t  mode;
+//	uint32_t epoch; // linux time in seconds
+//	uint16_t buffers_per_window; // number of adc record buffers in a sampling window
+//	uint16_t acquisition_time; // time in seconds of the adc sampling window
+//	uint16_t sleep_time; // time in seconds between adc records (must be >= window)
+//	uint32_t file_size; // number of block (512 byte) per file
+//	uint8_t active_sd_card; // last card written to
+//} wispr_control_t;
 
 
 extern int wispr_parse_data_header(uint8_t *buf, wispr_data_header_t *hdr);

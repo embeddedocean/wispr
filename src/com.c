@@ -36,7 +36,7 @@ static uint32_t accum_crc(uint32_t acmul, uint8_t ch)
 }
 
 /* calculate CRC of buffer */
-static uint16_t Calc_CRC(uint8_t *buf, uint16_t cnt)
+static uint8_t Calc_CRC(uint8_t *buf, uint16_t cnt)
 {
 	uint32_t accum= 0;
 	while(cnt-- )
@@ -46,7 +46,7 @@ static uint16_t Calc_CRC(uint8_t *buf, uint16_t cnt)
 	/*The next 2 lines forces compatibility with XMODEM CRC */
 	accum=accum_crc(accum, 0 );
 	accum=accum_crc(accum, 0 );
-	return(unsigned short) (accum>> 8 );
+	return(uint8_t) (accum>> 8 );
 }
 
 
@@ -54,18 +54,18 @@ int com_init(int port, uint32_t baud)
 {
 	enum status_code stat = STATUS_OK;
 	if( (port < 0) || (port > 1) ) {
-		return(0);
+		return(ERR_BAD_DATA);
 	}
 	stat = uart_init_queue(port, baud);
 	if(stat != STATUS_OK ) {
-		return(0);
+		return(stat);
 	}
 	
 	uart_set_termination(port, UART_STAR_TERMINATION);
 	uart_clear_queue(port);
-	uart_start_queue(port);
+	stat = uart_start_queue(port);
 
-	return(1);
+	return(stat);
 }
 
 void com_stop(int port)
@@ -78,7 +78,7 @@ void com_stop(int port)
 
 //---------------------------------------------------------------------
 /*
-* Read the next message from the serial port.
+* Read the next message from the serial port, waiting timeout milliseconds
 * The input message buffer (msg) must be at least COM_MESSAGE_SIZE bytes 
 * In canonical mode read() will only return a full line of input. 
 * A line is by default terminated by a NL (ASCII LF), an end of file, 
@@ -93,11 +93,12 @@ void com_stop(int port)
 */
 int com_read_msg (int port, char *msg, int timeout)
 {
-  int nrd = 0;
   char *tmp = com_buffer; //[COM_MAX_MESSAGE_SIZE];  // input buffer
-  int len;
   char *head, *tail;
   uint8_t crc = 0;
+  int status = COM_NO_MSG;
+  int nrd = 0;
+  int len = 0;
 
   // clear message buffers
   memset(tmp, 0, COM_MAX_MESSAGE_SIZE);  
@@ -117,7 +118,7 @@ int com_read_msg (int port, char *msg, int timeout)
   
   // read the message with no timeout
   //stat =  uart_read_message_queue(port, (uint8_t *)tmp, COM_MAX_MESSAGE_SIZE);
-  if(stat != STATUS_OK) return(0);
+  if(stat != STATUS_OK) return(COM_TIMEOUT);
   
   nrd = strlen(tmp);
   
@@ -137,24 +138,24 @@ int com_read_msg (int port, char *msg, int timeout)
        // terminate with NULL, overwriting the suffix char
        msg[len] = 0x00;
     }
-    
+ 
+ 	if(len > 1) status = COM_VALID_MSG; 	
+   
 	// Check CRC
     if(crc != Calc_CRC(msg, len)) {
-	   printf( "com_read_msg: CRC Error - %s\r\n", msg, nrd);
+	   printf( "com_read_msg: CRC Error, recieved %02x, should be %02x\r\n", crc, Calc_CRC(msg, len));
+	   status = COM_INVALID_CRC;
     }
 	
   }
-  
-  
-  // return the length of the message, 
-  // which will be 0 if it's not valid
-  nrd = strlen(msg);
+    
+  //len = strlen(msg);
   
   if((verbose_level >= 2) && (nrd > 0)) { 
 	printf( "com_read_msg: %s, %d bytes\r\n", msg, nrd);
   }
   
-  return (nrd);
+  return (status);
 
 }
 
@@ -200,6 +201,7 @@ int com_write_msg (int port, const char *msg)
   return (nwrt);
 }
 
+/**
 //---------------------------------------------------------------------
 // Add your own message parsing here
 //
@@ -325,4 +327,6 @@ int com_request_gain(wispr_com_msg_t *msg, uint16_t timeout)
 	return(nrd);
 
 }
+
+**/
 

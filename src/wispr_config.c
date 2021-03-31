@@ -24,7 +24,7 @@ void wispr_config_set_default(wispr_config_t *config)
 	config->version[0] = WISPR_SUBVERSION;
 	
 	config->buffer_size = ADC_BLOCKS_PER_BUFFER * WISPR_SD_CARD_BLOCK_SIZE;
-	config->sample_size = ADC_SAMPLE_SIZE;
+	config->sample_size = ADC_DEFAULT_SAMPLE_SIZE;
 	config->sampling_rate = ADC_DEFAULT_SAMPLING_RATE;
 
 	config->acquisition_time = ADC_DEFAULT_AWAKE;
@@ -38,11 +38,11 @@ void wispr_config_set_default(wispr_config_t *config)
 	config->state = 0; //
 	config->mode = WISPR_WAVEFORM; //
 
-	config->fft_size = 1024;
-	config->fft_overlap = 0;
+	config->fft_size = PSD_DEFAULT_FFT_SIZE;
+	config->fft_overlap = PSD_DEFAULT_OVERLAP;
 	config->fft_window_type = RECT_WINDOW;
 	
-	config->file_size = WISPR_MAX_FILE_SIZE;  // about 50Mb
+	config->file_size = WISPR_MAX_FILE_SIZE;  
 	
 	config->active_sd_card = 1;
 }
@@ -81,26 +81,26 @@ void wispr_config_menu(wispr_config_t *config, int timeout)
 	if( u8 == 4 || u8 == 8 || u8 == 16 || u8 == 32) config->adc_decimation = u8;
 
 	// prompt for sampling interval
-	u16 = config->acquisition_time;
-	u16 = console_prompt_uint16("Enter sampling time window in seconds", config->acquisition_time, timeout);
-	if( u16 >= 1 ) config->acquisition_time = u16;
-	u16 = console_prompt_uint16("Enter sleep time between sampling windows in seconds", config->sleep_time, timeout);
-	if( u16 >= 0 ) config->sleep_time = u16;
+	//u16 = config->acquisition_time;
+	//u16 = console_prompt_uint16("Enter sampling time window in seconds", config->acquisition_time, timeout);
+	//if( u16 >= 1 ) config->acquisition_time = u16;
+	//u16 = console_prompt_uint16("Enter sleep time between sampling windows in seconds", config->sleep_time, timeout);
+	//if( u16 >= 0 ) config->sleep_time = u16;
 	
 	// update variables based on new input
 	config->buffer_size = (uint16_t)(blocks_per_buffer * WISPR_SD_CARD_BLOCK_SIZE);
 	config->samples_per_buffer = (config->buffer_size - WISPR_DATA_HEADER_SIZE) / (uint16_t)config->sample_size;
 	float adc_buffer_duration =  (float)config->samples_per_buffer / (float)config->sampling_rate; // seconds
-	config->buffers_per_window = (uint16_t)( (float)config->acquisition_time / adc_buffer_duration ); // truncated number of buffers
 	
-	config->state = WISPR_READY;
+	//config->buffers_per_window = (uint16_t)( (float)config->acquisition_time / adc_buffer_duration ); // truncated number of buffers
+	
+	config->state = WISPR_ACTIVE;
 	uint8_t mode = 0;
 
 	// prompt file file
-	//u32 = config->file_size;
-	//u32 = console_prompt_int("Enter max size of data file in blocks", u32, timeout);
-	//config->file_size = u32;
-	config->file_size = config->buffers_per_window;
+	u32 = config->file_size;
+	u32 = console_prompt_int("Enter size of data file in blocks", u32, timeout);
+	config->file_size = u32;
 	
 	// prompt to record waveform data
 	int record_waveform = 0;

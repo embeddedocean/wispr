@@ -348,6 +348,11 @@ uint32_t ltc2512_trigger(void)
 	return(ltc_adc_sec1);
 }
 
+void ltc2512_pause(void)
+{
+	ioport_set_pin_level(PIN_ADC_SYNC, 1);
+}
+
 void ltc2512_start(void)
 {
 	tc_start(TC0, 0); // Enable the conversion clock (mck)
@@ -363,10 +368,6 @@ void ltc2512_stop(void)
 	//ioport_set_pin_level(PIN_ADC_SYNC, 1);
 }
 
-void ltc2512_pause(void)
-{
-	ioport_set_pin_level(PIN_ADC_SYNC, 1);
-}
 
 void ltc2512_shutdown(void)
 {
