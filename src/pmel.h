@@ -8,9 +8,15 @@
 #include "wispr.h"
 #include "com.h"
 #include "gps.h"
+#include "spectrum.h"
+
+/* pmel command message status codes */
+#define PMEL_NONE 0
+#define PMEL_UNKNOWN 0
+#define PMEL_ERROR 1
 
 /* pmel command message types */
-#define PMEL_NONE 0
+#define PMEL_UNKNOWN 0
 #define PMEL_EXIT 1
 #define PMEL_RUN 2
 #define PMEL_PAUSE 3
@@ -22,6 +28,7 @@
 #define PMEL_TIME 9
 #define PMEL_GAIN 10
 #define PMEL_SDF 11
+#define PMEL_PSD 12
 
 //
 // Application specific control structure
@@ -33,17 +40,20 @@ typedef struct {
 	uint16_t acquisition_time; // time in seconds of the adc sampling window
 	uint16_t sleep_time; // time in seconds between adc records (must be >= window)
 	uint32_t file_size; // number of block (512 byte) per file
+	uint8_t gain; // adc gain setting
+	spectrum_t psd;
 	gps_t gps; // latest gps update
-	uint8_t gain;
 } pmel_control_t;
 
 
 // prototypes
-extern int pmel_init(pmel_control_t *pmel);
-extern int pmel_control (pmel_control_t *pmel, uint16_t timeout);
-extern int pmel_request_gps(pmel_control_t *pmel, uint16_t timeout);
-extern int pmel_request_gain(pmel_control_t *pmel, uint16_t timeout);
+extern int pmel_init(wispr_config_t *config);
+extern int pmel_control (wispr_config_t *config, uint16_t timeout);
+extern int pmel_request_gps(wispr_config_t *config, uint16_t timeout);
+extern int pmel_request_gain(wispr_config_t *config, uint16_t timeout);
 extern int pmel_msg_type (char *buf);
+extern int pmel_transmit_spectrum(wispr_config_t *config, float32_t *psd_average, uint16_t nbins);
+extern int pmel_send_sdb(wispr_config_t *config, float32_t *psd_average, uint16_t nbins);
 
 extern void pmel_filename(char *name, char *prefix, char *suffix, rtc_time_t *dt);
 extern int pmel_file_header(char *buf, wispr_config_t *cfg, wispr_data_header_t *hdr);

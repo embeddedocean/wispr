@@ -4,6 +4,8 @@
 #ifndef _UART_QUEUE_H_
 #define _UART_QUEUE_H_
 
+#include <uart.h>
+
 #define UART_QUEUE_N 2
 
 #define UART_MAX_PORTS 2

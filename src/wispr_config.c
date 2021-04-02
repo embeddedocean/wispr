@@ -206,11 +206,15 @@ void wispr_config_print(wispr_config_t *config)
 	fprintf(stdout, "- decimation:       %d\r\n", (int)config->adc_decimation);
 	fprintf(stdout, "- acquisition time: %d sec\r\n", (int)config->acquisition_time);
 	fprintf(stdout, "- sleep time:       %d sec\r\n", (int)config->sleep_time);
-	fprintf(stdout, "- fft size:         %d\r\n", (int)config->fft_size);
-	fprintf(stdout, "- fft overlap:      %d\r\n", (int)config->fft_overlap);
-	fprintf(stdout, "- fft window_type:  %d\r\n", (int)config->fft_window_type);
-	fprintf(stdout, "- max file_size:    %d blocks\r\n", (int)config->file_size);
 	fprintf(stdout, "- active card:      %d\r\n", config->active_sd_card);
+	fprintf(stdout, "- file size:        %d blocks\r\n", (int)config->file_size);
+    if(config->mode & WISPR_SPECTRUM) {
+		fprintf(stdout, "- fft size:         %d\r\n", (int)config->fft_size);
+		fprintf(stdout, "- fft overlap:      %d\r\n", (int)config->fft_overlap);
+		fprintf(stdout, "- fft window type:  %d\r\n", (int)config->fft_window_type);
+		fprintf(stdout, "- psd nbins:        %d\r\n", (int)config->psd_nbins);
+		fprintf(stdout, "- psd navg:         %d\r\n", (int)config->psd_navg);
+	}	
 	fprintf(stdout, "\r\n");
 }
 

@@ -39,6 +39,7 @@
 #include "arm_math.h"
 #include "arm_const_structs.h"
 
+#include "spectrum.h"
 #include "pmel.h"
 
 // Allocate fixed size buffers
@@ -53,6 +54,9 @@ wispr_data_header_t adc_header;
 //float32_t *psd_data = (float32_t *)&psd_buffer[0];
 COMPILER_WORD_ALIGNED float32_t psd_buffer[PSD_MAX_NUM_BINS+1];
 wispr_data_header_t psd_header;
+
+// cumulative psd average 
+COMPILER_WORD_ALIGNED float32_t psd_average[PSD_MAX_NUM_BINS+1];
 
 // set this to a nonzero value only for testing - this will force card swaps 
 //uint32_t test_sd_card_nblocks = 300 * ADC_MAX_BLOCKS_PER_BUFFER;
@@ -69,16 +73,16 @@ void change_gain(wispr_config_t *config);
 uint32_t initialize_datetime(void);
 uint32_t initialize_datetime_with_gps(void);
 uint32_t sync_adc_start_with_new_file(wispr_config_t *config, fat_file_t *ff);
+void handle_data_buffer(wispr_config_t *config, uint8_t *buffer, uint16_t nsamps);
 
 // local variables
 fat_file_t dat_file;
 fat_file_t psd_file;
 
-//char com_buf[COM_MAX_MESSAGE_SIZE];
 
 char config_filename[] = "wispr1.txt";
 
-pmel_control_t pmel; // pmel control parameters
+uint32_t psd_count = 0;
 
 //
 // main
@@ -121,9 +125,9 @@ int main (void)
 		dt.year = 21; dt.month = 1; dt.day=1; dt.hour=1; dt.minute=0; dt.second=0;
 		pcf2129_set_datetime(&dt);  // read back time
 	}
-	
-	// initialize pmel control - this sets up the uart com communications port
-	pmel_init(&pmel);
+		
+	// initialize the uart com communications port
+	status = com_init(BOARD_COM_PORT, BOARD_COM_BAUDRATE);
 
 	// start the pps timer and synchronize the rtc with the pps input
 	if ( pps_timer_init() != RTC_STATUS_OK ) {
@@ -183,27 +187,18 @@ int main (void)
 	// setup INA260 power monitor
 	float32_t volts; // Volts
 	float32_t amps;   // Amps
-	//ina260_init(INA260_CONFIG_MODE_TRIGGERED | INA260_CONFIG_AVG_1024 | INA260_CONFIG_CT_1100us, INA260_ALARM_NONE, 0);
+	ina260_init(INA260_CONFIG_MODE_TRIGGERED | INA260_CONFIG_AVG_1024 | INA260_CONFIG_CT_1100us, INA260_ALARM_NONE, 0);
 	// send a PWR com message every second
-	ina260_init(INA260_CONFIG_MODE_CONTINUOUS|INA260_CONFIG_AVG_1024|INA260_CONFIG_CT_1100us, INA260_ALARM_CONVERSION_READY, 1);
+	//ina260_init(INA260_CONFIG_MODE_CONTINUOUS|INA260_CONFIG_AVG_1024|INA260_CONFIG_CT_1100us, INA260_ALARM_CONVERSION_READY, 1);
 
 	// gpio control example
 	//uint8_t gpio = 0xFF;
 	//pcf8574_write(gpio);
 	
-	// number of 512 bytes blocks to write for each adc buffer
-	uint16_t adc_nblocks_per_buffer = wispr.buffer_size / WISPR_SD_CARD_BLOCK_SIZE;
-
-	// run spectrum analysis on the data just collected
-	uint16_t psd_nblocks_per_buffer = 0;
-	if( wispr.mode & WISPR_SPECTRUM ) {
-		
-		// Initialize spectrum
-		uint16_t nbins = wispr.fft_size / 2;
-		psd_nblocks_per_buffer = nbins * PSD_SAMPLE_SIZE / WISPR_SD_CARD_BLOCK_SIZE;
-		spectrum_init_q31(&nbins, wispr.fft_size, wispr.fft_overlap, wispr.fft_window_type);
-
-	}
+	// Initialize spectrum
+	//wispr.psd_nbins = wispr.fft_size / 2;
+	//psd_nblocks_per_buffer = wispr.psd_nbins * PSD_SAMPLE_SIZE / WISPR_SD_CARD_BLOCK_SIZE;
+	//spectrum_init_q31(&wispr.psd_nbins, wispr.fft_size, wispr.fft_overlap, wispr.fft_window_type);
 	
 	// turn on power to adc board
 	ioport_set_pin_level(PIN_ENABLE_5V5, 1); 
@@ -223,7 +218,6 @@ int main (void)
 	// start adc - this starts the receiver and conversion clock, but doesn't trigger the adc
 	ltc2512_start();
 
-	com_write_msg(BOARD_COM_PORT, "ACK");
 
 	// Trigger the adc by syncing with the pps timer.
 	// This will call ltc2512 trigger function on the next pps rising edge.
@@ -232,9 +226,8 @@ int main (void)
 	//start_sec = pps_timer_sync( ltc2512_trigger );
 	//start_sec = ltc2512_trigger();
 
-	// update pmel control with saved wispr config
-	pmel.state = wispr.state;
-	pmel.mode = wispr.mode;
+	// used for state transitions
+	wispr.state = WISPR_ACTIVE;
 	uint8_t prev_state = wispr.state;
 
 	// loop over adc read buffers
@@ -243,18 +236,18 @@ int main (void)
 	while ( go ) {
 				
 		// check for a com message, no wait timeout
-		prev_state = pmel.state;
-		if(  pmel_control(&pmel, 0) != PMEL_NONE ) {
-			printf("pmel control state: %d\r\n", pmel.state);
+		prev_state = wispr.state;
+		if(  pmel_control(&wispr, 0) ) {
+			printf("pmel control: state %d, mode %d\r\n", wispr.state, wispr.mode);
 		}
 
 		// wakeup from sleep
-		if( (pmel.state & WISPR_ACTIVE) && (prev_state & WISPR_SLEEP_WFI) ) {
+		if( (wispr.state & WISPR_ACTIVE) && (prev_state & WISPR_SLEEP_WFI) ) {
 			start_sec = pps_timer_sync( ltc2512_trigger );	
 		}
 
 		// active reading and logging mode
-		if( pmel.state & WISPR_ACTIVE ) {
+		if( wispr.state & WISPR_ACTIVE ) {
 		
 			// read the current buffer. If a new buffer is not ready read returns 0
 			uint16_t nsamps = ltc2512_read_dma(&adc_header, adc_buffer);
@@ -265,38 +258,9 @@ int main (void)
 				// reset the wdt every time a buffer is read
 				wdt_restart(WDT);
 			
-				// debug gpio 
-				ioport_set_pin_level(PIN_PB10, 1);
-
-				//write the waveform to the active sd card
-				if( pmel.mode & WISPR_WAVEFORM ) {
-			
-					// log the adc buffer to file
-					log_buffer_to_file(&wispr, &dat_file, adc_buffer, adc_nblocks_per_buffer, "dat");
-			
-				}
-			
-				//printf("usec = %d, delta = %d\r\n", adc_header.usec, adc_header.usec-prev_usec);
-				//prev_usec = adc_header.usec;
-			
-				if( pmel.mode & WISPR_SPECTRUM ) {
-		
-					// call spectrum function
-					spectrum_q31(&psd_header, psd_buffer, &adc_header, adc_buffer, nsamps);
-					//spectrum_f32(&psd_header, psd_buffer, &adc_header, adc_buffer, adc_nsamps);
-					
-					// log the psd buffer to file
-					log_buffer_to_file(&wispr, &psd_file, (uint8_t *)psd_buffer, psd_nblocks_per_buffer, "dat");
-					
-					if( sd_card_fwrite(&psd_file, psd_buffer, psd_nblocks_per_buffer) != FR_OK ) {
-						printf("Error writing to file: %s\r\n", psd_file.name);
-					}
-				}
-			
-				ioport_set_pin_level(PIN_PB10, 0);
-
-				// increment buffer count
-				count++;
+				handle_data_buffer(&wispr, adc_buffer, nsamps);
+							
+				count++;	// increment buffer count
 
 			}
 			
@@ -306,7 +270,7 @@ int main (void)
 		}
 
 		// Paused - is this the same as WFI Sleep		
-		if( pmel.state == WISPR_PAUSED ) {
+		if( wispr.state == WISPR_PAUSED ) {
 			ltc2512_stop();
 			ltc2512_stop_dma();
 			pmc_sleep(SAM_PM_SMODE_SLEEP_WFI); // sleep until next interrupt		
@@ -314,7 +278,7 @@ int main (void)
 		
 		// Sleep Waiting For Interrupt
 		// highest level sleep more with clocks still running
-		if( pmel.state == WISPR_SLEEP_WFI ) {
+		if( wispr.state == WISPR_SLEEP_WFI ) {
 			ltc2512_stop();
 			ltc2512_stop_dma();
 			pmc_sleep(SAM_PM_SMODE_SLEEP_WFI); // sleep until next interrupt			
@@ -322,7 +286,7 @@ int main (void)
 
 		// Sleep in backup mode (deep sleep)
 		// lowest level sleep mode, reset/wakeup on defined inputs such as UART or GPIO input
-		if( pmel.state == WISPR_SLEEP_BACKUP ) { 
+		if( wispr.state == WISPR_SLEEP_BACKUP ) { 
 			go = 0;
 		}
 	
@@ -379,6 +343,92 @@ int main (void)
 	exit(0);
 }
 
+void handle_data_buffer(wispr_config_t *config, uint8_t *buffer, uint16_t nsamps) 
+{
+				
+	// debug gpio
+	ioport_set_pin_level(PIN_PB10, 1);
+
+	//for(int n = 0; n < 8; n++) printf("%x%x ", buffer[n*2+1], buffer[n*2]);
+	//printf("\r\n");
+
+	//write the waveform to the active sd card
+	if( config->mode & WISPR_WAVEFORM ) {
+	
+		// log the adc buffer to file
+		log_buffer_to_file(config, &dat_file, buffer, ADC_BLOCKS_PER_BUFFER, "dat");
+
+	}
+	
+	//printf("usec = %d, delta = %d\r\n", adc_header.usec, adc_header.usec-prev_usec);
+	//prev_usec = adc_header.usec;
+	
+	if( config->mode & WISPR_SPECTRUM ) {
+
+		uint16_t nbins = config->psd_nbins;
+		uint16_t navg = config->psd_navg;
+		uint16_t count = config->psd_count;
+		uint16_t n = 0;
+	
+		if( count < navg ) {
+			
+			// start the psd average
+			if( count == 0 ) {
+				spectrum_init_q31(&config->psd_nbins, config->fft_size, config->fft_overlap, config->fft_window_type);
+				for(n = 0; n < nbins; n++) psd_average[n] = 0.0;
+			}
+			
+			// call spectrum function
+			spectrum_q31(&psd_header, psd_buffer, &adc_header, adc_buffer, nsamps);
+			//spectrum_f32(&psd_header, psd_buffer, &adc_header, adc_buffer, adc_nsamps);
+		
+			// accumulate psd average
+			for (n = 0; n < nbins; n++) {
+				psd_average[n] += psd_buffer[n];
+				//psd_average[n] = psd_buffer[n];
+			}
+		
+			config->psd_count = count + 1;
+			
+			//printf("PSD: count=%d\r\n", config->psd_count);
+
+		}
+	
+		// finish running psd average
+		if( count == navg ) {
+			
+			float32_t norm = 1.0 / (float32_t)navg;
+			for(n = 0; n < nbins; n++) psd_average[n] *= norm;
+
+			ltc2512_pause();
+	
+			// send the spectrum 		
+			pmel_transmit_spectrum(config, psd_average, nbins);
+			
+			// trigger the adc start to with the pps
+			uint32_t start_sec = pps_timer_sync( ltc2512_trigger );
+	
+			// stop spectrum processing
+			config->psd_count = 0;
+			config->mode &= ~WISPR_SPECTRUM;
+			
+			//printf("PSD Done: count=%d\r\n", config->psd_count);
+			
+		}
+
+		// log the psd buffer to file
+		//log_buffer_to_file(&wispr, &psd_file, (uint8_t *)psd_buffer, PSD_BLOCKS_PER_BUFFER, "dat");
+		
+		//if( sd_card_fwrite(&psd_file, psd_buffer, PSD_BLOCKS_PER_BUFFER) != FR_OK ) {
+		//	printf("Error writing to file: %s\r\n", psd_file.name);
+		//}
+		
+	}
+				
+	ioport_set_pin_level(PIN_PB10, 0);
+	
+}
+
 uint32_t sync_adc_start_with_new_file(wispr_config_t *config, fat_file_t *ff)
 {
 	char filename[32];
@@ -404,7 +454,7 @@ uint32_t sync_adc_start_with_new_file(wispr_config_t *config, fat_file_t *ff)
 	// write the ascii pmel data file header to the new file, using the adc buffer as a temporary buffer
 	// so the first block of the data file will be ascii header information
 	// this call is after the adc initialization because the exact sampling rate is defined in the adc init function
-	adc_header.second = epoch; // set the data header time to the trigger start time
+	adc_header.second = epoch; // set the data header time to the data start time
 	adc_header.usec = 0; // this is zero because the start trigger was synced to the pps edge
 	char hdr_buf[512];
 	memset(hdr_buf, 0, 512); // zero out the header buffer
@@ -454,71 +504,6 @@ void log_buffer_to_file(wispr_config_t *config, fat_file_t *ff, uint8_t *buffer,
 }
 
 
-void process_spectrum(wispr_config_t *config, char *dat_filename, char *psd_filename, uint16_t nbufs)
-{	
-	printf("\r\nProcessing spectrum and creating file %s\r\n", psd_filename);
-	
-	// Initialize spectrum
-	uint16_t nbins = config->fft_size / 2;
-	spectrum_init_q31(&nbins, config->fft_size, config->fft_overlap, config->fft_window_type);
-	//spectrum_init_f32(&nbins, config->fft_size, config->fft_overlap, config->fft_window_type);
-	
-	//pdc_buffer_locked = 1;
-	
-	// open the data file
-	if( sd_card_fopen(&dat_file, dat_filename, FA_OPEN_ALWAYS | FA_READ, config->active_sd_card) != FR_OK ) {
-		printf("Error opening data file: %s\r\n", dat_file.name);
-	}
-
-	// open a new psd file
-	if( sd_card_fopen(&psd_file, psd_filename, FA_OPEN_ALWAYS | FA_WRITE, config->active_sd_card) != FR_OK ) {
-		printf("Error opening data file: %s\r\n", psd_file.name);
-	}
-	
-	// read the file header - first block
-	if( sd_card_fread(&dat_file, adc_buffer, 1) != FR_OK ) {
-		printf("Error reading file: %s\r\n", dat_file.name);
-	}
-
-	printf("File Header: %s\r\n", adc_buffer);
-	
-	// could parse the data file header, but assume it is consistent with the current adc_header
-
-	uint16_t adc_nsamps = config->samples_per_buffer;
-	uint16_t adc_nblocks = ADC_BLOCKS_PER_BUFFER;
-	uint16_t psd_nblocks = PSD_MAX_BLOCKS_PER_BUFFER;
-	
-	for(int n = 0; n < nbufs; n++) {
-	
-		// reset the wdt every time a buffer is read
-		wdt_restart(WDT);
-	
-		//printf("Processing buffer %d\r\n", n);
-
-		// read the adc data block into the buffer
-		if( sd_card_fread(&dat_file, adc_buffer, adc_nblocks) != FR_OK ) {
-			printf("Error reading file: %s\r\n", dat_file.name);
-		}
-		
-		// call spectrum function
-		spectrum_q31(&psd_header, psd_buffer, &adc_header, adc_buffer, adc_nsamps);
-		//spectrum_f32(&psd_header, psd_buffer, &adc_header, adc_buffer, adc_nsamps);
-					
-		// serialize the buffer header - write the latest header onto the front of the buffer
-		//wispr_serialize_data_header(&psd_header, psd_buffer);
-		
-		// write the psd buffer, which contains both header and data
-		if( sd_card_fwrite(&psd_file, psd_buffer, psd_nblocks) != FR_OK ) {
-			printf("Error writing to file: %s\r\n", psd_file.name);
-		}
-		
-	}
-	
-	sd_card_fclose(&dat_file);
-	sd_card_fclose(&psd_file);
-
-}
-
 //
 // Enter backup mode sleep, shutting down as much as possible to save power
 //
@@ -565,37 +550,6 @@ void go_to_sleep(wispr_config_t *config)
 	// Enter into backup mode
 	pmc_enable_backupmode();
 	//pmc_sleep(SAM_PM_SMODE_BACKUP);
-
-}
-
-void go_to_sleep2(void)
-{
-	// save config, close the active card, and disable all the sd cards
-	sd_card_disable(1);
-	sd_card_disable(2);
-	
-	ltc2512_shutdown();
-	ltc2512_stop_dma();
-	
-	// flush the uarts
-	while (!uart_is_tx_empty(UART1)) {}
-
-	/* Switch MCK to slow clock  */
-	pmc_switch_mck_to_sclk(PMC_MCKR_PRES_CLK_1);
-	//pmc_switch_mainck_to_fastrc(CKGR_MOR_MOSCRCF_4_MHz);
-	//pmc_switch_mck_to_mainck(PMC_PCK_PRES_CLK_64);
-
-	// Configure all PIOs as inputs to save power
-	//pio_set_input(PIOA, 0xFFFFFFFF, PIO_PULLUP);
-	//pio_set_input(PIOB, 0xFFFFFFFF, PIO_PULLUP);
-
-	/* Disable unused clock to save power */
-	pmc_osc_disable_xtal(1);
-	pmc_disable_pllack();
-	pmc_disable_all_periph_clk();
-
-	// Enter into backup mode
-	pmc_enable_backupmode();
 
 }
 
@@ -682,6 +636,7 @@ int initialize_sd_cards(wispr_config_t *config)
 				
 				if( sd_card_fwrite_config(config_filename, config) == FR_OK ) {
 					printf("Default configuration set and written to card %d\r\n", n);
+					res = FR_OK;
 				}
 
 			} else {			
@@ -752,14 +707,15 @@ uint32_t initialize_datetime_with_gps(void)
 	uint32_t status;
 	uint16_t timeout = 10; //10 sec wait for GPS message
 	rtc_time_t dt;
+	wispr_config_t tmp; // temporary config 
 	
 	// request a gps message
-	if( pmel_request_gps(&pmel, timeout) == COM_VALID_MSG ) {
-	
-		// if a valid gps message is received, use it to set the time
+	// if a valid gps message is received, use it to set the time
+	// if other msgs are rcvd while waiting for gps, they are ignored
+	if( pmel_request_gps(&tmp, timeout) == COM_VALID_MSG ) {
 
 		//Convert epoch time to RTC datetime format
-		epoch_to_rtc_time(&dt, pmel.gps.second);
+		epoch_to_rtc_time(&dt, tmp.gps.second);
 
 		// Initialize the external RTC using GPS time
 		status = pcf2129_set_datetime(&dt);
@@ -779,8 +735,7 @@ uint32_t initialize_datetime_with_gps(void)
 		printf("Waiting for RTC, status %d\r\n", status);
 		status = rtc_init(&dt);
 	}
-	printf("RTC set to %02d/%02d/%02d %02d:%02d:%02d\r\n",
-	dt.year, dt.month, dt.day, dt.hour, dt.minute, dt.second);
+	printf("RTC set to %02d/%02d/%02d %02d:%02d:%02d\r\n", dt.year, dt.month, dt.day, dt.hour, dt.minute, dt.second);
 	printf("\r\n");
 	
 	return(status);

@@ -42,6 +42,7 @@
 //} wispr_com_msg_t;
 
 // prototypes
+extern uint8_t com_CRC(uint8_t *buf, uint16_t cnt);
 extern int com_init(int port, uint32_t baud);
 extern void com_stop(int port);
 extern int com_read_msg(int port, char *buf, int timeout);

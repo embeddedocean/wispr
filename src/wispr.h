@@ -9,7 +9,7 @@
 #define WISPR_H_
 
 #include "epoch.h"
-//#include "sd_card.h"
+#include "gps.h"
 
 #include "board_v2.1.h"
 
@@ -47,7 +47,7 @@
 
 // adc default values
 #define ADC_DEFAULT_SAMPLING_RATE (50000)
-#define ADC_DEFAULT_SAMPLE_SIZE (2)
+#define ADC_DEFAULT_SAMPLE_SIZE (ADC_SAMPLE_SIZE)
 #define ADC_DEFAULT_AWAKE 10
 #define ADC_DEFAULT_SLEEP 10
 #define ADC_DEFAULT_GAIN 0
@@ -60,7 +60,7 @@
 
 // adc reference voltage
 #define ADC_VREF 5.0
-#define ADC_SCALING 5.0
+#define ADC_SCALING 5.0 
 
 // spectrum defaults
 #define PSD_DEFAULT_FFT_SIZE (2048)
@@ -164,11 +164,15 @@ typedef struct {
 	//uint16_t buffers_per_window; // number of adc record buffers in a sampling window
 	uint16_t acquisition_time; // time in seconds of the adc sampling window
 	uint16_t sleep_time; // time in seconds between adc records (must be >= window)
-	uint16_t fft_size; // fft size used for spectrum
-	uint16_t fft_overlap; // fft overlap used for spectrum
-	uint16_t fft_window_type;
 	uint32_t file_size; // number of block (512 byte) per file
 	uint8_t active_sd_card; // last card written to
+	uint16_t fft_size;      // size of fft
+	uint16_t fft_overlap;   // data overlap for each fft
+	uint8_t fft_window_type;
+	uint16_t psd_nbins;      // num of freq bins in psd (typically fft_size/2)
+	uint16_t psd_navg;      // num of time bins to average
+	uint16_t psd_count;
+	gps_t gps;
 } wispr_config_t;
 
 //typedef struct {

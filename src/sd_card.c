@@ -839,7 +839,7 @@ FRESULT sd_card_fopen(fat_file_t *ff, char *name, unsigned char mode, uint8_t ca
 		ff->state = SD_FILE_OPEN;
 		strncpy(ff->name, name, sizeof(ff->name));
 	} else {
-		printf("sd_card_fopen: f_open error %d with %s\r\n", res, name);
+		printf("sd_card_fopen: error %d opening %s\r\n", res, name);
 	}
 	
 	return(res);
@@ -1030,7 +1030,7 @@ FRESULT sd_card_fwrite_config(char *filename, wispr_config_t *hdr)
 	if( res != FR_OK ) {
 		printf("sd_card_fread_config: f_close failed res %d\r\n", res);
 	}
-	return(nwrt);
+	return(res);
 }
 
 FRESULT sd_card_create_header_file(char *filename, wispr_config_t *cfg, wispr_data_header_t *hdr)

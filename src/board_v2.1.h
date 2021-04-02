@@ -14,6 +14,7 @@
 
 // COM UART 
 #define BOARD_COM_PORT 1
+#define BOARD_COM_UART UART1
 #define BOARD_COM_BAUDRATE 9600
 
 // Console UART

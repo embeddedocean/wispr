@@ -669,6 +669,7 @@ static inline uint8_t ltc2512_copy_dma_int16(uint8_t *ibuf, uint8_t *obuf, uint1
 		//if(n < 32) printf("%x%x ", ibuf[n+3], ibuf[n+2]);
 	}
 	//printf("\r\n");
+
 	return(chksum);
 }
 

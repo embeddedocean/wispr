@@ -16,7 +16,8 @@
 #include "wdt.h"
 #include <delay.h>
 
-static int verbose_level = 0;
+static int 
+verbose_level = 3;
 static 	char com_buffer[COM_MAX_MESSAGE_SIZE];
 
 /*CRC codes*/
@@ -36,7 +37,7 @@ static uint32_t accum_crc(uint32_t acmul, uint8_t ch)
 }
 
 /* calculate CRC of buffer */
-static uint8_t Calc_CRC(uint8_t *buf, uint16_t cnt)
+uint8_t com_CRC(uint8_t *buf, uint16_t cnt)
 {
 	uint32_t accum= 0;
 	while(cnt-- )
@@ -61,7 +62,8 @@ int com_init(int port, uint32_t baud)
 		return(stat);
 	}
 	
-	uart_set_termination(port, UART_STAR_TERMINATION);
+	//uart_set_termination(port, UART_STAR_TERMINATION);
+	uart_set_termination(port, UART_CARRIAGE_RETURN_TERMINATION);
 	uart_clear_queue(port);
 	stat = uart_start_queue(port);
 
@@ -94,7 +96,7 @@ void com_stop(int port)
 int com_read_msg (int port, char *msg, int timeout)
 {
   char *tmp = com_buffer; //[COM_MAX_MESSAGE_SIZE];  // input buffer
-  char *head, *tail;
+  char *head, *tail, *crc_str;
   uint8_t crc = 0;
   int status = COM_NO_MSG;
   int nrd = 0;
@@ -134,7 +136,9 @@ int com_read_msg (int port, char *msg, int timeout)
        // copy message into msg buffer, skipping the prefix char
        strncpy (msg, head + 1, len);
 	   // copy crc value into buffer
-	   crc = (uint8_t)strtoul(tail+1, NULL, 16); // convert hex string to an uint 
+	   crc_str = tail+1;  // crc follow the tail
+	   crc_str[2] = 0; // crc is 2 chars, so null terminate the str
+	   crc = (uint8_t)strtoul(crc_str, NULL, 16); // convert hex string to an uint 
        // terminate with NULL, overwriting the suffix char
        msg[len] = 0x00;
     }
@@ -142,8 +146,8 @@ int com_read_msg (int port, char *msg, int timeout)
  	if(len > 1) status = COM_VALID_MSG; 	
    
 	// Check CRC
-    if(crc != Calc_CRC(msg, len)) {
-	   printf( "com_read_msg: CRC Error, recieved %02x, should be %02x\r\n", crc, Calc_CRC(msg, len));
+    if(crc != com_CRC(msg, len)) {
+	   printf( "com_read_msg: CRC Error, received %02x, should be %02x\r\n", crc, com_CRC(msg, len));
 	   status = COM_INVALID_CRC;
     }
 	
@@ -151,9 +155,7 @@ int com_read_msg (int port, char *msg, int timeout)
     
   //len = strlen(msg);
   
-  if((verbose_level >= 2) && (nrd > 0)) { 
-	printf( "com_read_msg: %s, %d bytes\r\n", msg, nrd);
-  }
+  //printf( "com_read_msg: %s, %s, %d bytes, crc %x\r\n", tmp, msg, nrd, crc);
   
   return (status);
 
@@ -172,7 +174,7 @@ int com_write_msg (int port, const char *msg)
   if(len > (COM_MAX_MESSAGE_SIZE - 6)) len = COM_MAX_MESSAGE_SIZE - 6;
 
   // calcultate crc
-  crc = Calc_CRC((uint8_t *)msg, len);
+  crc = com_CRC((uint8_t *)msg, len);
   
   // copy msg into transmit buffer
   sprintf(obuf, "$%s*%02x\r\n", msg, crc);
@@ -196,7 +198,7 @@ int com_write_msg (int port, const char *msg)
     return 0;
   }
   
-  if(verbose_level > 2) printf( "com_write_msg: %d, %s\r\n", nwrt, obuf);
+  //printf( "com_write_msg: %d, %s\r\n", nwrt, obuf);
 
   return (nwrt);
 }

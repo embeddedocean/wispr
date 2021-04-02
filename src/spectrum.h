@@ -29,6 +29,15 @@
 #define HANN_WINDOW 2
 #define BLACKMAN_WINDOW 3
 
+//
+//
+typedef struct {
+	uint16_t size;      // size of fft
+	uint16_t overlap;   // data overlap for each fft
+	uint16_t navg;      // num of time bins to average
+	uint8_t window_type;
+} spectrum_t;
+
 extern void spectrum_update_header(wispr_data_header_t *psd, wispr_data_header_t *adc);
 
 extern int spectrum_init_f32(uint16_t *nbins, uint16_t nfft, uint16_t overlap, uint8_t wintype);
