@@ -193,7 +193,7 @@ DRESULT disk_write (BYTE drv, const BYTE* buff, LBA_t sector, UINT count)
 {
 	//uint8_t uc_sector_size = mem_sector_size(drv);
 	uint8_t uc_sector_size = 1;
-	uint32_t ul_last_sector_num;
+	//uint32_t ul_last_sector_num;
 
 	if (uc_sector_size == 0) {
 		return RES_ERROR;

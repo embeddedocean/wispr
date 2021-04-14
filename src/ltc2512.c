@@ -73,15 +73,15 @@ uint8_t ltc_adc_status = 0; // status flag
 //
 // initialize ltc2512 hardware
 //
-uint32_t ltc2512_init(wispr_config_t *wispr, wispr_data_header_t *hdr)
+uint32_t ltc2512_init(wispr_adc_t *adc, wispr_data_header_t *hdr)
 {
 	// pull out the needed values
-	uint32_t fs = wispr->sampling_rate;
-	uint8_t df = wispr->adc_decimation;
-	uint8_t gain = wispr->gain;
+	uint32_t fs = adc->sampling_rate;
+	uint8_t df = adc->decimation;
+	uint8_t gain = adc->gain;
 	
-	ltc_samples_per_buffer = wispr->samples_per_buffer;
-	ltc_adc_sample_size = wispr->sample_size;
+	ltc_samples_per_buffer = adc->samples_per_buffer;
+	ltc_adc_sample_size = adc->sample_size;
 	ltc_down_sampling_factor = df;
 	
 	if( (ltc_samples_per_buffer < 1) || (ltc_samples_per_buffer > LTC2512_MAX_SAMPLES) ) {
@@ -219,19 +219,19 @@ uint32_t ltc2512_init(wispr_config_t *wispr, wispr_data_header_t *hdr)
 	}
 
 	// update local static variables, in case they have changed
-	ltc_samples_per_buffer = wispr->samples_per_buffer;
-	ltc_adc_sample_size = wispr->sample_size;
+	ltc_samples_per_buffer = adc->samples_per_buffer;
+	ltc_adc_sample_size = adc->sample_size;
 	ltc_down_sampling_factor = df;
 	ltc_adc_sampling_freq = actual_fs;
 	ltc_adc_status = 0;
 
 	// update adc data header structure with the current config
 	// make sure to set all the fields because this is what gets written to storage
-	hdr->version[0] = wispr->version[0];
-	hdr->version[1] = wispr->version[1];
+	//hdr->version[0] = adc->version[0];
+	//hdr->version[1] = adc->version[1];
 	hdr->type = WISPR_WAVEFORM;
-	hdr->sample_size = wispr->sample_size; // number of bytes per sample
-	hdr->buffer_size = wispr->buffer_size; // number of bytes in an adc record buffer
+	hdr->sample_size = adc->sample_size; // number of bytes per sample
+	hdr->buffer_size = adc->buffer_size; // number of bytes in an adc record buffer
 	hdr->samples_per_buffer = 0; // nothing yet
 	hdr->sampling_rate = actual_fs; // actual samples per second
 	hdr->settings[0] = gain;
@@ -811,7 +811,7 @@ example showing how memory is little endian but words are not
 uint8_t ltc_dma_test = 0;
 COMPILER_WORD_ALIGNED uint8_t *ltc_adc_test_buffer;
 
-void ltc2512_init_test(wispr_config_t *wispr, uint16_t nsamps, uint32_t freq, float32_t amp, float32_t stdev)
+void ltc2512_init_test(wispr_adc_t *adc, uint16_t nsamps, uint32_t freq, float32_t amp, float32_t stdev)
 {
 	// allocate test buffer
 	uint32_t nbytes = (uint32_t)nsamps * 4;
@@ -825,7 +825,7 @@ void ltc2512_init_test(wispr_config_t *wispr, uint16_t nsamps, uint32_t freq, fl
 	
 	float32_t max_value = 8388607.0 / ADC_SCALING; // 2^23
 	float32_t w = 2.0 * PI * (float32_t)freq;
-	float32_t dt = 1.0 / (float32_t)wispr->sampling_rate;
+	float32_t dt = 1.0 / (float32_t)adc->sampling_rate;
 	float32_t A = 1.73205080; // sqrt(12/4)
 	for(int n = 0; n < nsamps; n++) {
 		// uniform random noise with zero mean and variance = sqrt(stdev)

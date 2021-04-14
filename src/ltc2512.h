@@ -51,9 +51,7 @@ typedef struct {
 
 // nblocks per buffer is 3/4 the size of the dma buffer because we only need 24 of the 32 bits
 
-//extern int ltc2512_init(uint32_t *fs, uint8_t df, uint8_t gain);
-//extern uint32_t ltc2512_init(wispr_config_t *wispr);
-extern uint32_t ltc2512_init(wispr_config_t *wispr, wispr_data_header_t *hdr);
+extern uint32_t ltc2512_init(wispr_adc_t *adc, wispr_data_header_t *hdr);
 extern uint32_t ltc2512_config_mclk(uint32_t fs, uint8_t df);
 
 extern uint32_t ltc2512_trigger(void);
@@ -68,7 +66,7 @@ extern uint16_t ltc2512_init_dma(uint16_t nsamps);
 extern void ltc2512_start_dma(void);
 extern void ltc2512_stop_dma(void);
 
-extern void ltc2512_init_test(wispr_config_t *wispr, uint16_t nsamps, uint32_t freq, float32_t amp, float32_t noise_amp);
+extern void ltc2512_init_test(wispr_adc_t *adc, uint16_t nsamps, uint32_t freq, float32_t amp, float32_t noise_amp);
 
 //extern void ltc2512_get_date(uint8_t *cent, uint8_t *year, uint8_t *month, uint8_t *day, uint8_t *week);
 //extern void ltc2512_get_time(uint8_t *hour, uint8_t *minute, uint8_t *second, uint32_t *usec);

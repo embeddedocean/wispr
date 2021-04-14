@@ -8,6 +8,8 @@
 #ifndef WISPR_H_
 #define WISPR_H_
 
+#include <stdint.h>
+
 #include "epoch.h"
 #include "gps.h"
 
@@ -144,36 +146,15 @@ typedef struct {
 	uint8_t   data_chksum;
 } wispr_data_header_t;
 
-//
-// Configuration data object written to the configuration block of the sd card 
-//
 typedef struct {
-	char     name[6];
-	uint8_t  version[2];
-	uint8_t  state;
-	uint8_t  mode;
-	uint32_t epoch; // linux time in seconds
 	uint8_t  sample_size; // number of bytes per sample
 	uint16_t buffer_size;  // number of bytes in a buffer, this can be different than samples_per_buffer*sample_size
 	uint16_t samples_per_buffer; // number of samples in a buffer
 	uint32_t sampling_rate; // samples per second
-	//uint8_t  settings[8]; // various system and adc settings
 	uint8_t  channels;  // number of channels
 	uint8_t  gain;  // preamp gain
-	uint8_t  adc_decimation;  // 4, 8, 13, or 32
-	//uint16_t buffers_per_window; // number of adc record buffers in a sampling window
-	uint16_t acquisition_time; // time in seconds of the adc sampling window
-	uint16_t sleep_time; // time in seconds between adc records (must be >= window)
-	uint32_t file_size; // number of block (512 byte) per file
-	uint8_t active_sd_card; // last card written to
-	uint16_t fft_size;      // size of fft
-	uint16_t fft_overlap;   // data overlap for each fft
-	uint8_t fft_window_type;
-	uint16_t psd_nbins;      // num of freq bins in psd (typically fft_size/2)
-	uint16_t psd_navg;      // num of time bins to average
-	uint16_t psd_count;
-	gps_t gps;
-} wispr_config_t;
+	uint8_t  decimation;  // 4, 8, 13, or 32
+} wispr_adc_t;
 
 //typedef struct {
 //	uint8_t  state;
@@ -183,9 +164,37 @@ typedef struct {
 //	uint16_t acquisition_time; // time in seconds of the adc sampling window
 //	uint16_t sleep_time; // time in seconds between adc records (must be >= window)
 //	uint32_t file_size; // number of block (512 byte) per file
-//	uint8_t active_sd_card; // last card written to
+//	uint8_t  active_sd_card; // last card written to
+//	uint32_t free; // free number of block (512 byte) on active sd card
 //} wispr_control_t;
 
+typedef struct {
+	uint32_t second; // start time
+	uint16_t size;      // size of fft
+	uint16_t overlap;   // data overlap for each fft
+	uint8_t  window_type;
+	uint16_t nbins;      // num of freq bins in psd (typically fft_size/2)
+	uint16_t navg;      // num of time bins to average
+	uint16_t count;
+} wispr_psd_t;
+
+//
+// Configuration data object written to the configuration block of the sd card
+//
+typedef struct {
+	char     name[6];
+	uint8_t  version[2];
+	uint8_t  state;
+	uint8_t  mode;
+	uint32_t epoch; // linux time in seconds
+	uint16_t acquisition_time; // time in seconds of the adc sampling window
+	uint16_t sleep_time; // time in seconds between adc records (must be >= window)
+	uint32_t file_size; // number of block (512 byte) per file
+	uint8_t active_sd_card; // last card written to
+	wispr_adc_t adc;
+	wispr_psd_t psd;
+	gps_t gps;
+} wispr_config_t;
 
 extern int wispr_parse_data_header(uint8_t *buf, wispr_data_header_t *hdr);
 extern int wispr_serialize_data_header(wispr_data_header_t *hdr, uint8_t *buf);

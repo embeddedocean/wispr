@@ -141,7 +141,6 @@ char *epoch_time_string(uint32_t epoch)
 
 uint32_t time_string_to_epoch(char *str)
 {
-	rtc_time_t tme;
 	int yr, mn, dy, hr, mi, se;
 	sscanf(str, "%02d/%02d/%02d %02d:%02d:%02d", &yr, &mn, &dy, &hr, &mi, &se);
 	//uint32_t epoch = rtc_time_to_epoch(&tme);

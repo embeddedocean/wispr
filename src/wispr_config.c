@@ -23,24 +23,24 @@ void wispr_config_set_default(wispr_config_t *config)
 	config->version[1] = WISPR_VERSION;
 	config->version[0] = WISPR_SUBVERSION;
 	
-	config->buffer_size = ADC_BLOCKS_PER_BUFFER * WISPR_SD_CARD_BLOCK_SIZE;
-	config->sample_size = ADC_DEFAULT_SAMPLE_SIZE;
-	config->sampling_rate = ADC_DEFAULT_SAMPLING_RATE;
+	config->adc.buffer_size = ADC_BLOCKS_PER_BUFFER * WISPR_SD_CARD_BLOCK_SIZE;
+	config->adc.sample_size = ADC_DEFAULT_SAMPLE_SIZE;
+	config->adc.sampling_rate = ADC_DEFAULT_SAMPLING_RATE;
 
 	config->acquisition_time = ADC_DEFAULT_AWAKE;
 	config->sleep_time = ADC_DEFAULT_SLEEP;
 
-	config->samples_per_buffer = (uint32_t)(config->buffer_size - WISPR_DATA_HEADER_SIZE) / (uint32_t)config->sample_size;
+	config->adc.samples_per_buffer = (uint32_t)(config->adc.buffer_size - WISPR_DATA_HEADER_SIZE) / (uint32_t)config->adc.sample_size;
 
-	config->gain = ADC_DEFAULT_GAIN; // adc gain
-	config->adc_decimation = LTC2512_DF8; // adc df
+	config->adc.gain = ADC_DEFAULT_GAIN; // adc gain
+	config->adc.decimation = LTC2512_DF8; // adc df
 
 	config->state = 0; //
 	config->mode = WISPR_WAVEFORM; //
 
-	config->fft_size = PSD_DEFAULT_FFT_SIZE;
-	config->fft_overlap = PSD_DEFAULT_OVERLAP;
-	config->fft_window_type = RECT_WINDOW;
+	config->psd.size = PSD_DEFAULT_FFT_SIZE;
+	config->psd.overlap = PSD_DEFAULT_OVERLAP;
+	config->psd.window_type = RECT_WINDOW;
 	
 	config->file_size = WISPR_MAX_FILE_SIZE;  
 	
@@ -54,11 +54,13 @@ void wispr_config_menu(wispr_config_t *config, int timeout)
 	uint16_t u16;
 	uint8_t u8;
 	
+	wispr_adc_t *adc = &config->adc;
+	
 	config->version[1] = WISPR_VERSION;
 	config->version[0] = WISPR_SUBVERSION;
 	
-	config->buffer_size = ADC_BLOCKS_PER_BUFFER * WISPR_SD_CARD_BLOCK_SIZE;
-	config->samples_per_buffer = (config->buffer_size - WISPR_DATA_HEADER_SIZE) / 3;
+	adc->buffer_size = ADC_BLOCKS_PER_BUFFER * WISPR_SD_CARD_BLOCK_SIZE;
+	adc->samples_per_buffer = (adc->buffer_size - WISPR_DATA_HEADER_SIZE) / 3;
 	
 	uint16_t blocks_per_buffer = ADC_BLOCKS_PER_BUFFER;
 	//blocks_per_buffer = console_prompt_uint32("Enter number of blocks (512 bytes) per buffer", blocks_per_buffer, timeout);
@@ -66,19 +68,19 @@ void wispr_config_menu(wispr_config_t *config, int timeout)
 	// commented out for fixed sample size
 	//u8 = console_prompt_uint8("Enter sample size in bytes", config->sample_size, timeout);
 	//if( u8 >= 2 && u8 <= 3 ) config->sample_size = u8;
-	config->sample_size = ADC_SAMPLE_SIZE;
-	printf("\r\nFixed sample size: %d bytes\r\n", config->sample_size);
+	adc->sample_size = ADC_SAMPLE_SIZE;
+	printf("\r\nFixed sample size: %d bytes\r\n", adc->sample_size);
 
-	u32 = console_prompt_uint32("Enter sampling rate in Hz", config->sampling_rate, timeout);
-	if( u32 > 0 && u32 <= 350000 ) config->sampling_rate = u32;
+	u32 = console_prompt_uint32("Enter sampling rate in Hz", adc->sampling_rate, timeout);
+	if( u32 > 0 && u32 <= 350000 ) adc->sampling_rate = u32;
 
-	u8 = config->gain;
+	u8 = adc->gain;
 	u8 = console_prompt_uint8("Enter preamp gain setting (0 to 4)", u8, timeout);
-	if( u8 >= 0 && u8 <= 4 ) config->gain = u8;
+	if( u8 >= 0 && u8 <= 4 ) adc->gain = u8;
 
-	u8 = config->adc_decimation;
+	u8 = adc->decimation;
 	u8 = console_prompt_uint8("Enter adc decimation factor (4, 8, 16, or 32)", u8, timeout);
-	if( u8 == 4 || u8 == 8 || u8 == 16 || u8 == 32) config->adc_decimation = u8;
+	if( u8 == 4 || u8 == 8 || u8 == 16 || u8 == 32) adc->decimation = u8;
 
 	// prompt for sampling interval
 	//u16 = config->acquisition_time;
@@ -88,9 +90,9 @@ void wispr_config_menu(wispr_config_t *config, int timeout)
 	//if( u16 >= 0 ) config->sleep_time = u16;
 	
 	// update variables based on new input
-	config->buffer_size = (uint16_t)(blocks_per_buffer * WISPR_SD_CARD_BLOCK_SIZE);
-	config->samples_per_buffer = (config->buffer_size - WISPR_DATA_HEADER_SIZE) / (uint16_t)config->sample_size;
-	float adc_buffer_duration =  (float)config->samples_per_buffer / (float)config->sampling_rate; // seconds
+	adc->buffer_size = (uint16_t)(blocks_per_buffer * WISPR_SD_CARD_BLOCK_SIZE);
+	adc->samples_per_buffer = (adc->buffer_size - WISPR_DATA_HEADER_SIZE) / (uint16_t)adc->sample_size;
+	float adc_buffer_duration =  (float)adc->samples_per_buffer / (float)adc->sampling_rate; // seconds
 	
 	//config->buffers_per_window = (uint16_t)( (float)config->acquisition_time / adc_buffer_duration ); // truncated number of buffers
 	
@@ -114,26 +116,26 @@ void wispr_config_menu(wispr_config_t *config, int timeout)
 	if(config->mode & WISPR_SPECTRUM) record_spectrum = 1;
 	if( console_prompt_int("Record spectrum?", record_spectrum, timeout) ) {
 		
-		//u16 = config->fft_size;
+		//u16 = config->psd.size;
 		//u16 = console_prompt_uint16("Enter fft size (32, 64, 126, 512 or 1024)", u16, timeout);
-		//config->fft_size = u16;
-		config->fft_size = PSD_DEFAULT_FFT_SIZE;
-		printf("\r\nFixed fft size: %d\r\n", config->fft_size);
+		//config->psd.size = u16;
+		config->psd.size = PSD_DEFAULT_FFT_SIZE;
+		printf("\r\nFixed fft size: %d\r\n", config->psd.size);
 		
-		u16 = config->fft_overlap;
+		u16 = config->psd.overlap;
 		u16 = console_prompt_uint16("Enter fft overlap size", u16, timeout);
-		config->fft_overlap = u16;
+		config->psd.overlap = u16;
 
-		u8 = config->fft_window_type;
+		u8 = config->psd.window_type;
 		u8 = console_prompt_uint8("Enter fft window type (0=Rect, 1=Hamming)", u8, timeout);
-		config->fft_window_type = u8;
+		config->psd.window_type = u8;
 		
 		mode |= WISPR_SPECTRUM;
 	}
 	
-	//psd_nfft = config->fft_size;
-	//psd_nbins = config->fft_size / 2;
-	//psd_overlap = config->fft_overlap;
+	//psd_nfft = config->psd.size;
+	//psd_nbins = config->psd.size / 2;
+	//psd_overlap = config->psd.overlap;
 
 	// set the new mode
 	config->mode = mode;
@@ -196,24 +198,24 @@ void wispr_config_print(wispr_config_t *config)
 		fprintf(stdout, "[DAQ+PSD]\r\n");
 		break;
 	}
-	fprintf(stdout, "- sample size:      %d bytes\r\n", (int)config->sample_size);
-	//fprintf(stdout, "- buffer_size:     %d bytes\r\n", (int)config->buffer_size);
-	//fprintf(stdout, "- samples:        %d per buffer\r\n", (int)config->samples_per_buffer);
-	fprintf(stdout, "- buffer size:      %d samples (%d bytes)\r\n", (int)config->samples_per_buffer, (int)config->buffer_size);
-	fprintf(stdout, "- sampling rate:    %d Hz\r\n", (int)config->sampling_rate);
+	fprintf(stdout, "- sample size:      %d bytes\r\n", (int)config->adc.sample_size);
+	//fprintf(stdout, "- buffer_size:     %d bytes\r\n", (int)config->adc.buffer_size);
+	//fprintf(stdout, "- samples:        %d per buffer\r\n", (int)config->adc.samples_per_buffer);
+	fprintf(stdout, "- buffer size:      %d samples (%d bytes)\r\n", (int)config->adc.samples_per_buffer, (int)config->adc.buffer_size);
+	fprintf(stdout, "- sampling rate:    %d Hz\r\n", (int)config->adc.sampling_rate);
 	//fprintf(stdout, "- duration:       %lu msec\n\r", (uint32_t)(1000.0*buffer_duration));
-	fprintf(stdout, "- gain:             %d\r\n", (int)config->gain);
-	fprintf(stdout, "- decimation:       %d\r\n", (int)config->adc_decimation);
+	fprintf(stdout, "- gain:             %d\r\n", (int)config->adc.gain);
+	fprintf(stdout, "- decimation:       %d\r\n", (int)config->adc.decimation);
 	fprintf(stdout, "- acquisition time: %d sec\r\n", (int)config->acquisition_time);
 	fprintf(stdout, "- sleep time:       %d sec\r\n", (int)config->sleep_time);
 	fprintf(stdout, "- active card:      %d\r\n", config->active_sd_card);
 	fprintf(stdout, "- file size:        %d blocks\r\n", (int)config->file_size);
     if(config->mode & WISPR_SPECTRUM) {
-		fprintf(stdout, "- fft size:         %d\r\n", (int)config->fft_size);
-		fprintf(stdout, "- fft overlap:      %d\r\n", (int)config->fft_overlap);
-		fprintf(stdout, "- fft window type:  %d\r\n", (int)config->fft_window_type);
-		fprintf(stdout, "- psd nbins:        %d\r\n", (int)config->psd_nbins);
-		fprintf(stdout, "- psd navg:         %d\r\n", (int)config->psd_navg);
+		fprintf(stdout, "- fft size:         %d\r\n", (int)config->psd.size);
+		fprintf(stdout, "- fft overlap:      %d\r\n", (int)config->psd.overlap);
+		fprintf(stdout, "- fft window type:  %d\r\n", (int)config->psd.window_type);
+		fprintf(stdout, "- psd nbins:        %d\r\n", (int)config->psd.nbins);
+		fprintf(stdout, "- psd navg:         %d\r\n", (int)config->psd.navg);
 	}	
 	fprintf(stdout, "\r\n");
 }

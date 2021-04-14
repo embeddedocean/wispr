@@ -16,8 +16,8 @@
 #include "wdt.h"
 #include <delay.h>
 
-static int 
-verbose_level = 3;
+//static int verbose_level = 3;
+
 static 	char com_buffer[COM_MAX_MESSAGE_SIZE];
 
 /*CRC codes*/

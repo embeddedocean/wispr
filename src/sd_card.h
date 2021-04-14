@@ -104,6 +104,7 @@ extern int sd_card_read_config(uint8_t card_num, wispr_config_t *hdr);
 extern FRESULT sd_card_mkfs(uint8_t card_num);
 extern FRESULT sd_card_mount(uint8_t card_num);
 extern FRESULT sd_card_unmount(uint8_t card_num);
+extern FRESULT sd_card_get_free(uint8_t card_num, uint32_t *free);
 extern FRESULT sd_card_fopen(fat_file_t *ff, char *name, unsigned char mode, uint8_t card_num);
 extern FRESULT sd_card_fclose(fat_file_t *ff);
 extern FRESULT sd_card_fwrite(fat_file_t *ff, uint8_t *buffer, uint16_t nblocks);
