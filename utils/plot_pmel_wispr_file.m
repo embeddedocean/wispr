@@ -12,7 +12,7 @@ fp = fopen( name, 'r', 'ieee-le' );
 
 % read the ascii header lines
 str = fgets(fp);
-for n = 1:17
+for n = 1:14
     str = fgets(fp);
     if(str < 0)
         break;
@@ -24,8 +24,6 @@ end;
 % seek to the start of data
 % header is always 512 bytes
 fseek(fp, 512, -1);
-
-nbins = fft_size / 2;
 
 if(sample_size == 2)
     q = adc_vref/32767.0;  % 16 bit scaling to volts
@@ -47,6 +45,9 @@ go = 1;
 t0 = 0;
 prev_secs = 0;
 hack = 1;
+
+fft_size = 1024;
+nbins = fft_size / 2;
 
 %samples_per_buffer = 5461;
 
@@ -92,7 +93,7 @@ while( go )
 
     window = rectwin(fft_size);
     %window = hamming(nfft);
-    overlap = 256;
+    overlap = 0;
     fs = sampling_rate;
     [Spec, f] = my_psd(data(:),fs,window,overlap);
 
