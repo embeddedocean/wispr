@@ -223,7 +223,7 @@ int pmel_transmit_spectrum(wispr_config_t *config, float32_t *psd_average, uint1
 	sprintf(msg, "%02x\r\n", crc);
 	status = uart_write_queue(BOARD_COM_PORT, msg, strlen(msg));
 
-	// stream binary data out the uart
+ 	// stream binary data out the uart
 	for(int n = 0; n < nwrt; n++) {
 		while (!uart_is_tx_empty(BOARD_COM_UART)) {}
 		uart_write(BOARD_COM_UART, buffer[n]);
@@ -347,7 +347,7 @@ int pmel_file_header(char *buf, wispr_config_t *config, wispr_data_header_t *hdr
 	
 	//nwrt += sprintf(&buf[nwrt], "mode = %d;\r\n", config->mode);
 	nwrt += sprintf(&buf[nwrt], "number_buffers = %d;\r\n", config->file_size);
-	nwrt += sprintf(&buf[nwrt], "buffer_size = %d; % bytes\r\n", (int)config->adc.buffer_size);
+	nwrt += sprintf(&buf[nwrt], "buffer_size = %d;\r\n", (int)config->adc.buffer_size);
 	nwrt += sprintf(&buf[nwrt], "samples_per_buffer = %d;\r\n", config->adc.samples_per_buffer);
 	nwrt += sprintf(&buf[nwrt], "sample_size = %d;\r\n", (int)config->adc.sample_size);
 	nwrt += sprintf(&buf[nwrt], "sampling_rate = %d;\r\n", config->adc.sampling_rate);

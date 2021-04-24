@@ -195,8 +195,8 @@ int main (void)
 	//ina260_init(INA260_CONFIG_MODE_CONTINUOUS|INA260_CONFIG_AVG_1024|INA260_CONFIG_CT_1100us, INA260_ALARM_CONVERSION_READY, 1);
 	float32_t volts; // Volts
 	float32_t amps;   // mAmps
-	ina260_read(&amps, &volts, 0);
-	printf("Supply Voltage: %f V\r\n", volts);	
+	ina260_read(&amps, &pmel.volts, 1);
+	printf("Supply Voltage: %.2f V\r\n", pmel.volts);	
 
 	// gpio control example
 	//uint8_t gpio = 0xFF;
