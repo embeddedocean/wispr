@@ -439,9 +439,9 @@ FRESULT sd_card_unmount(uint8_t card_num)
 }
 
 //
-// Get number of free sectors 
+// Get percentage of free sectors 
 //
-FRESULT sd_card_get_free(uint8_t card_num, uint32_t *free)
+FRESULT sd_card_get_free(uint8_t card_num, float *percentage_free)
 {
 	if( card_num < 1 || card_num > NUMBER_SD_CARDS ) {
 		return(FR_INVALID_PARAMETER);
@@ -464,9 +464,12 @@ FRESULT sd_card_get_free(uint8_t card_num, uint32_t *free)
 	}
 
 	/* free sectors */
-	*free = (uint32_t)free_clust * (uint32_t)fs->csize;
+    uint32_t total = (fs->n_fatent - 2) * fs->csize;
+	uint32_t free = (uint32_t)free_clust * (uint32_t)fs->csize;
 	
-	card->free = *free;
+	*percentage_free = 100.0 * (float)free / (float)total;
+	
+	card->free = free;
 
 	// alternate fast way of finding free sectors
 	// this method is 127 blocks short for for each file in fs

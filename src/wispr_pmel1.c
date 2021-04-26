@@ -196,7 +196,7 @@ int main (void)
 	float32_t volts; // Volts
 	float32_t amps;   // mAmps
 	ina260_read(&amps, &pmel.volts, 1);
-	printf("Supply Voltage: %.2f V\r\n", pmel.volts);	
+	//printf("Supply Voltage: %.2f V\r\n", pmel.volts);	
 
 	// gpio control example
 	//uint8_t gpio = 0xFF;

@@ -44,7 +44,7 @@ typedef struct {
 	gps_t gps; // latest gps update
 	float32_t volts; // battery voltage
 	float32_t amps; //  
-	uint32_t free; // free number of block (512 byte) on active sd card
+	float32_t free; // percentage of free space on active sd card
 } pmel_control_t;
 
 

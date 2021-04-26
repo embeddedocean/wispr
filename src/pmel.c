@@ -185,7 +185,7 @@ int pmel_wait_for_ack (wispr_config_t *config, uint16_t timeout_sec)
 
 	// check for a com message
 	if( type == PMEL_ACK ) {
-		return(type);
+		return(PMEL_ACK);
 	} else {
 		return(PMEL_NACK);
 	}
@@ -196,15 +196,13 @@ int pmel_transmit_spectrum(wispr_config_t *config, float32_t *psd_average, uint1
 	int status = 0;
 	char *msg = _buffer;
 
-	uart_write_queue(BOARD_COM_PORT, "@@@\r\n", 5);
-
-	int nwrt = 0;
+	uint16_t nwrt = 0;
 	nwrt += sprintf(&buffer[nwrt], "%s", pmel_time_string(config->psd.second));
 	nwrt += sprintf(&buffer[nwrt], ",%s", pmel->instrument_id);
 	nwrt += sprintf(&buffer[nwrt], ",%s", pmel->location_id);
 	nwrt += sprintf(&buffer[nwrt], ",%.2f", pmel->volts ); //
-	nwrt += sprintf(&buffer[nwrt], ",%d", pmel->free);
-	nwrt += sprintf(&buffer[nwrt], ",%d.%d", pmel->version[1], pmel->version[0]);
+	nwrt += sprintf(&buffer[nwrt], ",%.2f", pmel->free);
+	nwrt += sprintf(&buffer[nwrt], ",%d.%d", pmel->version[0], pmel->version[1]);
 	nwrt += sprintf(&buffer[nwrt], ",%d", config->adc.sampling_rate);
 	nwrt += sprintf(&buffer[nwrt], ",%d", config->psd.nbins);
 
@@ -218,19 +216,32 @@ int pmel_transmit_spectrum(wispr_config_t *config, float32_t *psd_average, uint1
 		nwrt += sprintf(&buffer[nwrt], ",%.2f", psd_average[n] );
 	}
 
-	// write CRC
-	uint8_t crc = com_CRC(buffer, nwrt);
-	sprintf(msg, "%02x\r\n", crc);
-	status = uart_write_queue(BOARD_COM_PORT, msg, strlen(msg));
+	// send spectrum to controller, repeat until an ACK is received or quit after 10 tries 
+	int count = 10;
+	while(count--) {
 
- 	// stream binary data out the uart
-	for(int n = 0; n < nwrt; n++) {
-		while (!uart_is_tx_empty(BOARD_COM_UART)) {}
-		uart_write(BOARD_COM_UART, buffer[n]);
-	}
+		uart_write_queue(BOARD_COM_PORT, "@@@\r\n", 5);
 	
-	// wait 10 seconds for ACK
-	//status = pmel_wait_for_ack(config, 10);
+		// write CRC of the message
+		uint8_t crc = com_CRC(buffer, nwrt);
+		sprintf(msg, "%02x\r\n", crc);
+		status = uart_write_queue(BOARD_COM_PORT, msg, strlen(msg));
+
+		// write the number of bytes in the message
+		sprintf(msg, "%04x\r\n", nwrt);
+		status = uart_write_queue(BOARD_COM_PORT, msg, strlen(msg));	
+
+	 	// stream binary data out the uart
+		for(int n = 0; n < nwrt; n++) {
+			while (!uart_is_tx_empty(BOARD_COM_UART)) {}
+			uart_write(BOARD_COM_UART, buffer[n]);
+		}
+	
+		// wait 10 seconds for ACK
+		status = pmel_wait_for_ack(config, 10);
+		if( status == PMEL_ACK ) break;
+	
+	}
 	
 	return(status);
 }
