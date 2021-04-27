@@ -48,6 +48,7 @@ int pmel_control (wispr_config_t *config, uint16_t timeout)
 		type = pmel_msg_type(buf);
 		printf("pmel control message received: %s\r\n", buf);
 	} else {
+		status = com_write_msg(BOARD_COM_PORT, "NACK");
 		return(type);
 	}
 	
@@ -115,9 +116,11 @@ int pmel_control (wispr_config_t *config, uint16_t timeout)
 		printf("PSD: size=%d, navg=%d\r\n", config->psd.size, config->psd.navg);
 	}
 
-	// If a valid message was received then send Acknowledge
+	// If a valid message was received then send ACK, else send NACK
 	if( type != PMEL_UNKNOWN ) {
 		status = com_write_msg(BOARD_COM_PORT, "ACK");
+	} else {
+		status = com_write_msg(BOARD_COM_PORT, "NACK");
 	}
 	
 	return (type);
@@ -213,7 +216,7 @@ int pmel_transmit_spectrum(wispr_config_t *config, float32_t *psd_average, uint1
 	for(int n = 0; n < nbins; n++) {
 		psd_average[n] = 10.0 * (log10f(psd_average[n]) + scale);
 		//nwrt += sprintf(&buffer[nwrt], ",%d.%d", (int)psd_average[n], ((int)(100.0*psd_average[n]) - 100*(int)psd_average[n]) );
-		nwrt += sprintf(&buffer[nwrt], ",%.2f", psd_average[n] );
+		nwrt += sprintf(&buffer[nwrt], ",%.1f", psd_average[n] );
 	}
 
 	// send spectrum to controller, repeat until an ACK is received or quit after 10 tries 

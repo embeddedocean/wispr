@@ -143,7 +143,7 @@ void wispr_print_data_header(wispr_data_header_t *hdr)
 	fprintf(stdout, "- sampling rate: %d\r\n", hdr->sampling_rate);
 }
 
-
+/*
 void wispr_print_config(wispr_config_t *hdr)
 {
 	//float buffer_duration =  (float)hdr->samples_per_buffer / (float)hdr->sampling_rate;
@@ -172,8 +172,8 @@ void wispr_print_config(wispr_config_t *hdr)
 	//fprintf(stdout, "- duration:       %lu msec\n\r", (uint32_t)(1000.0*buffer_duration));
 	fprintf(stdout, "- gain:             %d\r\n", (int)hdr->adc.gain);
 	fprintf(stdout, "- decimation:       %d\r\n", (int)hdr->adc.decimation);
-	fprintf(stdout, "- acquisition time: %d sec\r\n", (int)hdr->acquisition_time);
-	fprintf(stdout, "- sleep time:       %d sec\r\n", (int)hdr->sleep_time);
+//	fprintf(stdout, "- acquisition time: %d sec\r\n", (int)hdr->acquisition_time);
+//	fprintf(stdout, "- sleep time:       %d sec\r\n", (int)hdr->sleep_time);
 	fprintf(stdout, "- fft size:         %d\r\n", (int)hdr->psd.size);
 	fprintf(stdout, "- fft overlap:      %d\r\n", (int)hdr->psd.overlap);
 	fprintf(stdout, "- fft window_type:  %d\r\n", (int)hdr->psd.window_type);
@@ -181,7 +181,7 @@ void wispr_print_config(wispr_config_t *hdr)
 	fprintf(stdout, "- active card:      %d\r\n", hdr->active_sd_card);
 	fprintf(stdout, "\r\n");
 }
-
+*/
 
 int wispr_parse_config(uint8_t *buf, wispr_config_t *hdr)
 {

@@ -50,7 +50,7 @@
 // adc default values
 #define ADC_DEFAULT_SAMPLING_RATE (50000)
 #define ADC_DEFAULT_SAMPLE_SIZE (ADC_SAMPLE_SIZE)
-#define ADC_DEFAULT_AWAKE 10
+#define ADC_DEFAULT_AWAKE 60
 #define ADC_DEFAULT_SLEEP 10
 #define ADC_DEFAULT_GAIN 0
 #define ADC_DEFAULT_DECIMATION 4
@@ -65,7 +65,7 @@
 #define ADC_SCALING 5.0 
 
 // spectrum defaults
-#define PSD_DEFAULT_FFT_SIZE (2048)
+#define PSD_DEFAULT_FFT_SIZE (1024)
 #define PSD_DEFAULT_OVERLAP (0)
 
 // spectrum max buffer size
@@ -199,7 +199,7 @@ typedef struct {
 extern int wispr_parse_data_header(uint8_t *buf, wispr_data_header_t *hdr);
 extern int wispr_serialize_data_header(wispr_data_header_t *hdr, uint8_t *buf);
 extern void wispr_print_data_header(wispr_data_header_t *header);
-extern void wispr_print_config(wispr_config_t *hdr);
+//extern void wispr_print_config(wispr_config_t *hdr);
 extern int wispr_parse_config(uint8_t *buf, wispr_config_t *hdr);
 extern int wispr_serialize_config(wispr_config_t *hdr, uint8_t *buf);
 extern void wispr_update_data_header(wispr_config_t *wispr, wispr_data_header_t *hdr);

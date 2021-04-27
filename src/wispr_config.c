@@ -206,8 +206,8 @@ void wispr_config_print(wispr_config_t *config)
 	//fprintf(stdout, "- duration:       %lu msec\n\r", (uint32_t)(1000.0*buffer_duration));
 	fprintf(stdout, "- gain:             %d\r\n", (int)config->adc.gain);
 	fprintf(stdout, "- decimation:       %d\r\n", (int)config->adc.decimation);
-	fprintf(stdout, "- acquisition time: %d sec\r\n", (int)config->acquisition_time);
-	fprintf(stdout, "- sleep time:       %d sec\r\n", (int)config->sleep_time);
+//	fprintf(stdout, "- acquisition time: %d sec\r\n", (int)config->acquisition_time);
+//	fprintf(stdout, "- sleep time:       %d sec\r\n", (int)config->sleep_time);
 	fprintf(stdout, "- active card:      %d\r\n", config->active_sd_card);
 	fprintf(stdout, "- file size:        %d blocks\r\n", (int)config->file_size);
     if(config->mode & WISPR_SPECTRUM) {
