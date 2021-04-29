@@ -75,8 +75,8 @@ void wispr_config_menu(wispr_config_t *config, int timeout)
 	if( u32 > 0 && u32 <= 350000 ) adc->sampling_rate = u32;
 
 	u8 = adc->gain;
-	u8 = console_prompt_uint8("Enter preamp gain setting (0 to 4)", u8, timeout);
-	if( u8 >= 0 && u8 <= 4 ) adc->gain = u8;
+	u8 = console_prompt_uint8("Enter preamp gain setting (0 to 3)", u8, timeout);
+	if( u8 >= 0 && u8 <= 3 ) adc->gain = u8;
 
 	u8 = adc->decimation;
 	u8 = console_prompt_uint8("Enter adc decimation factor (4, 8, 16, or 32)", u8, timeout);

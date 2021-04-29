@@ -8,6 +8,7 @@
 #include <stdio.h>
 //#include <stdlib.h>
 #include <string.h>
+#include <ioport.h>
 
 #include "wispr.h"
 #include "com.h"
@@ -39,7 +40,7 @@ int pmel_init(wispr_config_t *config)
 //
 int pmel_control (wispr_config_t *config, uint16_t timeout)
 {
-	char *buf = _buffer;	
+	char *buf = _buffer;
 	int type = PMEL_UNKNOWN;
 	
 	// check for a com message 
@@ -48,7 +49,9 @@ int pmel_control (wispr_config_t *config, uint16_t timeout)
 		type = pmel_msg_type(buf);
 		printf("pmel control message received: %s\r\n", buf);
 	} else {
-		status = com_write_msg(BOARD_COM_PORT, "NACK");
+		if(status == COM_INVALID_CRC) {
+			status = com_write_msg(BOARD_COM_PORT, "NACK");	
+		}
 		return(type);
 	}
 	
@@ -94,6 +97,9 @@ int pmel_control (wispr_config_t *config, uint16_t timeout)
 		if( (new_gain < 4 ) && ( new_gain > 0 ) ) {
 			config->adc.gain = new_gain;
 			printf("GAIN: %d\r\n", config->adc.gain);
+			// set preamp gain
+			ioport_set_pin_level(PIN_PREAMP_G0, (config->adc.gain & 0x01));
+			ioport_set_pin_level(PIN_PREAMP_G1, (config->adc.gain & 0x02));
 		}
 	}
 
@@ -216,7 +222,7 @@ int pmel_transmit_spectrum(wispr_config_t *config, float32_t *psd_average, uint1
 	for(int n = 0; n < nbins; n++) {
 		psd_average[n] = 10.0 * (log10f(psd_average[n]) + scale);
 		//nwrt += sprintf(&buffer[nwrt], ",%d.%d", (int)psd_average[n], ((int)(100.0*psd_average[n]) - 100*(int)psd_average[n]) );
-		nwrt += sprintf(&buffer[nwrt], ",%.1f", psd_average[n] );
+		nwrt += sprintf( &buffer[nwrt], ",%.1f", psd_average[n] );
 	}
 
 	// send spectrum to controller, repeat until an ACK is received or quit after 10 tries 
@@ -226,13 +232,15 @@ int pmel_transmit_spectrum(wispr_config_t *config, float32_t *psd_average, uint1
 		uart_write_queue(BOARD_COM_PORT, "@@@\r\n", 5);
 	
 		// write CRC of the message
-		uint8_t crc = com_CRC(buffer, nwrt);
-		sprintf(msg, "%02x\r\n", crc);
-		status = uart_write_queue(BOARD_COM_PORT, msg, strlen(msg));
+		uint16_t crc = (uint16_t)com_CRC(buffer, nwrt);
+		//sprintf(msg, "%02x\r\n", crc);
+		//status = uart_write_queue(BOARD_COM_PORT, msg, strlen(msg));
+		status = uart_write_queue(BOARD_COM_PORT, (uint8_t *)&crc, 2);
 
 		// write the number of bytes in the message
-		sprintf(msg, "%04x\r\n", nwrt);
-		status = uart_write_queue(BOARD_COM_PORT, msg, strlen(msg));	
+		//sprintf(msg, "%04x\r\n", nwrt);
+		//status = uart_write_queue(BOARD_COM_PORT, msg, strlen(msg));
+		status = uart_write_queue(BOARD_COM_PORT, (uint8_t *)&nwrt, 2);
 
 	 	// stream binary data out the uart
 		for(int n = 0; n < nwrt; n++) {

@@ -207,6 +207,10 @@ int main (void)
 	//psd_nblocks_per_buffer = wispr.psd_nbins * PSD_SAMPLE_SIZE / WISPR_SD_CARD_BLOCK_SIZE;
 	//spectrum_init_q31(&wispr.psd_nbins, wispr.psd.size, wispr.psd.overlap, wispr.psd.window_type);
 	
+	// set preamp gain
+	ioport_set_pin_level(PIN_PREAMP_G0, (wispr.adc.gain & 0x01));
+	ioport_set_pin_level(PIN_PREAMP_G1, (wispr.adc.gain & 0x02));
+
 	// turn on power to adc board
 	ioport_set_pin_level(PIN_ENABLE_5V5, 1); 
 	
