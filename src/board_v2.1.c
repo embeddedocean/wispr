@@ -182,6 +182,7 @@ void board_init_wakeup(void)
   ioport_set_pin_mode(PIN_RTC_INT, IOPORT_MODE_PULLUP);
   
   // Initialize PIO interrupt handler for PA2 (WKUP2) with falling edge or low detection
+  //uint32_t attr = (PIO_PULLUP | PIO_DEBOUNCE | PIO_IT_FALL_EDGE);
   uint32_t attr = (PIO_PULLUP | PIO_DEBOUNCE | PIO_IT_LOW_LEVEL);
   pio_handler_set(PIN_RTC_INT_PIO, PIN_RTC_INT_ID, PIN_RTC_INT_MASK, attr, rtc_wakeup_handler);
 
@@ -215,9 +216,8 @@ void board_init_wakeup(void)
   uint32_t mode = SUPC->SUPC_WUMR;
   //mode |= SUPC_WUMR_WKUPDBC_3_SCLK; // WKUPx shall be in its active state for at least 3 SLCK periods
   mode |= SUPC_WUMR_WKUPDBC_IMMEDIATE; // no debouncing, active state at least on one Slow Clock edge
-  
-  // enable wakeup input on WKUP2 (PA2) with active low
-  // this is the external rtc interrupt line
+
+  // enable wakeup inputs
   supc_set_wakeup_inputs(SUPC, inputs, transitions);
   supc_set_wakeup_mode(SUPC, mode);
 
@@ -230,6 +230,10 @@ void board_gpio_init(void)
   //Set PB10 and PB11 as GPIO, not USB pins
   REG_CCFG_SYSIO |= CCFG_SYSIO_SYSIO10;
   REG_CCFG_SYSIO |= CCFG_SYSIO_SYSIO11;
+
+  //Set PB4 and PB5 as GPIO, not JTAG pins
+  REG_CCFG_SYSIO |= CCFG_SYSIO_SYSIO4;
+  REG_CCFG_SYSIO |= CCFG_SYSIO_SYSIO5;
 
   // debug pins - when not used for USB
   ioport_set_pin_dir(PIN_PB10, IOPORT_DIR_OUTPUT);
@@ -268,7 +272,7 @@ void board_gpio_init(void)
   ioport_set_pin_level(PIN_PREAMP_G1, 0);
 
   // SD Card pins
-  /* mnoved to driver
+  /* moved to driver
   ioport_set_pin_dir(PIN_SELECT_SD, IOPORT_DIR_OUTPUT);
   ioport_set_pin_level(PIN_SELECT_SD, SELECT_SD1);
 

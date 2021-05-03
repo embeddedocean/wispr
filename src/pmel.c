@@ -16,6 +16,10 @@
 #include "wdt.h"
 #include <delay.h>
 #include "ina260.h"
+#include "sd_card.h"
+#include "rtc_time.h"
+#include "pcf2129.h"
+
 #include "pmel.h"
 
 static char _buffer[COM_MAX_MESSAGE_SIZE];
@@ -40,11 +44,17 @@ int pmel_init(wispr_config_t *config)
 //
 int pmel_control (wispr_config_t *config, uint16_t timeout)
 {
+	int status = 0;
 	char *buf = _buffer;
 	int type = PMEL_UNKNOWN;
+	uint32_t sec;
+	rtc_time_t dt;
 	
+	rtc_get_datetime(&dt);  // read time
+	epoch_to_rtc_time(&dt, sec);
+
 	// check for a com message 
-	int status = com_read_msg (BOARD_COM_PORT, buf, timeout);
+	status = com_read_msg (BOARD_COM_PORT, buf, timeout);
 	if( status == COM_VALID_MSG ) {
 		type = pmel_msg_type(buf);
 		printf("pmel control message received: %s\r\n", buf);
@@ -56,28 +66,59 @@ int pmel_control (wispr_config_t *config, uint16_t timeout)
 	}
 	
 	// Exit command puts system into backup sleep mode
-	if ( type == PMEL_EXIT ) {  
+	if ( type == PMEL_EXI ) {  
+		config->prev_state = config->state; // save the previous state
 		config->state = WISPR_SLEEP_BACKUP;
+		// The wdt can't be stopped once it's started so 
+		// go into backup sleep mode with no wakeup alarm
+		config->sleep_time = 0; 
+		printf("PMEL EXIT\r\n");
 	}
 
 	// Run command
 	if ( type == PMEL_RUN ) {  // Run command
+		config->prev_state = config->state;
 		config->state = WISPR_ACTIVE;
+		printf("PMEL RUN\r\n");
 	}
 	
 	// Pause command
-	if ( type == PMEL_PAUSE ) {  
+	if ( type == PMEL_PAU ) {  
+		sscanf (&buf[4], "%lu", &sec);
+		epoch_to_rtc_time(&dt, sec);
+		config->pause_time = sec;
+		config->prev_state = config->state;
 		config->state = WISPR_PAUSED;
+		printf("PMEL PAUSE for %d seconds\r\n", sec);
+	}
+	
+	// Reset command
+	if ( type == PMEL_RST ) {
+		// flush the uarts
+		while (!uart_is_tx_empty(UART0)) {}
+		while (!uart_is_tx_empty(UART1)) {}
+		printf("PMEL RESET\r\n");
+		// force reset
+		rstc_start_software_reset(RSTC);
 	}
 	
 	// Sleep command
-	if ( type == PMEL_SLEEP ) {
+	if ( type == PMEL_SLP ) {
+		sscanf (&buf[4], "%lu", &sec);
+		config->sleep_time = sec;
+		config->prev_state = config->state;
 		config->state = WISPR_SLEEP_WFI;
+		printf("PMEL SLEEP for %d seconds\r\n", sec);
 	}
 	
-	// Stat command
-	if ( type == PMEL_STATUS ) {
-		
+	// Request status command
+	if ( type == PMEL_STA ) {
+		pmel_send_status(config);
+	}
+
+	// Request sd card usage command
+	if ( type == PMEL_SDF ) {
+		pmel_send_sd_usage(config);
 	}
 
 	// GPS message
@@ -86,25 +127,41 @@ int pmel_control (wispr_config_t *config, uint16_t timeout)
 		printf("GPS: sec=%lu, lat=%f, lon=%f \r\n", config->gps.second, config->gps.lat, config->gps.lon);
 	}
 	
-	if ( type == PMEL_TIME ) {	// set time
-		sscanf (&buf[4], "%lu", &config->gps.second);
-		printf("TIME: sec=%lu\r\n", config->gps.second);
+	if ( type == PMEL_TME ) {	// set time
+		sscanf (&buf[4], "%lu", &sec);
+		epoch_to_rtc_time(&dt, sec);	
+		// If time is valid initialize internal and external RTC times
+		if( rtc_valid_datetime(&dt) == RTC_STATUS_OK ) {
+			pcf2129_set_datetime(&dt);  // set external rtc
+			status = rtc_init(&dt); // set internal rtc
+			while ( status != RTC_STATUS_OK ) {
+				printf("Waiting for RTC, status %d\r\n", status);
+				status = rtc_init(&dt); 
+			}
+			printf("SET TIME: %s\r\n", epoch_time_string(sec));
+		}
 	}
 	
-	if ( type == PMEL_GAIN ) { 	// set gain
+	if ( type == PMEL_WTM ) {	// send time
+		char msg[32];
+		rtc_time_t dt;
+		uint32_t sec = 0;
+		pcf2129_get_datetime(&dt);  // read time
+		sec = rtc_time_to_epoch(&dt);
+		sprintf (msg, "WTM,%lu", sec);
+		com_write_msg(BOARD_COM_PORT, msg);
+	}
+
+	if ( type == PMEL_NGN ) { 	// set gain
 		uint8_t new_gain = 0;
 		sscanf (&buf[4], "%d", &new_gain);
 		if( (new_gain < 4 ) && ( new_gain > 0 ) ) {
 			config->adc.gain = new_gain;
-			printf("GAIN: %d\r\n", config->adc.gain);
+			printf("PMEL GAIN: %d\r\n", config->adc.gain);
 			// set preamp gain
 			ioport_set_pin_level(PIN_PREAMP_G0, (config->adc.gain & 0x01));
 			ioport_set_pin_level(PIN_PREAMP_G1, (config->adc.gain & 0x02));
 		}
-	}
-
-	if ( type == PMEL_SDF ) {	// report SD card memory usage
-		//
 	}
 
 	if ( type == PMEL_PSD ) {	// report SD card memory usage
@@ -119,7 +176,7 @@ int pmel_control (wispr_config_t *config, uint16_t timeout)
 		config->psd.nbins = fft_size / 2;
 		config->psd.count = 0; // reset the processing counter
 		config->psd.navg = (uint16_t)(duration / adc_buffer_duration); // determine number of buffers to average for psd estimate
-		printf("PSD: size=%d, navg=%d\r\n", config->psd.size, config->psd.navg);
+		printf("PMEL PSD: size=%d, navg=%d\r\n", config->psd.size, config->psd.navg);
 	}
 
 	// If a valid message was received then send ACK, else send NACK
@@ -168,7 +225,7 @@ int pmel_request_gain(wispr_config_t *config, uint16_t timeout_sec)
 	uint16_t count = 0;
 	while( count < timeout_sec ) {
 		type = pmel_control(config, 1000); // timeout in 1000 msecs
-		if( type == PMEL_GAIN ) {
+		if( type == PMEL_NGN ) {
 			break;
 		}
 		count++;
@@ -196,7 +253,7 @@ int pmel_wait_for_ack (wispr_config_t *config, uint16_t timeout_sec)
 	if( type == PMEL_ACK ) {
 		return(PMEL_ACK);
 	} else {
-		return(PMEL_NACK);
+		return(PMEL_NAK);
 	}
 }
 	
@@ -257,33 +314,71 @@ int pmel_transmit_spectrum(wispr_config_t *config, float32_t *psd_average, uint1
 	return(status);
 }
 
-int pmel_send_sdb(wispr_config_t *config, float32_t *psd_average, uint16_t nbins)
+int pmel_send_status(wispr_config_t *config)
 {
 	int status = 0;
-	char *buf = _buffer;
+	char *msg = _buffer;
+	float free, amps, volts;
 
-	sprintf(buf, "%d\r\n", nbins);
-	status = uart_write_queue(BOARD_COM_PORT, buf, strlen(buf));
+	// get the number of free blocks on sd card
+	sd_card_get_free(config->active_sd_card, &free);
 
-	// scaling = ( adc_vref / (2^(4*8-1)-1) / fft_size )^2;  % see spectrum.c
-	// scale = 2 * log10( (ADC_VREF / 2147483647.0 / (float32_t)config->fft_size) );
-	float32_t scale = 2.0 * (log10f(ADC_VREF) - log10f(2147483647.0) - log10f((float32_t)config->psd.size));
-	//printf("psd scale = %f\r\n", scale);
+	// read battery voltage
+	ina260_read(&amps, &volts, 0);
 
-	// bin frequency in kHz
-	float32_t freq = 0.0;
-	float32_t dfreq = 0.001 * (float32_t)config->adc.sampling_rate / (float32_t)config->psd.size;
-	
-	for(int n = 0; n < nbins; n++) {
-		float32_t db = 10.0 * (log10f(psd_average[n]) + scale);
-		sprintf(buf, "SDB,%.3f,%.2f", freq, db);
-		//status = uart_write_queue(BOARD_COM_PORT, buf, strlen(buf));
-		com_write_msg(BOARD_COM_PORT, buf);
-		freq += dfreq;
+	uint16_t nwrt = 0;
+	nwrt = sprintf(msg, "STA");
+	nwrt += sprintf(&msg[nwrt], ",%d", config->adc.gain);
+	nwrt += sprintf(&msg[nwrt], ",%d", config->adc.sampling_rate);
+	nwrt += sprintf(&msg[nwrt], ",%d", config->file_size);
+	nwrt += sprintf(&msg[nwrt], ",%.2f", free);
+	nwrt += sprintf(&msg[nwrt], ",%.2f", volts );
+	nwrt += sprintf(&msg[nwrt], ",%.2f", ina260_mAh);
+
+	// send and repeat until an ACK is received or quit after 10 tries
+	int count = 10;
+	while(count--) {
+		// send message
+		com_write_msg(BOARD_COM_PORT, msg);
+		// wait 10 seconds for ACK
+		status = pmel_wait_for_ack(config, 10);
+		if( status == PMEL_ACK ) break;
 	}
 	
 	return(status);
 }
+
+int pmel_send_sd_usage(wispr_config_t *config)
+{
+	int status = 0;
+	char *msg = _buffer;
+	float free;
+
+	// get the number of free blocks on sd card
+	sd_card_get_free(config->active_sd_card, &free);
+
+	uint16_t nwrt = 0;
+	nwrt = sprintf(msg, "SDF,%.2f", free);
+
+	// send and repeat until an ACK is received or quit after 10 tries
+	int count = 10;
+	while(count--) {
+		// send message
+		com_write_msg(BOARD_COM_PORT, msg);
+		// wait 10 seconds for ACK
+		status = pmel_wait_for_ack(config, 10);
+		if( status == PMEL_ACK ) break;
+	}
+
+	// wait 10 seconds for ACK
+	status = pmel_wait_for_ack(config, 10);
+	if( status == PMEL_ACK ) {
+		
+	}
+	
+	return(status);
+}
+
 
 //
 // Known message types 
@@ -297,32 +392,35 @@ int pmel_msg_type (char *buf)
 	if (strncmp (buf, "ACK", 3) == 0) {  // Exit command
 		type = PMEL_ACK;
 	}
+	if (strncmp (buf, "NAK", 3) == 0) {  // Exit command
+		type = PMEL_NAK;
+	}
 	if (strncmp (buf, "EXI", 3) == 0) {  // Exit command
-		type = PMEL_EXIT;
+		type = PMEL_EXI;
 	}
 	if (strncmp (buf, "RUN", 3) == 0) {  // Run command
 		type = PMEL_RUN;
 	}
 	if (strncmp (buf, "PAU", 3) == 0) {  // Pause command
-		type = PMEL_PAUSE;
+		type = PMEL_PAU;
 	}
 	if (strncmp (buf, "RST", 3) == 0) {  // Reset command
-		type = PMEL_RESET;
+		type = PMEL_RST;
 	}
 	if (strncmp (buf, "SLP", 3) == 0) {  // Sleep command
-		type = PMEL_SLEEP;
+		type = PMEL_SLP;
 	}
 	if (strncmp (buf, "STA", 3) == 0) { // Status command
-		type = PMEL_STATUS;
+		type = PMEL_STA;
 	}
 	if (strncmp (buf, "GPS", 3) == 0) {	// GPS message
 		type = PMEL_GPS;
 	}
 	if (strncmp (buf, "TME", 3) == 0) {	// set time
-		type = PMEL_TIME;
+		type = PMEL_TME;
 	}
 	if (strncmp (buf, "NGN", 3) == 0) { 	// set gain
-		type = PMEL_GAIN;
+		type = PMEL_NGN;
 	}
 	if (strncmp (buf, "SDF", 3) == 0) {	// report SD card memory usage
 		type = PMEL_SDF;

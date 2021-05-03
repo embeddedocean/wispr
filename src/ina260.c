@@ -25,8 +25,8 @@ static uint8_t ina260_send_com_msg = 0;
 
 float32_t ina260_V = 0.0; // Volts
 float32_t ina260_mA = 0.0;  // mAmps
-float32_t ina260_mW = 0.0;  // mWatts
-float32_t ina260_mWh = 0.0;  // mWh
+float32_t ina260_mWh = 0.0;  // mWatt Hours
+float32_t ina260_mAh = 0.0;  // mAmp Hours
 
 float32_t ina260_dt = 0.0011; // sampling interval in seconds
 
@@ -94,8 +94,9 @@ static void ina260_alarm_handler(uint32_t ul_id, uint32_t ul_mask)
 
 		ina260_read(&ina260_mA, &ina260_V, 2);
 
-		//ina260_mW = ina260_mA * ina260_V;
-		//ina260_mWh += (ina260_mW * ina260_dt * 0.0002778); //  mWh
+		// cummulative mAh and mWh
+		ina260_mAh += (ina260_mA * ina260_dt * 0.0002778); //  mAh
+		ina260_mWh += (ina260_V * ina260_mA * ina260_dt * 0.0002778); //  mWh
 				
 		//printf("INA260 Alarm: I = %f mA, V = %f V\r\n", ina260_mA, ina260_V);
 
@@ -179,8 +180,8 @@ int ina260_init(uint16_t config, uint16_t alarm, uint8_t send_com_msg)
 	// initialize local variables
 	ina260_mA = 0;
 	ina260_V = 0;
-	ina260_mW = 0;
 	ina260_mWh = 0;
+	ina260_mAh = 0;
 	ina260_dt = 0.0011;
 
 	uint16_t ct = (config & 0x01F8);

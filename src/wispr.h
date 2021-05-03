@@ -184,11 +184,13 @@ typedef struct {
 typedef struct {
 	char     name[6];
 	uint8_t  version[2];
-	uint8_t  state;
 	uint8_t  mode;
+	uint8_t  state;
+	uint8_t  prev_state;
 	uint32_t epoch; // linux time in seconds
-	uint16_t acquisition_time; // time in seconds of the adc sampling window
-	uint16_t sleep_time; // time in seconds between adc records (must be >= window)
+	uint32_t acquisition_time; // time in seconds of the adc sampling window
+	uint32_t sleep_time; // time in seconds between adc records (must be >= window)
+	uint32_t pause_time; // time in seconds to pause
 	uint32_t file_size; // number of block (512 byte) per file
 	uint8_t active_sd_card; // last card written to
 	wispr_adc_t adc;

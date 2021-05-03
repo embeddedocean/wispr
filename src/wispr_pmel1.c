@@ -47,11 +47,8 @@
 // although the compiler will still give the warning.
 
 COMPILER_WORD_ALIGNED uint8_t adc_buffer[ADC_BUFFER_SIZE+4];
-//uint8_t *adc_data = adc_buffer; 
 wispr_data_header_t adc_header;
 
-//COMPILER_WORD_ALIGNED uint8_t psd_buffer[PSD_BUFFER_SIZE+4];
-//float32_t *psd_data = (float32_t *)&psd_buffer[0];
 COMPILER_WORD_ALIGNED float32_t psd_buffer[PSD_MAX_NUM_BINS+1];
 wispr_data_header_t psd_header;
 
@@ -63,38 +60,42 @@ COMPILER_WORD_ALIGNED float32_t psd_average[PSD_MAX_NUM_BINS+1];
 uint32_t test_sd_card_nblocks = 0;
 
 // local function prototypes
+uint32_t start_data_colection(wispr_config_t *config);
+void stop_data_colection(wispr_config_t *config);
 void log_buffer_to_file(wispr_config_t *config, fat_file_t *ff, uint8_t *buffer, uint16_t nblocks, char *type);
-void go_to_sleep(wispr_config_t *config);
 uint8_t swap_sd_cards(wispr_config_t *config);
 int initialize_sd_cards(wispr_config_t *config);
-void initialize_config(wispr_config_t *config);
 void change_gain(wispr_config_t *config);
 uint32_t initialize_datetime(void);
 uint32_t initialize_datetime_with_gps(void);
 uint32_t sync_adc_start_with_new_file(wispr_config_t *config, fat_file_t *ff);
 void handle_data_buffer(wispr_config_t *config, uint8_t *buffer, uint16_t nsamps);
 void process_spectrum(wispr_config_t *config, uint8_t *buffer, uint16_t nsamps);
+void enter_light_sleep(wispr_config_t *config);
+void enter_deep_sleep(wispr_config_t *config);
 
+
+//-----------------------------------------------------------------------------------------------------------
 // local variables
 fat_file_t dat_file;
-fat_file_t psd_file;
-pmel_control_t pmel;
+
+wispr_config_t wispr; // current wispr configuration
+pmel_control_t pmel;  // current pmel parameters
 
 char config_filename[] = "wispr1.txt";
 
 uint32_t start_sec = 0;
 
+//-----------------------------------------------------------------------------------------------------------
 //
-// main
+// pmel data logging main
 //
 int main (void)
 {
-	wispr_config_t wispr; // current wispr configuration
 
 	// initialize global variables
 	wispr.active_sd_card = 0; // no active sd card number yet
 	dat_file.state = SD_FILE_CLOSED;
-	psd_file.state = SD_FILE_CLOSED;
 	
 	strcpy(pmel.location_id, "PGEN04");
 	strcpy(pmel.instrument_id, "PACW01");
@@ -159,12 +160,19 @@ int main (void)
 	printf("\r\nWriting to ");
 	sd_card_print_info(wispr.active_sd_card);
 
-	// if user reset then prompt to change/initialize config
-	// skip if reset from backup because there typically will be no user at the console
-	// this means that the configuration can only be changed after a user reset or power up
-	if( reset_type != BOARD_BACKUP_RESET ) {
-		initialize_config(&wispr);
+	// Display the current config
+	wispr_config_print(&wispr);
+	
+	// Prompt to set new configuration - 5 second timeout
+	while(1) {
+		if( console_prompt_int("Change configuration?", 0, 5) ) {
+			wispr_config_menu(&wispr, 60);
+		} else break;
+		wispr_config_print(&wispr);
 	}
+	
+	// save the new config and close the card
+	sd_card_fwrite_config(config_filename, &wispr);
 
 	// Define/redefine the variables that control the window and interval timing.
 	// Some are fixed and some are variables
@@ -194,70 +202,57 @@ int main (void)
 	// send a PWR com message every second
 	//ina260_init(INA260_CONFIG_MODE_CONTINUOUS|INA260_CONFIG_AVG_1024|INA260_CONFIG_CT_1100us, INA260_ALARM_CONVERSION_READY, 1);
 	float32_t volts; // Volts
-	float32_t amps;   // mAmps
+	float32_t amps;  // mAmps
 	ina260_read(&amps, &pmel.volts, 1);
 	//printf("Supply Voltage: %.2f V\r\n", pmel.volts);	
 
-	// gpio control example
-	//uint8_t gpio = 0xFF;
-	//pcf8574_write(gpio);
-	
-	// Initialize spectrum
-	//wispr.psd_nbins = wispr.psd.size / 2;
-	//psd_nblocks_per_buffer = wispr.psd_nbins * PSD_SAMPLE_SIZE / WISPR_SD_CARD_BLOCK_SIZE;
-	//spectrum_init_q31(&wispr.psd_nbins, wispr.psd.size, wispr.psd.overlap, wispr.psd.window_type);
-	
-	// set preamp gain
-	ioport_set_pin_level(PIN_PREAMP_G0, (wispr.adc.gain & 0x01));
-	ioport_set_pin_level(PIN_PREAMP_G1, (wispr.adc.gain & 0x02));
-
-	// turn on power to adc board
-	ioport_set_pin_level(PIN_ENABLE_5V5, 1); 
-	
-	//printf("\n\rStart data acquisition for %.3f seconds (%d buffers)\n\r", actual_sampling_time, wispr.buffers_per_window);
-	printf("\n\rStart data acquisition\n\r");
-	
-	// initialize the adc with the current config
-	ltc2512_init(&wispr.adc, &adc_header);
-	
-//	int hdr_size = pmel_file_header((char *)adc_buffer, &wispr, &adc_header);
-//	if( sd_card_fwrite(&dat_file, adc_buffer, 1) != FR_OK ) {
-//		printf("Error writing to file: %s\r\n", dat_file.name);
-//	}
-	//printf("File Header size %d bytes\r\n", hdr_size);
-	
-	// start adc - this starts the receiver and conversion clock, but doesn't trigger the adc
-	ltc2512_start();
-
-	// Trigger the adc by syncing with the pps timer.
-	// This will call ltc2512 trigger function on the next pps rising edge.
-	start_sec = sync_adc_start_with_new_file(&wispr, &dat_file);
-	//start_sec = pps_timer_sync( ltc2512_trigger );
-	//start_sec = ltc2512_trigger();
-
 	// used for state transitions
-	wispr.state = WISPR_ACTIVE;
-	uint8_t prev_state = wispr.state;
+	wispr.state = WISPR_IDLE;
+	wispr.prev_state = wispr.state;
 
-	// loop over adc read buffers
-	uint16_t count = 0;
+	uint16_t pause_count = 0;
+	uint16_t pause_msec = 1000; // loop delay in msecs 
+
+	uint16_t idle_count = 0;
+	uint16_t idle_delay_msec = 1000; // loop delay in msecs
+	uint16_t idle_time = 10; // seconds
+
+	printf("Wait %d seconds to start, then go to deep sleep\r\n", idle_time);
+
+	uint16_t adc_count = 0;
 	uint8_t go = 1;
 	while ( go ) {
-				
+		
 		// check for a com message, no wait timeout
-		prev_state = wispr.state;
 		if(  pmel_control(&wispr, 0) ) {
 			printf("pmel control: state %d, mode %d\r\n", wispr.state, wispr.mode);
 		}
 
-		// wakeup from sleep
-		if( (wispr.state & WISPR_ACTIVE) && (prev_state & WISPR_SLEEP_WFI) ) {
-			start_sec = pps_timer_sync( ltc2512_trigger );
+		// enter pause from active
+		if( (wispr.state == WISPR_PAUSED) ) {
+			if( wispr.prev_state == WISPR_ACTIVE ) {
+				stop_data_colection( &wispr );
+				pause_count = 0;
+				wispr.prev_state = WISPR_PAUSED;
+			}
+			delay_ms(pause_msec);
+			//printf("Paused for %d seconds\r\n", pause_count);
+			// exit pause and return to previous state
+			if(pause_count++ >= (1000 * wispr.pause_time / pause_msec) ) {
+				wispr.state = wispr.prev_state;
+			}
 		}
 
+
 		// active reading and logging mode
-		if( wispr.state & WISPR_ACTIVE ) {
+		if( wispr.state == WISPR_ACTIVE ) {
 		
+			// start if not active already
+			if( wispr.prev_state != WISPR_ACTIVE ) {
+				start_sec = start_data_colection( &wispr );
+				wispr.prev_state = WISPR_ACTIVE;
+			}
+			
 			// read the current buffer. If a new buffer is not ready read returns 0
 			uint16_t nsamps = ltc2512_read_dma(&adc_header, adc_buffer);
 		
@@ -269,7 +264,7 @@ int main (void)
 			
 				handle_data_buffer(&wispr, adc_buffer, nsamps);
 							
-				count++;	// increment buffer count
+				adc_count++;	// increment buffer count
 
 			}
 			
@@ -278,21 +273,14 @@ int main (void)
 		
 		}
 
-		// Paused - is this the same as WFI Sleep		
-		if( wispr.state == WISPR_PAUSED ) {
-			ltc2512_stop();
-			ltc2512_stop_dma();
-			pmc_sleep(SAM_PM_SMODE_SLEEP_WFI); // sleep until next interrupt		
+		// Idle state
+		if( wispr.state == WISPR_IDLE ) {
+			delay_ms(idle_delay_msec);
+			printf("Waiting: %d, state %d, mode %d\r\n", idle_count, wispr.state, wispr.mode);			
+			// exit wait loop and go to deep sleep is timeout
+			if(idle_count++ >= (1000 * idle_time / idle_delay_msec) ) go = 0;
 		}
 		
-		// Sleep Waiting For Interrupt
-		// highest level sleep mode, clocks are still running
-		if( wispr.state == WISPR_SLEEP_WFI ) {
-			ltc2512_stop();
-			ltc2512_stop_dma();
-			pmc_sleep(SAM_PM_SMODE_SLEEP_WFI); // sleep until next interrupt			
-		}
-
 		// Sleep in backup mode (deep sleep)
 		// lowest level sleep mode, reset/wakeup on defined inputs such as UART or GPIO input
 		if( wispr.state == WISPR_SLEEP_BACKUP ) { 
@@ -300,7 +288,44 @@ int main (void)
 		}
 	
 	}
+		
+	// Enter backup mode sleep
+	// The core will reset when exiting from backup mode.
+	enter_deep_sleep(&wispr);
+		
+	exit(0);
+}
 
+
+uint32_t start_data_colection(wispr_config_t *config)
+{
+	// set preamp gain
+	ioport_set_pin_level(PIN_PREAMP_G0, (config->adc.gain & 0x01));
+	ioport_set_pin_level(PIN_PREAMP_G1, (config->adc.gain & 0x02));
+
+	// turn on power to adc board
+	ioport_set_pin_level(PIN_ENABLE_5V5, 1);
+	
+	//printf("\n\rStart data acquisition for %.3f seconds (%d buffers)\n\r", actual_sampling_time, wispr.buffers_per_window);
+	printf("\n\rStart data acquisition\n\r");
+	
+	// initialize the adc with the current config
+	ltc2512_init(&config->adc, &adc_header);
+	
+	// start adc - this starts the receiver and conversion clock, but doesn't trigger the adc
+	ltc2512_start();
+
+	// Trigger the adc by syncing with the pps timer.
+	// This will call ltc2512 trigger function on the next pps rising edge.
+	uint32_t sec = sync_adc_start_with_new_file(config, &dat_file);
+	//sec = pps_timer_sync( ltc2512_trigger );
+	//sec = ltc2512_trigger();
+
+	return(sec);
+}
+
+void stop_data_colection(wispr_config_t *config)
+{
 	// shutdown the adc
 	ltc2512_stop();
 	ltc2512_shutdown();
@@ -309,52 +334,10 @@ int main (void)
 	
 	// make sure to close the data file, otherwise it may be lost
 	sd_card_fclose(&dat_file);
-	sd_card_fclose(&psd_file);
-		
-	// save the latest config
-	// update the config time so the last active card number can be determined on wakeup
-	sd_card_fwrite_config(config_filename, &wispr);
-	
-	// close active sd card
-	sd_card_unmount(wispr.active_sd_card);
-	
-	// save config, close the active card, and disable all the sd cards
-	sd_card_disable(1);
-	sd_card_disable(2);
-
-	// shutdown sets HSMCI pins as inputs to prevent problems when the card is powered down
-	sd_card_shutdown();
-	
-	// stop the pps timer
-	pps_timer_stop();
-	
-	ina260_stop();
-
-	// go to deep sleep 
-	if( wispr.sleep_time > 0 ) {
-
-		// for testing only
-		//printf("nbins = %d\r\n", psd_nbins);
-		//printf("psd = [\r\n");
-		//for(int n = 0; n < psd_nbins; n++) {
-		//	printf("%f ", psd_data[n]);
-		//}
-		//printf("];\r\n");				
-
-		// enter backup mode sleep
-		// The core will reset when exiting from backup mode.
-		go_to_sleep(&wispr);
-		
-	}
-	
-	printf("Finished\n\r");
-	
-	exit(0);
 }
 
 void handle_data_buffer(wispr_config_t *config, uint8_t *buffer, uint16_t nsamps) 
-{
-				
+{			
 	// debug gpio
 	ioport_set_pin_level(PIN_PB10, 1);
 
@@ -443,13 +426,6 @@ void process_spectrum(wispr_config_t *config, uint8_t *buffer, uint16_t nsamps)
 		//printf("PSD Done: count=%d\r\n", config->psd.count);
 		
 	}
-
-	// log the psd buffer to file
-	//log_buffer_to_file(&wispr, &psd_file, (uint8_t *)psd_buffer, PSD_BLOCKS_PER_BUFFER, "dat");
-	
-	//if( sd_card_fwrite(&psd_file, psd_buffer, PSD_BLOCKS_PER_BUFFER) != FR_OK ) {
-	//	printf("Error writing to file: %s\r\n", psd_file.name);
-	//}
 	
 }
 
@@ -538,7 +514,7 @@ void log_buffer_to_file(wispr_config_t *config, fat_file_t *ff, uint8_t *buffer,
 //
 // Enter backup mode sleep, shutting down as much as possible to save power
 //
-void go_to_sleep(wispr_config_t *config)
+void enter_light_sleep(wispr_config_t *config)
 {
 	rtc_time_t dt;
 	uint32_t now;
@@ -546,26 +522,136 @@ void go_to_sleep(wispr_config_t *config)
 	
 	// set the alarm to wakeup for the next window read cycle
 	// the wakeup signal is generated by the external rtc
-	printf("\r\nEntering sleep mode for %d seconds at %s\r\n", config->sleep_time, epoch_time_string(now));
+	printf("\r\nEntering wfi sleep mode at %s\r\n", epoch_time_string(now));
 
-	epoch_to_rtc_time(&dt, now + config->sleep_time);
-	pcf2129_set_alarm(&dt);
+	ltc2512_stop();
+	ltc2512_stop_dma();
 
-	//printf("\r\nWakeup alarm set for %s\r\n", epoch_time_string(now + config->sleep_time));
-	printf("\r\nWakeup alarm set for %02d/%02d/%02d %02d:%02d:%02d\r\n", dt.year, dt.month, dt.day, dt.hour, dt.minute, dt.second);
+	// close the data file and open a new one on wakeup
+	sd_card_fclose(&dat_file);
 
+	// initialize the wakeup signal on PA02
+	board_init_wakeup();
+
+	// if sleep time is non zero then set alarm to wakeup 
+	if( config->sleep_time > 0 ) {
+		
+		epoch_to_rtc_time(&dt, now + config->sleep_time);
+		pcf2129_set_alarm(&dt); // set alarm to control wakeup pin
+
+		//printf("\r\nWakeup alarm set for %s\r\n", epoch_time_string(now + config->sleep_time));
+		printf("Wakeup alarm set for %02d/%02d/%02d %02d:%02d:%02d\r\n", dt.year, dt.month, dt.day, dt.hour, dt.minute, dt.second);
+
+	} 
+	// otherwise sleep for for a really long time
+	// this is a hack because it wakesup immediately if not alarm is set, not sure why
+	else {
+		epoch_to_rtc_time(&dt, now + 31536000); // one year later
+		pcf2129_set_alarm(&dt); // set alarm to control wakeup pin
+		printf("No wakeup alarm set\r\n");
+	}
+	
 	// flush the uarts
 	while (!uart_is_tx_empty(UART0)) {}
 	while (!uart_is_tx_empty(UART1)) {}
 	//delay_ms(100);
 
+	// Enter into wfi mode
+	pmc_sleep(SAM_PM_SMODE_SLEEP_WFI); // sleep until next interrupt or uart input
+
+	// the following will exectute after wakeup
+	
+	// set preamp gain
+	ioport_set_pin_level(PIN_PREAMP_G0, (wispr.adc.gain & 0x01));
+	ioport_set_pin_level(PIN_PREAMP_G1, (wispr.adc.gain & 0x02));
+
+	// turn on power to adc board
+	ioport_set_pin_level(PIN_ENABLE_5V5, 1);
+	
+	//printf("\n\rStart data acquisition for %.3f seconds (%d buffers)\n\r", actual_sampling_time, wispr.buffers_per_window);
+	printf("\n\rStart data acquisition\n\r");
+	
+	// initialize the adc with the current config
+	ltc2512_init(&wispr.adc, &adc_header);
+	
+	// start adc - this starts the receiver and conversion clock, but doesn't trigger the adc
+	ltc2512_start();
+
+	// Trigger the adc by syncing with the pps timer.
+	// This will call ltc2512 trigger function on the next pps rising edge.
+	start_sec = sync_adc_start_with_new_file(&wispr, &dat_file);
+	//start_sec = pps_timer_sync( ltc2512_trigger );
+	//start_sec = ltc2512_trigger();
+
+}
+
+//
+// Enter backup mode sleep, shutting down as much as possible to save power
+//
+void enter_deep_sleep(wispr_config_t *config)
+{
+	rtc_time_t dt;
+	uint32_t now;
+	rtc_get_epoch(&now);
+	
+	// set the alarm to wakeup for the next window read cycle
+	// the wakeup signal is generated by the external rtc
+	printf("\r\nEntering backup sleep mode at %s\r\n", epoch_time_string(now));
+	
+	// shutdown the adc
+	ltc2512_stop();
+	ltc2512_shutdown();
+	ltc2512_stop_dma();
+	ioport_set_pin_level(PIN_ENABLE_5V5, 0);
+	
+	// make sure to close the data file, otherwise it may be lost
+	sd_card_fclose(&dat_file);
+	
+	// save the latest config
+	// update the config time so the last active card number can be determined on wakeup
+	sd_card_fwrite_config(config_filename, &wispr);
+	
+	// close active sd card
+	sd_card_unmount(wispr.active_sd_card);
+	
+	// save config, close the active card, and disable all the sd cards
+	sd_card_disable(1);
+	sd_card_disable(2);
+
+	// shutdown sets HSMCI pins as inputs to prevent problems when the card is powered down
+	sd_card_shutdown();
+	
+	// stop the pps timer
+	pps_timer_stop();
+	
+	// stop the power meter
+	ina260_stop();	
+
 	// initialize the wakeup signal on PA02
 	board_init_wakeup();
 
-	/* Switch MCK to slow clock  */
-	//pmc_switch_mck_to_sclk(PMC_MCKR_PRES_CLK_1);
-	//pmc_switch_mainck_to_fastrc(CKGR_MOR_MOSCRCF_4_MHz);
-	//pmc_switch_mck_to_mainck(PMC_PCK_PRES_CLK_64);
+	// if sleep time is non zero then set alarm to wakeup
+	if( config->sleep_time > 0 ) {
+		
+		epoch_to_rtc_time(&dt, now + config->sleep_time);
+		pcf2129_set_alarm(&dt); // set alarm to control wakeup pin
+
+		//printf("\r\nWakeup alarm set for %s\r\n", epoch_time_string(now + config->sleep_time));
+		printf("Wakeup alarm set for %02d/%02d/%02d %02d:%02d:%02d\r\n", dt.year, dt.month, dt.day, dt.hour, dt.minute, dt.second);
+
+	}
+	// otherwise sleep for for a really long time
+	// this is a hack because it wakesup immediately if not alarm is set, not sure why
+	else {
+		epoch_to_rtc_time(&dt, now + 31536000); // one year later
+		pcf2129_set_alarm(&dt); // set alarm to control wakeup pin
+		printf("No wakeup alarm set\r\n");
+	}
+	
+	// flush the uarts
+	while (!uart_is_tx_empty(UART0)) {}
+	while (!uart_is_tx_empty(UART1)) {}
+	//delay_ms(100);
 
 	// Configure all PIOs as inputs to save power
 	pio_set_input(PIOA, 0xFFFFFFFF, PIO_DEFAULT);
@@ -580,7 +666,6 @@ void go_to_sleep(wispr_config_t *config)
 
 	// Enter into backup mode
 	pmc_enable_backupmode();
-	//pmc_sleep(SAM_PM_SMODE_BACKUP);
 
 }
 
@@ -687,26 +772,6 @@ int initialize_sd_cards(wispr_config_t *config)
 	return(res);
 }
 
-void initialize_config(wispr_config_t *config)
-{		
-	//uint8_t card_num = config->active_sd_card;
-	// writes config to whatever card that is currently mounted	
-
-	// display the config
-	wispr_config_print(config);
-			
-	// Prompt to set new configuration
-	while(1) {
-		if( console_prompt_int("Change configuration?", 0, 8) ) {
-			wispr_config_menu(config, 60);
-		} else break;	
-		wispr_config_print(config);
-	}
-	
-	// save the new config and close the card
-	sd_card_fwrite_config(config_filename, config);
-
-}
 
 uint32_t initialize_datetime(void)
 {

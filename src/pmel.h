@@ -18,16 +18,17 @@
 /* pmel message types  (8 bits) */
 #define PMEL_UNKNOWN 0
 #define PMEL_ACK 1
-#define PMEL_NACK 99 
-#define PMEL_EXIT 2
+#define PMEL_NAK 99 
+#define PMEL_EXI 2
 #define PMEL_RUN 3
-#define PMEL_PAUSE 4
-#define PMEL_RESET 5
-#define PMEL_SLEEP 6
-#define PMEL_STATUS 7
+#define PMEL_PAU 4
+#define PMEL_RST 5
+#define PMEL_SLP 6
+#define PMEL_STA 7
 #define PMEL_GPS 8
-#define PMEL_TIME 9
-#define PMEL_GAIN 10
+#define PMEL_TME 9
+#define PMEL_WTM 9
+#define PMEL_NGN 10
 #define PMEL_SDF 11
 #define PMEL_PSD 12
 
@@ -40,7 +41,6 @@ typedef struct {
 	uint8_t version[2];  // software version
 	uint32_t second; // linux time in seconds
 	uint32_t file_size; // number of block (512 byte) per file
-	//spectrum_t psd; // latest psd settings
 	gps_t gps; // latest gps update
 	float32_t volts; // battery voltage
 	float32_t amps; //  
@@ -57,6 +57,8 @@ extern int pmel_msg_type (char *buf);
 extern int pmel_transmit_spectrum(wispr_config_t *config, float32_t *psd_average, uint16_t nbins, uint8_t *buffer, pmel_control_t *pmel);
 extern int pmel_send_sdb(wispr_config_t *config, float32_t *psd_average, uint16_t nbins);
 extern int pmel_wait_for_ack (wispr_config_t *config, uint16_t timeout_sec);
+extern int pmel_send_sd_usage(wispr_config_t *config);
+extern int pmel_send_status(wispr_config_t *config);
 
 extern char *pmel_time_string(uint32_t epoch);
 extern void pmel_filename(char *name, char *prefix, char *suffix, rtc_time_t *dt);

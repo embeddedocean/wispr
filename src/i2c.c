@@ -34,6 +34,7 @@ int i2c_init(Twi *twi, uint32_t speed)
 
 	// configure TWI1 pins
 	if(twi == TWI1) {
+		
 		//Set PB4 and PB5 as GPIO, not JTAG pins
 		REG_CCFG_SYSIO |= CCFG_SYSIO_SYSIO4;
 		REG_CCFG_SYSIO |= CCFG_SYSIO_SYSIO5;
