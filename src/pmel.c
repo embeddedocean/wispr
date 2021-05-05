@@ -62,12 +62,12 @@ int pmel_control (wispr_config_t *config, uint16_t timeout)
 		if(status == COM_INVALID_CRC) {
 			status = com_write_msg(BOARD_COM_PORT, "NACK");	
 		}
-		return(type);
+		return(status);
 	}
-	
+
 	// Exit command puts system into backup sleep mode
 	if ( type == PMEL_EXI ) {  
-		config->prev_state = config->state; // save the previous state
+		config->prev_state = config->state;
 		config->state = WISPR_SLEEP_BACKUP;
 		// The wdt can't be stopped once it's started so 
 		// go into backup sleep mode with no wakeup alarm
@@ -75,21 +75,39 @@ int pmel_control (wispr_config_t *config, uint16_t timeout)
 		printf("PMEL EXIT\r\n");
 	}
 
+	// Sleep command
+	if ( type == PMEL_SLP ) {
+		sscanf (&buf[4], "%lu", &sec);
+		config->sleep_time = sec;
+		if( (sec > 0) && (sec <= PMEL_MAX_SLEEP) ) {
+			config->prev_state = config->state;
+			config->state = WISPR_SLEEP_BACKUP;
+			printf("PMEL SLEEP for %d seconds\r\n", sec);	
+		} else {
+			status = COM_INVALID_ARG;
+			printf("PMEL SLEEP: invalid time %d\r\n", sec);
+		}
+	}
+	
 	// Run command
-	if ( type == PMEL_RUN ) {  // Run command
+	if ( type == PMEL_RUN ) { 
 		config->prev_state = config->state;
-		config->state = WISPR_ACTIVE;
+		config->state = WISPR_RUNNING;
 		printf("PMEL RUN\r\n");
 	}
 	
 	// Pause command
 	if ( type == PMEL_PAU ) {  
 		sscanf (&buf[4], "%lu", &sec);
-		epoch_to_rtc_time(&dt, sec);
-		config->pause_time = sec;
-		config->prev_state = config->state;
-		config->state = WISPR_PAUSED;
-		printf("PMEL PAUSE for %d seconds\r\n", sec);
+		if( (sec > 0) && (sec <= PMEL_MAX_PAUSE) ) {
+			config->pause_time = sec;
+			config->prev_state = config->state;
+			config->state = WISPR_PAUSED;
+			printf("PMEL PAUSE for %d seconds\r\n", sec);
+		} else {
+			status = COM_INVALID_ARG;
+			printf("PMEL PAUSE: invalid time %d\r\n", sec);
+		}
 	}
 	
 	// Reset command
@@ -100,15 +118,6 @@ int pmel_control (wispr_config_t *config, uint16_t timeout)
 		printf("PMEL RESET\r\n");
 		// force reset
 		rstc_start_software_reset(RSTC);
-	}
-	
-	// Sleep command
-	if ( type == PMEL_SLP ) {
-		sscanf (&buf[4], "%lu", &sec);
-		config->sleep_time = sec;
-		config->prev_state = config->state;
-		config->state = WISPR_SLEEP_WFI;
-		printf("PMEL SLEEP for %d seconds\r\n", sec);
 	}
 	
 	// Request status command
@@ -161,6 +170,9 @@ int pmel_control (wispr_config_t *config, uint16_t timeout)
 			// set preamp gain
 			ioport_set_pin_level(PIN_PREAMP_G0, (config->adc.gain & 0x01));
 			ioport_set_pin_level(PIN_PREAMP_G1, (config->adc.gain & 0x02));
+		} else {
+			status = COM_INVALID_ARG;
+			printf("PMEL NGN: invalid gain %d\r\n", new_gain);			
 		}
 	}
 
@@ -169,24 +181,30 @@ int pmel_control (wispr_config_t *config, uint16_t timeout)
 		//uint16_t fft_overlap; // fft overlap used for spectrum
 		uint16_t duration;  // number of time steps (adc buffer reads) to average
 		sscanf (&buf[4], "%u,%u", &fft_size, &duration);
-		float adc_buffer_duration = (float)config->adc.samples_per_buffer / (float)config->adc.sampling_rate; // seconds
-		config->psd.size = fft_size;
-		config->psd.overlap = 0;
-		config->mode |= WISPR_SPECTRUM;
-		config->psd.nbins = fft_size / 2;
-		config->psd.count = 0; // reset the processing counter
-		config->psd.navg = (uint16_t)(duration / adc_buffer_duration); // determine number of buffers to average for psd estimate
-		printf("PMEL PSD: size=%d, navg=%d\r\n", config->psd.size, config->psd.navg);
+		// check for valid args
+		if( ((fft_size == 128) || (fft_size == 512) || (fft_size == 1024) || (fft_size == 2048)) && ((duration > 1) && (duration < PMEL_MAX_PSD_DARATION)) ) {
+			float adc_buffer_duration = (float)config->adc.samples_per_buffer / (float)config->adc.sampling_rate; // seconds
+			config->psd.size = fft_size;
+			config->psd.overlap = 0;
+			config->psd.nbins = fft_size / 2;
+			config->psd.count = 0; // reset the processing counter
+			config->psd.navg = (uint16_t)(duration / adc_buffer_duration); // determine number of buffers to average for psd estimate
+			config->mode |= WISPR_PSD;
+			printf("PMEL PSD: size=%d, navg=%d\r\n", config->psd.size, config->psd.navg);
+		} else {
+			status = COM_INVALID_ARG;
+			printf("PMEL PSD: invalid arg\r\n");
+		}
 	}
 
 	// If a valid message was received then send ACK, else send NACK
-	if( type != PMEL_UNKNOWN ) {
+	if( (type != PMEL_UNKNOWN) && (status == COM_VALID_MSG) ) {
 		status = com_write_msg(BOARD_COM_PORT, "ACK");
 	} else {
 		status = com_write_msg(BOARD_COM_PORT, "NACK");
 	}
 	
-	return (type);
+	return (status);
 }
 
 //

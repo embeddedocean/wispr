@@ -15,6 +15,7 @@
 #define COM_VALID_MSG 1
 #define COM_INVALID_CRC -1
 #define COM_TIMEOUT -2
+#define COM_INVALID_ARG -3
 
 /* message types */
 #define COM_UNKNOWN 0

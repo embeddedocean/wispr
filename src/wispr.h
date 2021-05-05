@@ -87,14 +87,15 @@
 
 // States
 #define WISPR_IDLE 0x00
-#define WISPR_ACTIVE 0x01
+#define WISPR_RUNNING 0x01
 #define WISPR_PAUSED 0x02
 #define WISPR_SLEEP_WFI 0x04
 #define WISPR_SLEEP_BACKUP 0x08
+#define WISPR_LOGGING 0x10
 
 // Modes
-#define WISPR_WAVEFORM 0x01
-#define WISPR_SPECTRUM 0x02
+#define WISPR_DAQ 0x01
+#define WISPR_PSD 0x02
 
 // Data types
 #define WISPR_INT16 0x01

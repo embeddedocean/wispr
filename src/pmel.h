@@ -32,6 +32,10 @@
 #define PMEL_SDF 11
 #define PMEL_PSD 12
 
+#define PMEL_MAX_SLEEP (60*60*24)
+#define PMEL_MAX_PAUSE (60*60)
+#define PMEL_MAX_PSD_DARATION 120
+
 //
 // Application specific control structure
 //

@@ -70,7 +70,7 @@ void spectrum_update_header(wispr_data_header_t *psd, wispr_data_header_t *adc)
 	// make sure to set all the fields because this is what gets written to storage
 	psd->version[0] = adc->version[0];
 	psd->version[1] = adc->version[1];
-	psd->type = WISPR_SPECTRUM;
+	psd->type = WISPR_PSD;
 	psd->sample_size = PSD_SAMPLE_SIZE;
 	psd->samples_per_buffer = num_freq_bins;
 	psd->buffer_size = num_freq_bins * PSD_SAMPLE_SIZE; // number of bytes in psd buffer

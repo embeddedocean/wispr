@@ -229,7 +229,7 @@ uint32_t ltc2512_init(wispr_adc_t *adc, wispr_data_header_t *hdr)
 	// make sure to set all the fields because this is what gets written to storage
 	//hdr->version[0] = adc->version[0];
 	//hdr->version[1] = adc->version[1];
-	hdr->type = WISPR_WAVEFORM;
+	hdr->type = WISPR_DAQ;
 	hdr->sample_size = adc->sample_size; // number of bytes per sample
 	hdr->buffer_size = adc->buffer_size; // number of bytes in an adc record buffer
 	hdr->samples_per_buffer = 0; // nothing yet
@@ -379,6 +379,7 @@ void ltc2512_shutdown(void)
 	// power down adc
 	ioport_set_pin_level(PIN_ENABLE_ADC_PWR, 0);
 
+	// set pins to inputs
 	ioport_set_pin_dir(PIN_ENABLE_ADC_PWR, IOPORT_DIR_INPUT);
 	ioport_set_pin_dir(PIN_ADC_SYNC, IOPORT_DIR_INPUT);
 	ioport_set_pin_dir(PIN_ADC_SEL0, IOPORT_DIR_INPUT);
@@ -387,6 +388,7 @@ void ltc2512_shutdown(void)
 	ioport_set_pin_dir(PIN_PREAMP_G0, IOPORT_DIR_INPUT);
 	ioport_set_pin_dir(PIN_PREAMP_G1, IOPORT_DIR_INPUT);
 
+	// Set SSC pins to inputs 
 	ioport_set_pin_dir(PIN_PA20, IOPORT_DIR_INPUT);
 	ioport_set_pin_dir(PIN_PA19, IOPORT_DIR_INPUT);
 	ioport_set_pin_dir(PIN_PA18, IOPORT_DIR_INPUT);
@@ -723,7 +725,7 @@ uint16_t ltc2512_read_dma(wispr_data_header_t *hdr, uint8_t *data)
 	//ltc2512_get_datetime(&year, &month, &day, &hour, &minute, &sec, &usec);
 	//hdr->second = time_to_epoch(year, month, day, hour, minute, sec);
 
-	hdr->type = WISPR_WAVEFORM;
+	hdr->type = WISPR_DAQ;
 	hdr->second = ltc_adc_sec;
 	hdr->usec = ltc_adc_usec;
 	hdr->data_chksum = chksum; // checksum for data
