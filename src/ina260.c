@@ -102,7 +102,7 @@ static void ina260_alarm_handler(uint32_t ul_id, uint32_t ul_mask)
 
 		if(ina260_send_com_msg) {
 			char str[64];
-			sprintf(str, "PWR,%.2f,%.2f,%.2f", ina260_mA, ina260_V, ina260_mA*ina260_V);
+			sprintf(str, "PWR,%.2f,%.2f,%.2f", ina260_V, ina260_mA, ina260_mWh);
 			//sprintf(str, "PWR,%.2f,%.2f,%.2f", ina260_mA, ina260_V, ina260_mWh);
 			com_write_msg(BOARD_COM_PORT, str);			
 		}

@@ -27,10 +27,11 @@
 #define PMEL_STA 7
 #define PMEL_GPS 8
 #define PMEL_TME 9
-#define PMEL_WTM 9
-#define PMEL_NGN 10
-#define PMEL_SDF 11
-#define PMEL_PSD 12
+#define PMEL_WTM 10
+#define PMEL_NGN 11
+#define PMEL_SDF 12
+#define PMEL_PSD 13
+#define PMEL_PWR 14
 
 #define PMEL_MAX_SLEEP (60*60*24)
 #define PMEL_MAX_PAUSE (60*60)
@@ -61,8 +62,12 @@ extern int pmel_msg_type (char *buf);
 extern int pmel_transmit_spectrum(wispr_config_t *config, float32_t *psd_average, uint16_t nbins, uint8_t *buffer, pmel_control_t *pmel);
 extern int pmel_send_sdb(wispr_config_t *config, float32_t *psd_average, uint16_t nbins);
 extern int pmel_wait_for_ack (wispr_config_t *config, uint16_t timeout_sec);
+extern int pmel_send_wait_for_ack(wispr_config_t *config, char *msg);
+
 extern int pmel_send_sd_usage(wispr_config_t *config);
 extern int pmel_send_status(wispr_config_t *config);
+extern int pmel_send_power_usage(wispr_config_t *config);
+extern int pmel_send_time(wispr_config_t *config);
 
 extern char *pmel_time_string(uint32_t epoch);
 extern void pmel_filename(char *name, char *prefix, char *suffix, rtc_time_t *dt);

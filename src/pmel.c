@@ -22,8 +22,6 @@
 
 #include "pmel.h"
 
-static char _buffer[COM_MAX_MESSAGE_SIZE];
-
 int pmel_init(wispr_config_t *config)
 {
 	int status = 0;
@@ -41,12 +39,14 @@ int pmel_init(wispr_config_t *config)
 //
 // PMEL message handling and parsing
 // Make sure that config does not get corrupted by invalid com parameters
+// timeout is in msecs
 //
 int pmel_control (wispr_config_t *config, uint16_t timeout)
 {
-	int status = 0;
-	char *buf = _buffer;
+	int status = COM_VALID_MSG;
 	int type = PMEL_UNKNOWN;
+	char buf[COM_MAX_MESSAGE_SIZE];
+
 	uint32_t sec;
 	rtc_time_t dt;
 	
@@ -55,18 +55,23 @@ int pmel_control (wispr_config_t *config, uint16_t timeout)
 
 	// check for a com message 
 	status = com_read_msg (BOARD_COM_PORT, buf, timeout);
-	if( status == COM_VALID_MSG ) {
-		type = pmel_msg_type(buf);
-		printf("pmel control message received: %s\r\n", buf);
-	} else {
-		if(status == COM_INVALID_CRC) {
-			status = com_write_msg(BOARD_COM_PORT, "NACK");	
-		}
+	if(status == COM_NO_MSG) { // probably timed out
 		return(status);
+	}
+	if( status == COM_VALID_MSG ) { // valid msg format
+		type = pmel_msg_type(buf);
+		if( type == PMEL_UNKNOWN ) { // unknown type
+			return(COM_NO_MSG);		
+		}
+		printf("pmel control message received: %s\r\n", buf);
+		com_write_msg(BOARD_COM_PORT, "ACK");
+	} else {
+		com_write_msg(BOARD_COM_PORT, "NACK");	
+		return(COM_NO_MSG);
 	}
 
 	// Exit command puts system into backup sleep mode
-	if ( type == PMEL_EXI ) {  
+	if ( type == PMEL_EXI ) {
 		config->prev_state = config->state;
 		config->state = WISPR_SLEEP_BACKUP;
 		// The wdt can't be stopped once it's started so 
@@ -76,10 +81,10 @@ int pmel_control (wispr_config_t *config, uint16_t timeout)
 	}
 
 	// Sleep command
-	if ( type == PMEL_SLP ) {
+	if (type == PMEL_SLP) { 
 		sscanf (&buf[4], "%lu", &sec);
-		config->sleep_time = sec;
 		if( (sec > 0) && (sec <= PMEL_MAX_SLEEP) ) {
+			config->sleep_time = sec;
 			config->prev_state = config->state;
 			config->state = WISPR_SLEEP_BACKUP;
 			printf("PMEL SLEEP for %d seconds\r\n", sec);	
@@ -90,14 +95,14 @@ int pmel_control (wispr_config_t *config, uint16_t timeout)
 	}
 	
 	// Run command
-	if ( type == PMEL_RUN ) { 
+	if ( type == PMEL_RUN ) {
 		config->prev_state = config->state;
 		config->state = WISPR_RUNNING;
 		printf("PMEL RUN\r\n");
 	}
 	
 	// Pause command
-	if ( type == PMEL_PAU ) {  
+	if ( type == PMEL_PAU ) {
 		sscanf (&buf[4], "%lu", &sec);
 		if( (sec > 0) && (sec <= PMEL_MAX_PAUSE) ) {
 			config->pause_time = sec;
@@ -121,7 +126,7 @@ int pmel_control (wispr_config_t *config, uint16_t timeout)
 	}
 	
 	// Request status command
-	if ( type == PMEL_STA ) {
+	if (type == PMEL_STA) {
 		pmel_send_status(config);
 	}
 
@@ -130,38 +135,42 @@ int pmel_control (wispr_config_t *config, uint16_t timeout)
 		pmel_send_sd_usage(config);
 	}
 
+	// Request power usage command
+	if ( type == PMEL_PWR ) {
+		pmel_send_power_usage(config);
+	}
+
 	// GPS message
-	if (type == PMEL_GPS) {	
+	if ( type == PMEL_GPS ) {
 		sscanf (&buf[4], "%lu,%f,%f", &config->gps.second, &config->gps.lat, &config->gps.lon);
 		printf("GPS: sec=%lu, lat=%f, lon=%f \r\n", config->gps.second, config->gps.lat, config->gps.lon);
 	}
 	
-	if ( type == PMEL_TME ) {	// set time
+	// set time
+	if ( type == PMEL_TME ) {
 		sscanf (&buf[4], "%lu", &sec);
 		epoch_to_rtc_time(&dt, sec);	
 		// If time is valid initialize internal and external RTC times
 		if( rtc_valid_datetime(&dt) == RTC_STATUS_OK ) {
 			pcf2129_set_datetime(&dt);  // set external rtc
-			status = rtc_init(&dt); // set internal rtc
-			while ( status != RTC_STATUS_OK ) {
+			// set internal rtc
+			while ( rtc_init(&dt) != RTC_STATUS_OK ) {
 				printf("Waiting for RTC, status %d\r\n", status);
-				status = rtc_init(&dt); 
 			}
 			printf("SET TIME: %s\r\n", epoch_time_string(sec));
+			com_write_msg(BOARD_COM_PORT, "ACK");			
+		} else {
+			com_write_msg(BOARD_COM_PORT, "NACK");			
 		}
 	}
 	
-	if ( type == PMEL_WTM ) {	// send time
-		char msg[32];
-		rtc_time_t dt;
-		uint32_t sec = 0;
-		pcf2129_get_datetime(&dt);  // read time
-		sec = rtc_time_to_epoch(&dt);
-		sprintf (msg, "WTM,%lu", sec);
-		com_write_msg(BOARD_COM_PORT, msg);
+	// send time
+	if ( type == PMEL_WTM ) {
+		pmel_send_time(config);
 	}
 
-	if ( type == PMEL_NGN ) { 	// set gain
+	// set gain
+	if ( type == PMEL_NGN ) {
 		uint8_t new_gain = 0;
 		sscanf (&buf[4], "%d", &new_gain);
 		if( (new_gain < 4 ) && ( new_gain > 0 ) ) {
@@ -176,7 +185,8 @@ int pmel_control (wispr_config_t *config, uint16_t timeout)
 		}
 	}
 
-	if ( type == PMEL_PSD ) {	// report SD card memory usage
+	// report SD card memory usage
+	if ( type == PMEL_PSD ) {
 		uint16_t fft_size; // fft size used for spectrum
 		//uint16_t fft_overlap; // fft overlap used for spectrum
 		uint16_t duration;  // number of time steps (adc buffer reads) to average
@@ -196,71 +206,20 @@ int pmel_control (wispr_config_t *config, uint16_t timeout)
 			printf("PMEL PSD: invalid arg\r\n");
 		}
 	}
-
-	// If a valid message was received then send ACK, else send NACK
-	if( (type != PMEL_UNKNOWN) && (status == COM_VALID_MSG) ) {
-		status = com_write_msg(BOARD_COM_PORT, "ACK");
-	} else {
-		status = com_write_msg(BOARD_COM_PORT, "NACK");
-	}
 	
 	return (status);
 }
 
 //
-// Request and wait for a GPS message
-// This will wait until it receives a GPS message, ignoring all other types of messages
-// Timeout is in seconds
-int pmel_request_gps(wispr_config_t *config, uint16_t timeout_sec)
-{
-	//char *buf = com_buffer;
-	int type = PMEL_NONE;
-
-	//Set RTC time by GPS epoch sec received at COM0. Gain is also changed. HM
-	printf("Requesting GPS message to set RTC.\r\n");
-	
-	//Sends $GPS* que to MPC as a request for GPS time and Location
-	com_write_msg(BOARD_COM_PORT, "GPS");
-		
-	uint16_t count = 0;
-	while( count < timeout_sec ) {
-		type = pmel_control(config, 1000); // timeout in 1000 msecs
-		if( type == PMEL_GPS ) {
-			break;
-		}
-		count++;
-	}
-	return(type);
-}
-
-int pmel_request_gain(wispr_config_t *config, uint16_t timeout_sec)
-{
-	int type = PMEL_NONE;
-	
-	// request a gain change 
-	com_write_msg(BOARD_COM_PORT, "NGN");
-
-	uint16_t count = 0;
-	while( count < timeout_sec ) {
-		type = pmel_control(config, 1000); // timeout in 1000 msecs
-		if( type == PMEL_NGN ) {
-			break;
-		}
-		count++;
-	}
-	return(type);
-}
-
-//
 // Wait for ACK
 //
-int pmel_wait_for_ack (wispr_config_t *config, uint16_t timeout_sec)
+int pmel_wait_for_ack (wispr_config_t *config, uint16_t timeout)
 {
 	int type = PMEL_UNKNOWN;
 	
 	uint16_t count = 0;
-	while( count < timeout_sec ) {
-		type = pmel_control(config, 1000); // timeout in 1000 msecs
+	while( count < timeout ) {
+		type = pmel_control(config, 1); // timeout in msecs
 		if( type == PMEL_ACK ) {
 			break;
 		}
@@ -274,11 +233,73 @@ int pmel_wait_for_ack (wispr_config_t *config, uint16_t timeout_sec)
 		return(PMEL_NAK);
 	}
 }
+
+uint16_t pmel_ack_timeout = 100;
+int pmel_retries = 2;
+
+int pmel_send_wait_for_ack(wispr_config_t *config, char *msg)
+{
+	int status = 0;
+	// send and repeat until an ACK is received or quit after 10 tries
+	int count = pmel_retries;
+	while(count--) {
+		// send message
+		com_write_msg(BOARD_COM_PORT, msg);
+		// wait for ACK
+		status = pmel_wait_for_ack(config, pmel_ack_timeout);
+		if( status == PMEL_ACK ) break;
+	}
+	return(status);
+}
+
+//
+// Request and wait for a GPS message
+// This will wait until it receives a GPS message, ignoring all other types of messages
+// Timeout is in seconds
+int pmel_request_gps(wispr_config_t *config, uint16_t timeout)
+{
+	//char *buf = com_buffer;
+	int type = PMEL_NONE;
+
+	//Set RTC time by GPS epoch sec received at COM0. Gain is also changed. HM
+	printf("Requesting GPS message to set RTC.\r\n");
 	
+	//Sends $GPS* que to MPC as a request for GPS time and Location
+	com_write_msg(BOARD_COM_PORT, "GPS");
+		
+	uint16_t count = 0;
+	while( count < timeout ) {
+		type = pmel_control(config, 1); // timeout in 1000 msecs
+		if( type == PMEL_GPS ) {
+			break;
+		}
+		count++;
+	}
+	return(type);
+}
+
+int pmel_request_gain(wispr_config_t *config, uint16_t timeout)
+{
+	int type = PMEL_NONE;
+	
+	// request a gain change 
+	com_write_msg(BOARD_COM_PORT, "NGN");
+
+	uint16_t count = 0;
+	while( count < timeout ) {
+		type = pmel_control(config, 1); // timeout in msecs
+		if( type == PMEL_NGN ) {
+			break;
+		}
+		count++;
+	}
+	return(type);
+}
+
+
 int pmel_transmit_spectrum(wispr_config_t *config, float32_t *psd_average, uint16_t nbins, uint8_t *buffer, pmel_control_t *pmel)
 {
 	int status = 0;
-	char *msg = _buffer;
 
 	uint16_t nwrt = 0;
 	nwrt += sprintf(&buffer[nwrt], "%s", pmel_time_string(config->psd.second));
@@ -324,7 +345,7 @@ int pmel_transmit_spectrum(wispr_config_t *config, float32_t *psd_average, uint1
 		}
 	
 		// wait 10 seconds for ACK
-		status = pmel_wait_for_ack(config, 10);
+		status = pmel_wait_for_ack(config, 1000);
 		if( status == PMEL_ACK ) break;
 	
 	}
@@ -335,7 +356,7 @@ int pmel_transmit_spectrum(wispr_config_t *config, float32_t *psd_average, uint1
 int pmel_send_status(wispr_config_t *config)
 {
 	int status = 0;
-	char *msg = _buffer;
+	char msg[64];
 	float free, amps, volts;
 
 	// get the number of free blocks on sd card
@@ -348,28 +369,23 @@ int pmel_send_status(wispr_config_t *config)
 	nwrt = sprintf(msg, "STA");
 	nwrt += sprintf(&msg[nwrt], ",%d", config->adc.gain);
 	nwrt += sprintf(&msg[nwrt], ",%d", config->adc.sampling_rate);
-	nwrt += sprintf(&msg[nwrt], ",%d", config->file_size);
-	nwrt += sprintf(&msg[nwrt], ",%.2f", free);
+	nwrt += sprintf(&msg[nwrt], ",%d", config->number_files);
+	nwrt += sprintf(&msg[nwrt], ",%f", config->secs_per_file);
 	nwrt += sprintf(&msg[nwrt], ",%.2f", volts );
 	nwrt += sprintf(&msg[nwrt], ",%.2f", ina260_mAh);
+	nwrt += sprintf(&msg[nwrt], ",%d", config->resets);
 
-	// send and repeat until an ACK is received or quit after 10 tries
-	int count = 10;
-	while(count--) {
-		// send message
-		com_write_msg(BOARD_COM_PORT, msg);
-		// wait 10 seconds for ACK
-		status = pmel_wait_for_ack(config, 10);
-		if( status == PMEL_ACK ) break;
-	}
-	
+	// send and wait ACK
+	status = pmel_send_wait_for_ack(config, msg);
+		
 	return(status);
 }
+
 
 int pmel_send_sd_usage(wispr_config_t *config)
 {
 	int status = 0;
-	char *msg = _buffer;
+	char msg[16];
 	float free;
 
 	// get the number of free blocks on sd card
@@ -378,25 +394,40 @@ int pmel_send_sd_usage(wispr_config_t *config)
 	uint16_t nwrt = 0;
 	nwrt = sprintf(msg, "SDF,%.2f", free);
 
-	// send and repeat until an ACK is received or quit after 10 tries
-	int count = 10;
-	while(count--) {
-		// send message
-		com_write_msg(BOARD_COM_PORT, msg);
-		// wait 10 seconds for ACK
-		status = pmel_wait_for_ack(config, 10);
-		if( status == PMEL_ACK ) break;
-	}
+	// send and wait ACK
+	status = pmel_send_wait_for_ack(config, msg);
 
-	// wait 10 seconds for ACK
-	status = pmel_wait_for_ack(config, 10);
-	if( status == PMEL_ACK ) {
-		
-	}
+	return(status);
+}
+
+int pmel_send_power_usage(wispr_config_t *config)
+{
+	int status = 0;
+	char *msg[32];
+	float free;
+
+	uint16_t nwrt = 0;
+	nwrt = sprintf(msg, "PWR,%.2f,%.2f,%.2f", ina260_V, ina260_mA, ina260_mWh);
+
+	// send and wait ACK
+	status = pmel_send_wait_for_ack(config, msg);
 	
 	return(status);
 }
 
+int pmel_send_time(wispr_config_t *config)
+{
+	int status = 0;
+	char msg[32];
+	rtc_time_t dt;
+	uint32_t sec = 0;
+	pcf2129_get_datetime(&dt);  // read time
+	sec = rtc_time_to_epoch(&dt);
+	uint16_t nwrt = sprintf (msg, "WTM,%lu", sec);
+	// send and wait for ACK
+	status = pmel_send_wait_for_ack(config, msg);
+	return(status);
+}
 
 //
 // Known message types 
@@ -437,6 +468,9 @@ int pmel_msg_type (char *buf)
 	if (strncmp (buf, "TME", 3) == 0) {	// set time
 		type = PMEL_TME;
 	}
+	if (strncmp (buf, "WTM", 3) == 0) {	// set time
+		type = PMEL_WTM;
+	}
 	if (strncmp (buf, "NGN", 3) == 0) { 	// set gain
 		type = PMEL_NGN;
 	}
@@ -446,6 +480,9 @@ int pmel_msg_type (char *buf)
 	if (strncmp (buf, "PSD", 3) == 0) {	// Spectrum
 		type = PMEL_PSD;
 	}
+	if (strncmp (buf, "PWR", 3) == 0) {	// Power report
+		type = PMEL_PWR;
+	}
 
 	return (type);
 }
@@ -453,13 +490,14 @@ int pmel_msg_type (char *buf)
 
 //----------------------------------------------------------------
 
+char pmel_tstr[32];
 char *pmel_time_string(uint32_t epoch)
 {
 	rtc_time_t tme;
 	epoch_to_rtc_time(&tme, epoch);
-	sprintf(_buffer, "%02d:%02d:%02d:%02d:%02d:%02d",
+	sprintf(pmel_tstr, "%02d:%02d:%02d:%02d:%02d:%02d",
 		tme.month,tme.day,tme.year,tme.hour,tme.minute,tme.second);
-	return(_buffer);
+	return(pmel_tstr);
 }
 
 void pmel_filename(char *name, char *prefix, char *suffix, rtc_time_t *dt)

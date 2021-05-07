@@ -9,6 +9,7 @@
 #define WISPR_H_
 
 #include <stdint.h>
+#include <arm_math.h>
 
 #include "epoch.h"
 #include "gps.h"
@@ -188,11 +189,14 @@ typedef struct {
 	uint8_t  mode;
 	uint8_t  state;
 	uint8_t  prev_state;
+	uint16_t resets; // number of resets
 	uint32_t epoch; // linux time in seconds
 	uint32_t acquisition_time; // time in seconds of the adc sampling window
 	uint32_t sleep_time; // time in seconds between adc records (must be >= window)
 	uint32_t pause_time; // time in seconds to pause
 	uint32_t file_size; // number of block (512 byte) per file
+	float32_t secs_per_file; // number of seconds per file
+	uint16_t number_files; // number of files opened
 	uint8_t active_sd_card; // last card written to
 	wispr_adc_t adc;
 	wispr_psd_t psd;

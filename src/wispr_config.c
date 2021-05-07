@@ -45,6 +45,9 @@ void wispr_config_set_default(wispr_config_t *config)
 	config->file_size = WISPR_MAX_FILE_SIZE;  
 	
 	config->active_sd_card = 1;
+
+	config->resets = 0;
+	config->number_files = 0;
 }
 
 
@@ -58,13 +61,14 @@ void wispr_config_menu(wispr_config_t *config, int timeout)
 	
 	config->version[1] = WISPR_VERSION;
 	config->version[0] = WISPR_SUBVERSION;
+
+	u8 = console_prompt_uint8("Reset configuration to defaults values? [1=yes, 0=no]", 0, timeout);
+	if( u8 == 1 ) wispr_config_set_default(config);
 	
 	adc->buffer_size = ADC_BLOCKS_PER_BUFFER * WISPR_SD_CARD_BLOCK_SIZE;
-	adc->samples_per_buffer = (adc->buffer_size - WISPR_DATA_HEADER_SIZE) / 3;
-	
-	uint16_t blocks_per_buffer = ADC_BLOCKS_PER_BUFFER;
-	//blocks_per_buffer = console_prompt_uint32("Enter number of blocks (512 bytes) per buffer", blocks_per_buffer, timeout);
-	
+	adc->samples_per_buffer = adc->buffer_size / ADC_SAMPLE_SIZE;
+	//adc->samples_per_buffer = (adc->buffer_size - WISPR_DATA_HEADER_SIZE) / ADC_SAMPLE_SIZE;
+		
 	// commented out for fixed sample size
 	//u8 = console_prompt_uint8("Enter sample size in bytes", config->sample_size, timeout);
 	//if( u8 >= 2 && u8 <= 3 ) config->sample_size = u8;
@@ -90,16 +94,23 @@ void wispr_config_menu(wispr_config_t *config, int timeout)
 	//if( u16 >= 0 ) config->sleep_time = u16;
 	
 	// update variables based on new input
-	adc->buffer_size = (uint16_t)(blocks_per_buffer * WISPR_SD_CARD_BLOCK_SIZE);
-	adc->samples_per_buffer = (adc->buffer_size - WISPR_DATA_HEADER_SIZE) / (uint16_t)adc->sample_size;
-	float adc_buffer_duration =  (float)adc->samples_per_buffer / (float)adc->sampling_rate; // seconds
 	
 	//config->buffers_per_window = (uint16_t)( (float)config->acquisition_time / adc_buffer_duration ); // truncated number of buffers
 	
-	// prompt file file
-	u32 = config->file_size;
-	u32 = console_prompt_int("Enter size of data file in blocks", u32, timeout);
-	config->file_size = u32;
+	// prompt for file file
+	float adc_buffer_duration =  (float)adc->samples_per_buffer / (float)adc->sampling_rate; // seconds
+	uint32_t nblks_per_file = config->file_size;
+	float32_t secs_per_file =  adc_buffer_duration * (float32_t)(nblks_per_file) / (float)(ADC_BLOCKS_PER_BUFFER);
+	secs_per_file = console_prompt_f32("Enter size of data file in seconds", secs_per_file, timeout);
+	nblks_per_file = (uint32_t)(secs_per_file / adc_buffer_duration) * ADC_BLOCKS_PER_BUFFER;
+	config->file_size = nblks_per_file;
+
+	secs_per_file =  adc_buffer_duration * (float32_t)(nblks_per_file) / (float)(ADC_BLOCKS_PER_BUFFER);
+	config->secs_per_file = secs_per_file;
+	 
+	//u32 = config->file_size;
+	//u32 = console_prompt_int("Enter size of data file in blocks", u32, timeout);
+	//config->file_size = u32;
 
 	config->state = WISPR_IDLE;
 	uint8_t mode = 0;
@@ -211,7 +222,13 @@ void wispr_config_print(wispr_config_t *config)
 //	fprintf(stdout, "- acquisition time: %d sec\r\n", (int)config->acquisition_time);
 //	fprintf(stdout, "- sleep time:       %d sec\r\n", (int)config->sleep_time);
 	fprintf(stdout, "- active card:      %d\r\n", config->active_sd_card);
-	fprintf(stdout, "- file size:        %d blocks\r\n", (int)config->file_size);
+	fprintf(stdout, "- resets:           %d\r\n", config->resets);
+
+	float adc_buffer_duration =  (float)config->adc.samples_per_buffer / (float)config->adc.sampling_rate; // seconds
+	uint32_t nblks_per_file = config->file_size;
+	float32_t secs_per_file =  adc_buffer_duration * (float32_t)(nblks_per_file) / (float)(ADC_BLOCKS_PER_BUFFER);
+	fprintf(stdout, "- file size:        %f seconds (%d blocks)\r\n", secs_per_file, (int)config->file_size);
+	
     if(config->mode & WISPR_PSD) {
 		fprintf(stdout, "- fft size:         %d\r\n", (int)config->psd.size);
 		fprintf(stdout, "- fft overlap:      %d\r\n", (int)config->psd.overlap);

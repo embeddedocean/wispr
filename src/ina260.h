@@ -45,12 +45,13 @@
 #define INA260_CONFIG_CT_4156us (0x01B0)
 #define INA260_CONFIG_CT_8244us (0x01F8)
 
-
 //--------------------------------------------------------------------------
 // external definitions
 
-extern float32_t ina260_mWh;  // mWatt Hours defined in ina260.c
-extern float32_t ina260_mAh;  // mAmp Hours defined in ina260.c
+extern float32_t ina260_mWh;  // cumulative mWatt Hours defined in ina260.c
+extern float32_t ina260_mAh;  // cumulative mAmp Hours defined in ina260.c
+extern float32_t ina260_mA;  // current mAmps defined in ina260.c
+extern float32_t ina260_V;  // current Volts defined in ina260.c
 
 extern int ina260_init(uint16_t config, uint16_t alarm, uint8_t send_com_msg);
 extern int ina260_stop(void);

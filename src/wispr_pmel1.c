@@ -192,15 +192,16 @@ int main (void)
 	printf("New data file created every %f seconds with %d blocks\r\n", file_duration, blocks_per_file);
 
 	// save the updated config
+	wispr.resets = wispr.resets + 1;
 	sd_card_fwrite_config(config_filename, &wispr);
 
 	// save the config because it could have changed
 	wispr_config_print(&wispr);
 	
 	// setup INA260 power monitor
-	ina260_init(INA260_CONFIG_MODE_TRIGGERED | INA260_CONFIG_AVG_1024 | INA260_CONFIG_CT_1100us, INA260_ALARM_NONE, 0);
+	//ina260_init(INA260_CONFIG_MODE_TRIGGERED | INA260_CONFIG_AVG_1024 | INA260_CONFIG_CT_1100us, INA260_ALARM_NONE, 0);
 	// send a PWR com message every second
-	//ina260_init(INA260_CONFIG_MODE_CONTINUOUS|INA260_CONFIG_AVG_1024|INA260_CONFIG_CT_1100us, INA260_ALARM_CONVERSION_READY, 1);
+	ina260_init(INA260_CONFIG_MODE_CONTINUOUS|INA260_CONFIG_AVG_1024|INA260_CONFIG_CT_1100us, INA260_ALARM_CONVERSION_READY, 0);
 	float32_t volts; // Volts
 	float32_t amps;  // mAmps
 	ina260_read(&amps, &pmel.volts, 1);
@@ -346,6 +347,9 @@ uint32_t trigger_adc_with_new_file(wispr_config_t *config, fat_file_t *ff)
 	if( sd_card_fopen(ff, filename, FA_OPEN_ALWAYS | FA_WRITE, config->active_sd_card) == FR_OK ) {
 		printf("Open new data file: %s\r\n", ff->name);
 	}
+
+	// increment the file counter	
+	config->number_files++;
 	
 	// set the max file size
 	sd_card_set_file_size(ff, config->file_size);

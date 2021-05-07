@@ -141,8 +141,8 @@ extern void board_reset_reason(uint8_t *reason, uint8_t *nrst, uint8_t *user);
 #define SELECT_SD2   1
 
 // ADC preamp control pins
-#define PIN_PREAMP_G0 PIN_PB4
-#define PIN_PREAMP_G1 PIN_PB5
+#define PIN_PREAMP_G0 PIN_PB5
+#define PIN_PREAMP_G1 PIN_PB4
 #define PIN_PREAMP_SHDN PIN_PA22
 
 // PPS pin is shared with the RTC Interrupt pin

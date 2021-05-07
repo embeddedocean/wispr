@@ -120,7 +120,7 @@ int com_read_msg (int port, char *msg, int timeout)
   
   // read the message with no timeout
   //stat =  uart_read_message_queue(port, (uint8_t *)tmp, COM_MAX_MESSAGE_SIZE);
-  if(stat != STATUS_OK) return(COM_TIMEOUT);
+  if(stat != STATUS_OK) return(COM_NO_MSG);
   
   nrd = strlen(tmp);
   
@@ -143,7 +143,7 @@ int com_read_msg (int port, char *msg, int timeout)
        msg[len] = 0x00;
     }
  
- 	if(len > 1) status = COM_VALID_MSG; 	
+ 	if(len > 1) status = COM_VALID_MSG; 
    
 	// Check CRC
     if(crc != com_CRC(msg, len)) {

@@ -636,6 +636,7 @@ FRESULT sd_card_fread_config(char *filename, wispr_config_t *hdr)
 		if(strcmp(str, "adc_decimation:") == 0) new.adc.decimation = (uint8_t)v1;
 		if(strcmp(str, "max_file_size:") == 0) new.file_size = (uint32_t)v1;
 		if(strcmp(str, "active_sd_card:") == 0) new.active_sd_card = (uint8_t)v1;
+		if(strcmp(str, "number_resets:") == 0) new.resets = (uint16_t)v1;
 	}
 	
 	// validate new config
@@ -684,6 +685,7 @@ FRESULT sd_card_fwrite_config(char *filename, wispr_config_t *cfg)
 	nwrt += f_printf(&file, "fft_window_type: %d\r\n", cfg->psd.window_type);
 	nwrt += f_printf(&file, "max_file_size: %d\r\n", cfg->file_size);
 	nwrt += f_printf(&file, "active_sd_card: %d\r\n", cfg->active_sd_card);
+	nwrt += f_printf(&file, "number_resets: %d\r\n", cfg->resets);
 
 	res = f_close(&file);
 	if( res != FR_OK ) {
