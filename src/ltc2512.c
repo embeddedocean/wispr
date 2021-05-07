@@ -516,9 +516,12 @@ void SSC_Handler(void)
 	// ENDRX flag is set when the PDC Receive Counter register (PERIPH_RCR) reaches zero.
 	if ( (status & SSC_SR_ENDRX) == SSC_SR_ENDRX ) {
 
-		// if 
+		// if buf is not NULL then possible missed buffer
 		if(ltc_adc_buffer != NULL) {
-			printf("SSC_Handler: buffer overwrite\r\n");
+			//printf("ADC buffer overwrite\r\n");
+			ltc_adc_status |= ADC_DMA_MISSED_BUFFER;
+		} else {
+			ltc_adc_status &= ~ADC_DMA_MISSED_BUFFER;
 		}
 
 		// get time stamp for the end the buffer that just finished

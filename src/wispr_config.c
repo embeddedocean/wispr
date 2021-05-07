@@ -47,7 +47,7 @@ void wispr_config_set_default(wispr_config_t *config)
 	config->active_sd_card = 1;
 
 	config->resets = 0;
-	config->number_files = 0;
+	config->files = 0;
 }
 
 
@@ -62,7 +62,7 @@ void wispr_config_menu(wispr_config_t *config, int timeout)
 	config->version[1] = WISPR_VERSION;
 	config->version[0] = WISPR_SUBVERSION;
 
-	u8 = console_prompt_uint8("Reset configuration to defaults values? [1=yes, 0=no]", 0, timeout);
+	u8 = console_prompt_uint8("Reset configuration to default values?", 0, timeout);
 	if( u8 == 1 ) wispr_config_set_default(config);
 	
 	adc->buffer_size = ADC_BLOCKS_PER_BUFFER * WISPR_SD_CARD_BLOCK_SIZE;
@@ -223,11 +223,12 @@ void wispr_config_print(wispr_config_t *config)
 //	fprintf(stdout, "- sleep time:       %d sec\r\n", (int)config->sleep_time);
 	fprintf(stdout, "- active card:      %d\r\n", config->active_sd_card);
 	fprintf(stdout, "- resets:           %d\r\n", config->resets);
+	fprintf(stdout, "- files:            %d\r\n", config->files);
 
 	float adc_buffer_duration =  (float)config->adc.samples_per_buffer / (float)config->adc.sampling_rate; // seconds
 	uint32_t nblks_per_file = config->file_size;
 	float32_t secs_per_file =  adc_buffer_duration * (float32_t)(nblks_per_file) / (float)(ADC_BLOCKS_PER_BUFFER);
-	fprintf(stdout, "- file size:        %f seconds (%d blocks)\r\n", secs_per_file, (int)config->file_size);
+	fprintf(stdout, "- file size:        %.3f seconds (%d blocks)\r\n", secs_per_file, (int)config->file_size);
 	
     if(config->mode & WISPR_PSD) {
 		fprintf(stdout, "- fft size:         %d\r\n", (int)config->psd.size);

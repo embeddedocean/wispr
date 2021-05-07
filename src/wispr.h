@@ -52,7 +52,7 @@
 #define ADC_DEFAULT_SAMPLING_RATE (50000)
 #define ADC_DEFAULT_SAMPLE_SIZE (ADC_SAMPLE_SIZE)
 #define ADC_DEFAULT_AWAKE 60
-#define ADC_DEFAULT_SLEEP 10
+#define ADC_DEFAULT_SLEEP 0
 #define ADC_DEFAULT_GAIN 0
 #define ADC_DEFAULT_DECIMATION 4
 
@@ -189,14 +189,14 @@ typedef struct {
 	uint8_t  mode;
 	uint8_t  state;
 	uint8_t  prev_state;
-	uint16_t resets; // number of resets
 	uint32_t epoch; // linux time in seconds
 	uint32_t acquisition_time; // time in seconds of the adc sampling window
 	uint32_t sleep_time; // time in seconds between adc records (must be >= window)
 	uint32_t pause_time; // time in seconds to pause
 	uint32_t file_size; // number of block (512 byte) per file
 	float32_t secs_per_file; // number of seconds per file
-	uint16_t number_files; // number of files opened
+	uint16_t files; // number of files opened
+	uint16_t resets; // number of resets
 	uint8_t active_sd_card; // last card written to
 	wispr_adc_t adc;
 	wispr_psd_t psd;

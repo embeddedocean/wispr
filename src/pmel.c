@@ -3,7 +3,25 @@
  * PMEL specific command interface and 
  * Embedded Ocean Systems (EOS), 2021
  *
+ * Tested commands:
+ 
+  $RUN*ee
+  $EXI*a6
+  $RST*33
+  $WTM*4c
+  $PAU,20*d0
+  $SLP,20*0f
+  $STA*00
+  $PSD,1024,30*65
+  $ACK*ad
+  $SDF*94
+  $PWR*51
+  $TME,1620377164*bb
+  $NGN,2*47$ACK*ad
+  
+  
 */
+
 
 #include <stdio.h>
 //#include <stdlib.h>
@@ -192,19 +210,22 @@ int pmel_control (wispr_config_t *config, uint16_t timeout)
 		uint16_t duration;  // number of time steps (adc buffer reads) to average
 		sscanf (&buf[4], "%u,%u", &fft_size, &duration);
 		// check for valid args
-		if( ((fft_size == 128) || (fft_size == 512) || (fft_size == 1024) || (fft_size == 2048)) && ((duration > 1) && (duration < PMEL_MAX_PSD_DARATION)) ) {
-			float adc_buffer_duration = (float)config->adc.samples_per_buffer / (float)config->adc.sampling_rate; // seconds
-			config->psd.size = fft_size;
-			config->psd.overlap = 0;
-			config->psd.nbins = fft_size / 2;
-			config->psd.count = 0; // reset the processing counter
-			config->psd.navg = (uint16_t)(duration / adc_buffer_duration); // determine number of buffers to average for psd estimate
-			config->mode |= WISPR_PSD;
-			printf("PMEL PSD: size=%d, navg=%d\r\n", config->psd.size, config->psd.navg);
-		} else {
-			status = COM_INVALID_ARG;
-			printf("PMEL PSD: invalid arg\r\n");
+		if( (fft_size != 64) && (fft_size != 128) && (fft_size != 512) && (fft_size != 1024) && (fft_size != 2048) ) {
+			printf("PMEL PSD: invalid fft size %d, using %d\r\n", fft_size, PMEL_FFT_SIZE);
+			fft_size = PMEL_FFT_SIZE;
 		}
+		if( (duration < 1) || (duration >= PMEL_MAX_PSD_DARATION) ) {
+			fft_size = PMEL_PSD_DURATION;
+			printf("PMEL PSD: invalid duration - using default\r\n");
+		}
+		float adc_buffer_duration = (float)config->adc.samples_per_buffer / (float)config->adc.sampling_rate; // seconds
+		config->psd.size = fft_size;
+		config->psd.overlap = 0;
+		config->psd.nbins = fft_size / 2;
+		config->psd.count = 0; // reset the processing counter
+		config->psd.navg = (uint16_t)(duration / adc_buffer_duration); // determine number of buffers to average for psd estimate
+		config->mode |= WISPR_PSD;
+		printf("PMEL PSD: size=%d, navg=%d\r\n", config->psd.size, config->psd.navg);
 	}
 	
 	return (status);
@@ -212,6 +233,7 @@ int pmel_control (wispr_config_t *config, uint16_t timeout)
 
 //
 // Wait for ACK
+// - allowing other commands to be received while waiting
 //
 int pmel_wait_for_ack (wispr_config_t *config, uint16_t timeout)
 {
@@ -234,19 +256,19 @@ int pmel_wait_for_ack (wispr_config_t *config, uint16_t timeout)
 	}
 }
 
-uint16_t pmel_ack_timeout = 100;
-int pmel_retries = 2;
-
+//
+// Send message and wait of ack, resend if no ack within timeout
+//
 int pmel_send_wait_for_ack(wispr_config_t *config, char *msg)
 {
 	int status = 0;
 	// send and repeat until an ACK is received or quit after 10 tries
-	int count = pmel_retries;
+	int count = PMEL_NUMBER_RETRIES;
 	while(count--) {
 		// send message
 		com_write_msg(BOARD_COM_PORT, msg);
 		// wait for ACK
-		status = pmel_wait_for_ack(config, pmel_ack_timeout);
+		status = pmel_wait_for_ack(config, PMEL_ACK_TIMEOUT_MSEC);
 		if( status == PMEL_ACK ) break;
 	}
 	return(status);
@@ -322,21 +344,22 @@ int pmel_transmit_spectrum(wispr_config_t *config, float32_t *psd_average, uint1
 	}
 
 	// send spectrum to controller, repeat until an ACK is received or quit after 10 tries 
-	int count = 10;
+	int count = PMEL_NUMBER_RETRIES;
 	while(count--) {
 
 		uart_write_queue(BOARD_COM_PORT, "@@@\r\n", 5);
 	
 		// write CRC of the message
+		char msg[16];
 		uint16_t crc = (uint16_t)com_CRC(buffer, nwrt);
-		//sprintf(msg, "%02x\r\n", crc);
-		//status = uart_write_queue(BOARD_COM_PORT, msg, strlen(msg));
-		status = uart_write_queue(BOARD_COM_PORT, (uint8_t *)&crc, 2);
+		sprintf(msg, "%02x\r\n", crc);
+		status = uart_write_queue(BOARD_COM_PORT, msg, strlen(msg));
+		//status = uart_write_queue(BOARD_COM_PORT, (uint8_t *)&crc, 2);
 
 		// write the number of bytes in the message
-		//sprintf(msg, "%04x\r\n", nwrt);
-		//status = uart_write_queue(BOARD_COM_PORT, msg, strlen(msg));
-		status = uart_write_queue(BOARD_COM_PORT, (uint8_t *)&nwrt, 2);
+		sprintf(msg, "%04x\r\n", nwrt);
+		status = uart_write_queue(BOARD_COM_PORT, msg, strlen(msg));
+		//status = uart_write_queue(BOARD_COM_PORT, (uint8_t *)&nwrt, 2);
 
 	 	// stream binary data out the uart
 		for(int n = 0; n < nwrt; n++) {
@@ -345,7 +368,7 @@ int pmel_transmit_spectrum(wispr_config_t *config, float32_t *psd_average, uint1
 		}
 	
 		// wait 10 seconds for ACK
-		status = pmel_wait_for_ack(config, 1000);
+		status = pmel_wait_for_ack(config, PMEL_ACK_TIMEOUT_MSEC);
 		if( status == PMEL_ACK ) break;
 	
 	}
@@ -369,7 +392,7 @@ int pmel_send_status(wispr_config_t *config)
 	nwrt = sprintf(msg, "STA");
 	nwrt += sprintf(&msg[nwrt], ",%d", config->adc.gain);
 	nwrt += sprintf(&msg[nwrt], ",%d", config->adc.sampling_rate);
-	nwrt += sprintf(&msg[nwrt], ",%d", config->number_files);
+	nwrt += sprintf(&msg[nwrt], ",%d", config->files);
 	nwrt += sprintf(&msg[nwrt], ",%f", config->secs_per_file);
 	nwrt += sprintf(&msg[nwrt], ",%.2f", volts );
 	nwrt += sprintf(&msg[nwrt], ",%.2f", ina260_mAh);

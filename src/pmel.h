@@ -10,6 +10,21 @@
 #include "gps.h"
 #include "spectrum.h"
 
+// max values
+#define PMEL_MAX_SLEEP (60*60*24)
+#define PMEL_MAX_PAUSE (60*60)
+#define PMEL_MAX_PSD_DARATION (60*60)
+
+// default values
+#define PMEL_FFT_SIZE 1024
+#define PMEL_PSD_DURATION 60
+
+// Time to wait for ACK after sending message
+#define PMEL_ACK_TIMEOUT_MSEC 1000
+
+// Number of time to retry sending a message that requires an ack
+#define PMEL_NUMBER_RETRIES 4
+
 /* pmel command message status codes */
 #define PMEL_NONE 0
 #define PMEL_UNKNOWN 0
@@ -33,9 +48,6 @@
 #define PMEL_PSD 13
 #define PMEL_PWR 14
 
-#define PMEL_MAX_SLEEP (60*60*24)
-#define PMEL_MAX_PAUSE (60*60)
-#define PMEL_MAX_PSD_DARATION 120
 
 //
 // Application specific control structure

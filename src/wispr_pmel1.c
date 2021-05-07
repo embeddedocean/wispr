@@ -188,11 +188,13 @@ int main (void)
 	// since the adc buffer duration is defined by a fixed number of blocks
 	// the actual sampling window may be different than the requested
 	//float actual_sampling_time = (float)adc_buffers_per_file * adc_buffer_duration;
-
-	printf("New data file created every %f seconds with %d blocks\r\n", file_duration, blocks_per_file);
+	
+	// Count the number of resets, excluding wakeup from deep sleep
+	if( reset_type != BOARD_BACKUP_RESET ) {
+		wispr.resets++;
+	}
 
 	// save the updated config
-	wispr.resets = wispr.resets + 1;
 	sd_card_fwrite_config(config_filename, &wispr);
 
 	// save the config because it could have changed
@@ -349,7 +351,7 @@ uint32_t trigger_adc_with_new_file(wispr_config_t *config, fat_file_t *ff)
 	}
 
 	// increment the file counter	
-	config->number_files++;
+	config->files++;
 	
 	// set the max file size
 	sd_card_set_file_size(ff, config->file_size);
