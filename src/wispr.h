@@ -71,7 +71,7 @@
 
 // spectrum max buffer size
 #define PSD_MAX_FFT_SIZE (2048)
-#define PSD_MAX_NUM_BINS (PSD_MAX_FFT_SIZE / 2)
+#define PSD_MAX_NUM_BINS (PSD_MAX_FFT_SIZE/2 + 1)
 
 // only float32 or q31 (4 bytes)
 #define PSD_SAMPLE_SIZE (4)

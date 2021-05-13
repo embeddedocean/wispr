@@ -640,6 +640,10 @@ FRESULT sd_card_fread_config(char *filename, wispr_config_t *hdr)
 		if(strcmp(str, "files:") == 0) new.files = (uint16_t)v1;
 	}
 	
+	float adc_buffer_duration =  (float)new.adc.samples_per_buffer / (float)new.adc.sampling_rate; // seconds
+	uint32_t nblks_per_file = new.file_size;
+	new.secs_per_file =  adc_buffer_duration * (float32_t)(nblks_per_file) / (float)(ADC_BLOCKS_PER_BUFFER);
+
 	// validate new config
 	// ...
 	

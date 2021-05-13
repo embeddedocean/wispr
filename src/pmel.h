@@ -16,6 +16,7 @@
 #define PMEL_MAX_PSD_DARATION (60*60)
 
 // default values
+#define PMEL_GAIN 0
 #define PMEL_FFT_SIZE 1024
 #define PMEL_PSD_DURATION 60
 

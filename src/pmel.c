@@ -176,9 +176,9 @@ int pmel_control (wispr_config_t *config, uint16_t timeout)
 				printf("Waiting for RTC, status %d\r\n", status);
 			}
 			printf("SET TIME: %s\r\n", epoch_time_string(sec));
-			com_write_msg(BOARD_COM_PORT, "ACK");			
+			com_write_msg(BOARD_COM_PORT, "ACK");
 		} else {
-			com_write_msg(BOARD_COM_PORT, "NACK");			
+			com_write_msg(BOARD_COM_PORT, "NACK");
 		}
 	}
 	
@@ -221,7 +221,7 @@ int pmel_control (wispr_config_t *config, uint16_t timeout)
 		float adc_buffer_duration = (float)config->adc.samples_per_buffer / (float)config->adc.sampling_rate; // seconds
 		config->psd.size = fft_size;
 		config->psd.overlap = 0;
-		config->psd.nbins = fft_size / 2;
+		config->psd.nbins = fft_size / 2 + 1;
 		config->psd.count = 0; // reset the processing counter
 		config->psd.navg = (uint16_t)(duration / adc_buffer_duration); // determine number of buffers to average for psd estimate
 		config->mode |= WISPR_PSD;
@@ -347,12 +347,14 @@ int pmel_transmit_spectrum(wispr_config_t *config, float32_t *psd_average, uint1
 	int count = PMEL_NUMBER_RETRIES;
 	while(count--) {
 
-		uart_write_queue(BOARD_COM_PORT, "@@@\r\n", 5);
+		//uart_write_queue(BOARD_COM_PORT, "@@@\r\n", 5);
+		uart_write_queue(BOARD_COM_PORT, "@@@", 5);
 	
 		// write CRC of the message
 		char msg[16];
 		uint16_t crc = (uint16_t)com_CRC(buffer, nwrt);
-		sprintf(msg, "%02x\r\n", crc);
+		sprintf(msg, "%02x", crc);
+		//sprintf(msg, "%02x\r\n", crc);
 		status = uart_write_queue(BOARD_COM_PORT, msg, strlen(msg));
 		//status = uart_write_queue(BOARD_COM_PORT, (uint8_t *)&crc, 2);
 
@@ -393,7 +395,7 @@ int pmel_send_status(wispr_config_t *config)
 	nwrt += sprintf(&msg[nwrt], ",%d", config->adc.gain);
 	nwrt += sprintf(&msg[nwrt], ",%d", config->adc.sampling_rate);
 	nwrt += sprintf(&msg[nwrt], ",%d", config->files);
-	nwrt += sprintf(&msg[nwrt], ",%f", config->secs_per_file);
+	nwrt += sprintf(&msg[nwrt], ",%.3f", config->secs_per_file);
 	nwrt += sprintf(&msg[nwrt], ",%.2f", volts );
 	nwrt += sprintf(&msg[nwrt], ",%.2f", ina260_mAh);
 	nwrt += sprintf(&msg[nwrt], ",%d", config->resets);

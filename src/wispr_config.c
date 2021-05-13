@@ -43,6 +43,9 @@ void wispr_config_set_default(wispr_config_t *config)
 	config->psd.window_type = RECT_WINDOW;
 	
 	config->file_size = WISPR_MAX_FILE_SIZE;  
+	float adc_buffer_duration =  (float)config->adc.samples_per_buffer / (float)config->adc.sampling_rate; // seconds
+	uint32_t nblks_per_file = config->file_size;
+	float32_t secs_per_file =  adc_buffer_duration * (float32_t)(nblks_per_file) / (float)(ADC_BLOCKS_PER_BUFFER);
 	
 	config->active_sd_card = 1;
 

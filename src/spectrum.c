@@ -136,8 +136,8 @@ int spectrum_init_f32(uint16_t *nbins, uint16_t nfft, uint16_t overlap, uint8_t 
 	uint16_t n = 0;
 	
 	// check spectrum size
-	if( *nbins > nfft/2 ) {
-		*nbins = nfft/2;
+	if( *nbins > (nfft/2+1) ) {
+		*nbins = nfft/2+1;
 		if(verbose) printf("spectrum_init_f32: number of bin truncated to %d\r\n", *nbins);
 	}
 	
@@ -365,8 +365,8 @@ int spectrum_f32(wispr_data_header_t *psd, float32_t *psd_data, wispr_data_heade
 int spectrum_init_q31(uint16_t *nbins, uint16_t nfft, uint16_t overlap, uint8_t wintype)
 {	
 	// check spectrum size
-	if( *nbins > nfft/2 ) {
-		*nbins = nfft/2;
+	if( *nbins > (nfft/2 + 1) ) {
+		*nbins = nfft/2 + 1;
 		if(verbose) printf("spectrum_init_q31: number of bins truncated to %d\r\n", *nbins);
 	}
 	
