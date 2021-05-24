@@ -17,7 +17,8 @@
   $SDF*94
   $PWR*51
   $TME,1620377164*bb
-  $NGN,2*47$ACK*ad
+  $NGN,2*47
+  $ACK*ad
   
   
 */
@@ -39,6 +40,8 @@
 #include "pcf2129.h"
 
 #include "pmel.h"
+
+uint16_t pmel_ack_timeout = PMEL_ACK_TIMEOUT_MSEC;
 
 int pmel_init(wispr_config_t *config)
 {
@@ -82,9 +85,9 @@ int pmel_control (wispr_config_t *config, uint16_t timeout)
 			return(COM_NO_MSG);		
 		}
 		printf("pmel control message received: %s\r\n", buf);
-		com_write_msg(BOARD_COM_PORT, "ACK");
+		//com_write_msg(BOARD_COM_PORT, "ACK");
 	} else {
-		com_write_msg(BOARD_COM_PORT, "NACK");	
+		com_write_msg(BOARD_COM_PORT, "NAK");	
 		return(COM_NO_MSG);
 	}
 
@@ -96,6 +99,7 @@ int pmel_control (wispr_config_t *config, uint16_t timeout)
 		// go into backup sleep mode with no wakeup alarm
 		config->sleep_time = 0; 
 		printf("PMEL EXIT\r\n");
+		com_write_msg(BOARD_COM_PORT, "ACK");		
 	}
 
 	// Sleep command
@@ -105,10 +109,12 @@ int pmel_control (wispr_config_t *config, uint16_t timeout)
 			config->sleep_time = sec;
 			config->prev_state = config->state;
 			config->state = WISPR_SLEEP_BACKUP;
-			printf("PMEL SLEEP for %d seconds\r\n", sec);	
+			printf("PMEL SLEEP for %d seconds\r\n", sec);
+			com_write_msg(BOARD_COM_PORT, "ACK");
 		} else {
 			status = COM_INVALID_ARG;
 			printf("PMEL SLEEP: invalid time %d\r\n", sec);
+			com_write_msg(BOARD_COM_PORT, "NAK");
 		}
 	}
 	
@@ -117,6 +123,7 @@ int pmel_control (wispr_config_t *config, uint16_t timeout)
 		config->prev_state = config->state;
 		config->state = WISPR_RUNNING;
 		printf("PMEL RUN\r\n");
+		com_write_msg(BOARD_COM_PORT, "ACK");
 	}
 	
 	// Pause command
@@ -127,9 +134,11 @@ int pmel_control (wispr_config_t *config, uint16_t timeout)
 			config->prev_state = config->state;
 			config->state = WISPR_PAUSED;
 			printf("PMEL PAUSE for %d seconds\r\n", sec);
+			com_write_msg(BOARD_COM_PORT, "ACK");
 		} else {
 			status = COM_INVALID_ARG;
 			printf("PMEL PAUSE: invalid time %d\r\n", sec);
+			com_write_msg(BOARD_COM_PORT, "NAK");
 		}
 	}
 	
@@ -139,22 +148,26 @@ int pmel_control (wispr_config_t *config, uint16_t timeout)
 		while (!uart_is_tx_empty(UART0)) {}
 		while (!uart_is_tx_empty(UART1)) {}
 		printf("PMEL RESET\r\n");
+		com_write_msg(BOARD_COM_PORT, "ACK");
 		// force reset
 		rstc_start_software_reset(RSTC);
 	}
 	
 	// Request status command
 	if (type == PMEL_STA) {
+		com_write_msg(BOARD_COM_PORT, "ACK");
 		pmel_send_status(config);
 	}
 
 	// Request sd card usage command
 	if ( type == PMEL_SDF ) {
+		com_write_msg(BOARD_COM_PORT, "ACK");
 		pmel_send_sd_usage(config);
 	}
 
 	// Request power usage command
 	if ( type == PMEL_PWR ) {
+		com_write_msg(BOARD_COM_PORT, "ACK");
 		pmel_send_power_usage(config);
 	}
 
@@ -178,12 +191,13 @@ int pmel_control (wispr_config_t *config, uint16_t timeout)
 			printf("SET TIME: %s\r\n", epoch_time_string(sec));
 			com_write_msg(BOARD_COM_PORT, "ACK");
 		} else {
-			com_write_msg(BOARD_COM_PORT, "NACK");
+			com_write_msg(BOARD_COM_PORT, "NAK");
 		}
 	}
 	
 	// send time
 	if ( type == PMEL_WTM ) {
+		com_write_msg(BOARD_COM_PORT, "ACK");
 		pmel_send_time(config);
 	}
 
@@ -191,15 +205,17 @@ int pmel_control (wispr_config_t *config, uint16_t timeout)
 	if ( type == PMEL_NGN ) {
 		uint8_t new_gain = 0;
 		sscanf (&buf[4], "%d", &new_gain);
-		if( (new_gain < 4 ) && ( new_gain > 0 ) ) {
+		if( (new_gain < 4 ) && ( new_gain >= 0 ) ) {
 			config->adc.gain = new_gain;
 			printf("PMEL GAIN: %d\r\n", config->adc.gain);
+			com_write_msg(BOARD_COM_PORT, "ACK");
 			// set preamp gain
 			ioport_set_pin_level(PIN_PREAMP_G0, (config->adc.gain & 0x01));
 			ioport_set_pin_level(PIN_PREAMP_G1, (config->adc.gain & 0x02));
 		} else {
 			status = COM_INVALID_ARG;
 			printf("PMEL NGN: invalid gain %d\r\n", new_gain);			
+			com_write_msg(BOARD_COM_PORT, "NAK");
 		}
 	}
 
@@ -226,21 +242,36 @@ int pmel_control (wispr_config_t *config, uint16_t timeout)
 		config->psd.navg = (uint16_t)(duration / adc_buffer_duration); // determine number of buffers to average for psd estimate
 		config->mode |= WISPR_PSD;
 		printf("PMEL PSD: size=%d, navg=%d\r\n", config->psd.size, config->psd.navg);
+		com_write_msg(BOARD_COM_PORT, "ACK");
 	}
 	
+	// set timeout
+	if ( type == PMEL_TOU ) {
+		uint16_t new_timeout = 0;
+		sscanf (&buf[4], "%d", &new_timeout);
+		if( new_timeout >= 0  ) {
+			pmel_ack_timeout = new_timeout;
+			printf("PMEL ACK TIMEOUT: %d\r\n", pmel_ack_timeout);
+			com_write_msg(BOARD_COM_PORT, "ACK");
+		} else {
+			status = COM_INVALID_ARG;
+			com_write_msg(BOARD_COM_PORT, "NAK");
+		}
+	}
+
 	return (status);
 }
 
 //
 // Wait for ACK
-// - allowing other commands to be received while waiting
+// - allowing other commands to be received while waiting for ack
 //
-int pmel_wait_for_ack (wispr_config_t *config, uint16_t timeout)
+int pmel_wait_for_ack (wispr_config_t *config)
 {
 	int type = PMEL_UNKNOWN;
 	
 	uint16_t count = 0;
-	while( count < timeout ) {
+	while( count < pmel_ack_timeout ) {
 		type = pmel_control(config, 1); // timeout in msecs
 		if( type == PMEL_ACK ) {
 			break;
@@ -268,7 +299,7 @@ int pmel_send_wait_for_ack(wispr_config_t *config, char *msg)
 		// send message
 		com_write_msg(BOARD_COM_PORT, msg);
 		// wait for ACK
-		status = pmel_wait_for_ack(config, PMEL_ACK_TIMEOUT_MSEC);
+		status = pmel_wait_for_ack(config);
 		if( status == PMEL_ACK ) break;
 	}
 	return(status);
@@ -332,6 +363,7 @@ int pmel_transmit_spectrum(wispr_config_t *config, float32_t *psd_average, uint1
 	nwrt += sprintf(&buffer[nwrt], ",%d.%d", pmel->version[0], pmel->version[1]);
 	nwrt += sprintf(&buffer[nwrt], ",%d", config->adc.sampling_rate);
 	nwrt += sprintf(&buffer[nwrt], ",%d", config->psd.nbins);
+	nwrt += sprintf(&buffer[nwrt], ",%d", config->adc.gain);
 
 	// scale = 2 * log10( (ADC_VREF / 2147483647.0 / (float32_t)config->psd.size) );
 	float32_t scale = 2.0 * (log10f(ADC_VREF) - log10f(2147483647.0) - log10f((float32_t)config->psd.size));
@@ -347,21 +379,11 @@ int pmel_transmit_spectrum(wispr_config_t *config, float32_t *psd_average, uint1
 	int count = PMEL_NUMBER_RETRIES;
 	while(count--) {
 
-		//uart_write_queue(BOARD_COM_PORT, "@@@\r\n", 5);
-		uart_write_queue(BOARD_COM_PORT, "@@@", 5);
-	
-		// write CRC of the message
+		// write pre-message header with @@@ CRC and length of the message that will follow
 		char msg[16];
 		uint16_t crc = (uint16_t)com_CRC(buffer, nwrt);
-		sprintf(msg, "%02x", crc);
-		//sprintf(msg, "%02x\r\n", crc);
+		sprintf(msg, "@@@%02x%04x\r\n", crc, nwrt);
 		status = uart_write_queue(BOARD_COM_PORT, msg, strlen(msg));
-		//status = uart_write_queue(BOARD_COM_PORT, (uint8_t *)&crc, 2);
-
-		// write the number of bytes in the message
-		sprintf(msg, "%04x\r\n", nwrt);
-		status = uart_write_queue(BOARD_COM_PORT, msg, strlen(msg));
-		//status = uart_write_queue(BOARD_COM_PORT, (uint8_t *)&nwrt, 2);
 
 	 	// stream binary data out the uart
 		for(int n = 0; n < nwrt; n++) {
@@ -370,7 +392,7 @@ int pmel_transmit_spectrum(wispr_config_t *config, float32_t *psd_average, uint1
 		}
 	
 		// wait 10 seconds for ACK
-		status = pmel_wait_for_ack(config, PMEL_ACK_TIMEOUT_MSEC);
+		status = pmel_wait_for_ack(config);
 		if( status == PMEL_ACK ) break;
 	
 	}
@@ -507,6 +529,9 @@ int pmel_msg_type (char *buf)
 	}
 	if (strncmp (buf, "PWR", 3) == 0) {	// Power report
 		type = PMEL_PWR;
+	}
+	if (strncmp (buf, "TOU", 3) == 0) {	// Set timeout
+		type = PMEL_TOU;
 	}
 
 	return (type);

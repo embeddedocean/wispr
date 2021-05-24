@@ -220,8 +220,6 @@ int main (void)
 	uint16_t idle_delay_msec = 1000; // loop delay in msecs
 	uint16_t idle_time = 10; // seconds
 
-	printf("Wait %d seconds to start, then go to deep sleep\r\n", idle_time);
-
 	uint16_t adc_count = 0;
 	uint8_t go = 1;
 	while ( go ) {
@@ -280,10 +278,17 @@ int main (void)
 
 		// Idle state
 		if( wispr.state == WISPR_IDLE ) {
-			delay_ms(idle_delay_msec);
-			printf("Waiting: %d, state %d, mode %d\r\n", idle_count, wispr.state, wispr.mode);	
+			
 			// exit wait loop and go to deep sleep is timeout
-			if(idle_count++ >= (1000 * idle_time / idle_delay_msec) ) go = 0;
+			//printf("Wait %d seconds to start, then go to deep sleep\r\n", idle_time);
+			//delay_ms(idle_delay_msec);
+			//printf("Waiting: %d, state %d, mode %d\r\n", idle_count, wispr.state, wispr.mode);
+			//if(idle_count++ >= (1000 * idle_time / idle_delay_msec) ) go = 0;
+			
+			// sleep between buffers, the next interrupt will wake from sleep
+			printf("Waiting: state %d, mode %d\r\n", wispr.state, wispr.mode);
+			wdt_restart(WDT);
+			pmc_sleep(SAM_PM_SMODE_SLEEP_WFI); // sleep until next interrupt
 		}
 		
 		// Sleep in backup mode (deep sleep)

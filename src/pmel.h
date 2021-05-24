@@ -21,7 +21,7 @@
 #define PMEL_PSD_DURATION 60
 
 // Time to wait for ACK after sending message
-#define PMEL_ACK_TIMEOUT_MSEC 1000
+#define PMEL_ACK_TIMEOUT_MSEC 10000
 
 // Number of time to retry sending a message that requires an ack
 #define PMEL_NUMBER_RETRIES 4
@@ -48,7 +48,7 @@
 #define PMEL_SDF 12
 #define PMEL_PSD 13
 #define PMEL_PWR 14
-
+#define PMEL_TOU 15
 
 //
 // Application specific control structure
@@ -74,7 +74,8 @@ extern int pmel_request_gain(wispr_config_t *config, uint16_t timeout);
 extern int pmel_msg_type (char *buf);
 extern int pmel_transmit_spectrum(wispr_config_t *config, float32_t *psd_average, uint16_t nbins, uint8_t *buffer, pmel_control_t *pmel);
 extern int pmel_send_sdb(wispr_config_t *config, float32_t *psd_average, uint16_t nbins);
-extern int pmel_wait_for_ack (wispr_config_t *config, uint16_t timeout_sec);
+
+extern int pmel_wait_for_ack (wispr_config_t *config);
 extern int pmel_send_wait_for_ack(wispr_config_t *config, char *msg);
 
 extern int pmel_send_sd_usage(wispr_config_t *config);
