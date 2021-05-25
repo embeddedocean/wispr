@@ -146,13 +146,13 @@ int com_read_msg (int port, char *msg, int timeout)
  	if(len > 1) status = COM_VALID_MSG; 
    
 	// Check CRC
-    if(crc != com_CRC(msg, len)) {
-	   printf( "com_read_msg: CRC Error, received %02x, should be %02x\r\n", crc, com_CRC(msg, len));
+    if(crc != com_CRC((uint8_t *)msg, len)) {
+	   printf( "com_read_msg: CRC Error, received %02x, should be %02x\r\n", crc, com_CRC((uint8_t *)msg, len));
 	   status = COM_INVALID_CRC;
     }
 	
   }
-    
+  
   //len = strlen(msg);
   
   //printf( "com_read_msg: %s, %s, %d bytes, crc %x\r\n", tmp, msg, nrd, crc);

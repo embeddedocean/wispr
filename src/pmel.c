@@ -383,7 +383,7 @@ int pmel_transmit_spectrum(wispr_config_t *config, float32_t *psd_average, uint1
 		char msg[16];
 		uint16_t crc = (uint16_t)com_CRC(buffer, nwrt);
 		sprintf(msg, "@@@%02x%04x\r\n", crc, nwrt);
-		status = uart_write_queue(BOARD_COM_PORT, msg, strlen(msg));
+		status = uart_write_queue(BOARD_COM_PORT, (uint8_t *)msg, strlen(msg));
 
 	 	// stream binary data out the uart
 		for(int n = 0; n < nwrt; n++) {
@@ -450,7 +450,7 @@ int pmel_send_sd_usage(wispr_config_t *config)
 int pmel_send_power_usage(wispr_config_t *config)
 {
 	int status = 0;
-	char *msg[32];
+	char msg[32];
 	float free;
 
 	uint16_t nwrt = 0;

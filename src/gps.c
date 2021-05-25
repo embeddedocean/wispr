@@ -88,16 +88,16 @@ int gps_parse_zda(uint8_t *str, rtc_time_t *rtc)
 int gps_parse_gga(uint8_t *str)
 {
 	int n = 0;
-	float t, s;
+	float t;
 	float lat, lon;
 	int h, m;
 	char ns, ew;
 	if(strncmp((char *)str, "$GPGGA", 6) == 0) {
-		n = sscanf(str, "$GPGGA,%f,%f,%c,%f,%c", &t, &lat, &ns, &lon, &ew);
+		n = sscanf((char *)str, "$GPGGA,%f,%f,%c,%f,%c", &t, &lat, &ns, &lon, &ew);
 		h = (int)(t * 0.0001);
 		t -= (float)h * 10000.0;
 		m = (int)(t * 0.01);
-		s = t - (float)m * 100.0;
+		//float s = t - (float)m * 100.0;
 		float degs = (float)((int)(lat * 0.01));
 		float mins = lat - degs*100.0;
 		lat = degs + mins/60.0;

@@ -270,9 +270,9 @@ int sd_card_is_full(uint8_t card_num, uint32_t nblocks)
 	
 	// Fat formatted card
 	if( card->fs == SD_FS_FAT ) {
-		uint32_t free = 0;
+		float32_t free = 0;
 		sd_card_get_free(card_num, &free);
-		if( free < nblocks ) {
+		if( card->free < nblocks ) {
 			status = SD_CARD_FULL;
 		}
 	}

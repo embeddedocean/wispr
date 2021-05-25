@@ -380,7 +380,7 @@ uint32_t trigger_adc_with_new_file(wispr_config_t *config, fat_file_t *ff)
 	pmel_file_header(hdr_buf, config, &adc_header, &pmel); // build the ascii buffer with the header info
 	
 	// write the header buffer to the first block of the new ile
-	if( sd_card_fwrite(ff, hdr_buf, 1) != FR_OK ) {
+	if( sd_card_fwrite(ff, (uint8_t *)hdr_buf, 1) != FR_OK ) {
 		printf("Error writing to file: %s\r\n", ff->name);
 	}
 	

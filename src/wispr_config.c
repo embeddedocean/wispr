@@ -57,7 +57,7 @@ void wispr_config_set_default(wispr_config_t *config)
 void wispr_config_menu(wispr_config_t *config, int timeout)
 {
 	uint32_t u32;
-	uint16_t u16;
+	//uint16_t u16;
 	uint8_t u8;
 	
 	wispr_adc_t *adc = &config->adc;

@@ -636,7 +636,7 @@ uint32_t pcf2129_datetime_valid(const pcf2129_datetime *dt)
 	return(status);
 }
 
-
+/*
 uint32_t pcf2129_init2(void)
 {
 	uint32_t status = RTC_STATUS_OK;
@@ -752,9 +752,7 @@ uint32_t pcf2129_set_alarm2( pcf2129_datetime *dt )
 	packet.alarm.hours.enabled = 1;
 	packet.alarm.days.enabled = 1;
 
-	/*
-	 * Write the alarm packet to the device
-	 */
+	// Write the alarm packet to the device
 	if ((status = pcf2129_write(PCF2129_ADDR, (uint8_t*) &packet, sizeof(packet))) != TWI_SUCCESS)
 	{
 		printf("pcf2129_set_alarm() setting alarm failed with status 0x%02x\r\n",status);
@@ -764,4 +762,4 @@ uint32_t pcf2129_set_alarm2( pcf2129_datetime *dt )
 			
 	return status;
 }
- 
+ */
