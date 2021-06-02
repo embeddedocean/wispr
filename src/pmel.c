@@ -579,7 +579,6 @@ int pmel_file_header(char *buf, wispr_config_t *config, wispr_data_header_t *hdr
 	nwrt += sprintf(&buf[nwrt], "sampling_rate = %d;\r\n", config->adc.sampling_rate);
 	nwrt += sprintf(&buf[nwrt], "gain = %d;\r\n", config->adc.gain);
 	nwrt += sprintf(&buf[nwrt], "adc_vref = %02f;\r\n", ADC_VREF );
-	nwrt += sprintf(&buf[nwrt], "end\r\n" ); // marks the last line of header
 	buf[nwrt] = 0; // null terminate the buffer
 	return(nwrt);
 }
