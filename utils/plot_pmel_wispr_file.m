@@ -10,11 +10,11 @@ name = fullfile(dpath,file);
 
 fp = fopen( name, 'r', 'ieee-le' );
 
-% read the ascii header lines
-str = fgets(fp);
-for n = 1:14
-    str = fgets(fp);
-    if(str < 0)
+% read and eval the ascii header lines (32 max)
+for n = 1:32
+    str = fgets(fp, 64); % read 64 chars max in each line
+    % read ascii lines until a null is found, so header buffer must be null terminated
+    if( str(1) == 0 )
         break;
     end;
     eval(str);

@@ -557,37 +557,30 @@ void pmel_filename(char *name, char *prefix, char *suffix, rtc_time_t *dt)
 		prefix, dt->year, dt->month, dt->day, dt->hour, dt->minute, dt->second, suffix);
 }
 
+//
+// Build pmel data file header
+// Header is a series of matlab formatted lines that can be read with fgets
+// Terminated header with a null
+//
 int pmel_file_header(char *buf, wispr_config_t *config, wispr_data_header_t *hdr, pmel_control_t *pmel)
 {
 	int nwrt = 0;
-	//float buffer_duration =  (float)hdr->samples_per_buffer / (float)hdr->sampling_rate;
 	nwrt += sprintf(&buf[nwrt], "%% WISPR %d.%d\r\n", config->version[1], config->version[0]);
 	nwrt += sprintf(&buf[nwrt], "time = '%s';\r\n", pmel_time_string(hdr->second));
-	//nwrt += sprintf(&buf[nwrt], "sec = %d;\r\n", hdr->second); // f_printf doesn't support %f format
-	//nwrt += sprintf(&buf[nwrt], "usec = %d;\r\n", hdr->usec); // f_printf doesn't support %f format
-	nwrt += sprintf(&buf[nwrt], "intrument_id = '%s'\r\n", pmel->instrument_id);
-	nwrt += sprintf(&buf[nwrt], "location_id = '%s'\r\n", pmel->location_id);
-	nwrt += sprintf(&buf[nwrt], "volts = %.2f;\r\n", pmel->volts ); //
-	nwrt += sprintf(&buf[nwrt], "blocks_free = %d\r\n", pmel->free);
-	nwrt += sprintf(&buf[nwrt], "version = %d.%d\r\n", pmel->version[1], pmel->version[0]);
-	
-	//nwrt += sprintf(&buf[nwrt], "mode = %d;\r\n", config->mode);
+	nwrt += sprintf(&buf[nwrt], "intrument_id = '%s';\r\n", pmel->instrument_id);
+	nwrt += sprintf(&buf[nwrt], "location_id = '%s';\r\n", pmel->location_id);
+	nwrt += sprintf(&buf[nwrt], "volts = %.2f;\r\n", pmel->volts );
+	nwrt += sprintf(&buf[nwrt], "blocks_free = %.2f;\r\n", pmel->free);
+	nwrt += sprintf(&buf[nwrt], "version = %d.%d;\r\n", pmel->version[0], pmel->version[1]);
 	nwrt += sprintf(&buf[nwrt], "number_buffers = %d;\r\n", config->file_size);
 	nwrt += sprintf(&buf[nwrt], "buffer_size = %d;\r\n", (int)config->adc.buffer_size);
 	nwrt += sprintf(&buf[nwrt], "samples_per_buffer = %d;\r\n", config->adc.samples_per_buffer);
 	nwrt += sprintf(&buf[nwrt], "sample_size = %d;\r\n", (int)config->adc.sample_size);
 	nwrt += sprintf(&buf[nwrt], "sampling_rate = %d;\r\n", config->adc.sampling_rate);
 	nwrt += sprintf(&buf[nwrt], "gain = %d;\r\n", config->adc.gain);
-	//nwrt += sprintf(&buf[nwrt], "adc_decimation = %d;\r\n", config->adc.decimation);
-	//nwrt += sprintf(&buf[nwrt], "acquisition_time = %d;\r\n", config->acquisition_time);
-	//nwrt += sprintf(&buf[nwrt], "sleep_time = %d;\r\n", config->sleep_time);
-	//nwrt += sprintf(&buf[nwrt], "fft_size = %d;\r\n", config->psd.size);
-	//nwrt += sprintf(&buf[nwrt], "fft_overlap = %d;\r\n", config->psd.overlap);
-	//nwrt += sprintf(&buf[nwrt], "fft_window_type = %d;\r\n", config->psd.window_type);
-	nwrt += sprintf(&buf[nwrt], "adc_vref = %d.%02d;\r\n", (int)ADC_VREF, (int)(ADC_VREF*100) - 100*(int)ADC_VREF ); // no %f
-	
-	//printf(", %d bytes written\r\n", nwrt);
-	
+	nwrt += sprintf(&buf[nwrt], "adc_vref = %02f;\r\n", ADC_VREF );
+	nwrt += sprintf(&buf[nwrt], "end\r\n" ); // marks the last line of header
+	buf[nwrt] = 0; // null terminate the buffer
 	return(nwrt);
 }
 
