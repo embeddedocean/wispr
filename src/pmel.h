@@ -14,6 +14,7 @@
 #define PMEL_MAX_SLEEP (60*60*24)
 #define PMEL_MAX_PAUSE (60*60)
 #define PMEL_MAX_PSD_DARATION (60*60)
+#define PMEL_MAX_SAMPLING_RATE (200000)
 
 // default values
 #define PMEL_GAIN 0
@@ -49,6 +50,7 @@
 #define PMEL_PSD 13
 #define PMEL_PWR 14
 #define PMEL_TOU 15
+#define PMEL_ADC 16
 
 //
 // Application specific control structure

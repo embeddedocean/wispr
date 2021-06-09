@@ -235,7 +235,6 @@ int main (void)
 			// stop data acquisition
 			if( wispr.mode & WISPR_DAQ ) {
 				stop_data_logging( &wispr );
-				wispr.mode &= ~WISPR_DAQ; 
 			}
 			wdt_restart(WDT);
 			delay_ms(pause_msec);
@@ -250,10 +249,9 @@ int main (void)
 		// active reading and logging data state
 		if( wispr.state == WISPR_RUNNING ) {
 		
-			// start data acquisition 
+			// start data acquisition, if just entering daq mode
 			if( !(wispr.mode & WISPR_DAQ) ) {
 				start_sec = start_data_logging( &wispr );
-				wispr.mode |= WISPR_DAQ;
 			}
 			
 			// read the current buffer. If a new buffer is not ready read returns 0
@@ -298,6 +296,17 @@ int main (void)
 			go = 0;
 		}
 	
+		// Soft Reset
+		if( wispr.state == WISPR_RESET ) {
+			// flush the uarts
+			while (!uart_is_tx_empty(UART0)) {}
+			while (!uart_is_tx_empty(UART1)) {}
+			// stop data logging, close open file
+			stop_data_logging(&wispr);
+			// force reset
+			rstc_start_software_reset(RSTC);
+		}
+
 	}
 	
 	// Enter backup mode sleep
@@ -318,10 +327,13 @@ uint32_t start_data_logging(wispr_config_t *config)
 	ltc2512_init(&config->adc, &adc_header);
 
 	//printf("\n\rStart data acquisition for %.3f seconds (%d buffers)\n\r", actual_sampling_time, wispr.buffers_per_window);
-	printf("\n\rStart data acquisition\n\r");
+	printf("\n\rStart data acquisition: fs = %d, df = %d\n\r", config->adc.sampling_rate, config->adc.decimation);
 	
 	// start adc - this starts the receiver and conversion clock, but doesn't trigger the adc
 	ltc2512_start();
+
+	// set mode flag
+	wispr.mode |= WISPR_DAQ;
 
 	// Trigger the adc by syncing with the pps timer.
 	// This will call ltc2512 trigger function on the next pps rising edge.
@@ -409,6 +421,9 @@ void stop_data_logging(wispr_config_t *config)
 	// make sure to close the data file, otherwise it may be lost
 	sd_card_fclose(&dat_file);
 	
+	// clear mode flag
+	wispr.mode &= ~WISPR_DAQ;
+
 }
 
 void handle_data_buffer(wispr_config_t *config, uint8_t *buffer, uint16_t nsamps) 
@@ -436,7 +451,7 @@ void handle_data_buffer(wispr_config_t *config, uint8_t *buffer, uint16_t nsamps
 		process_spectrum(config, buffer, nsamps);
 
 	}
-				
+	
 	ioport_set_pin_level(PIN_PB10, 0);
 	
 }
@@ -564,7 +579,7 @@ void enter_light_sleep(wispr_config_t *config)
 
 	} 
 	// otherwise sleep for for a really long time
-	// this is a hack because it wakesup immediately if not alarm is set, not sure why
+	// this is a hack because it wakes up immediately if an alarm is not set
 	else {
 		epoch_to_rtc_time(&dt, now + 31536000); // one year later
 		pcf2129_set_alarm(&dt); // set alarm to control wakeup pin
@@ -579,7 +594,7 @@ void enter_light_sleep(wispr_config_t *config)
 	// Enter into wfi mode
 	pmc_sleep(SAM_PM_SMODE_SLEEP_WFI); // sleep until next interrupt or uart input
 
-	// the following will exectute after wakeup
+	// the following will execute after wakeup
 	
 	// set preamp gain
 	ioport_set_pin_level(PIN_PREAMP_G0, (wispr.adc.gain & 0x01));

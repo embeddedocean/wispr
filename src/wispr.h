@@ -93,6 +93,7 @@
 #define WISPR_SLEEP_WFI 0x04
 #define WISPR_SLEEP_BACKUP 0x08
 #define WISPR_LOGGING 0x10
+#define WISPR_RESET 0x20
 
 // Modes
 #define WISPR_DAQ 0x01
@@ -171,13 +172,14 @@ typedef struct {
 //} wispr_control_t;
 
 typedef struct {
-	uint32_t second; // start time
-	uint16_t size;      // size of fft
-	uint16_t overlap;   // data overlap for each fft
+	uint32_t second;      // start time
+	uint16_t size;        // size of fft
+	uint16_t overlap;     // data overlap for each fft
 	uint8_t  window_type;
-	uint16_t nbins;      // num of freq bins in psd (typically fft_size/2)
-	uint16_t navg;      // num of time bins to average
+	uint16_t nbins;       // num of freq bins in psd (typically fft_size/2)
+	uint16_t navg;        // num of time bins to average
 	uint16_t count;
+	uint32_t nyquist;     // Hz
 } wispr_psd_t;
 
 //

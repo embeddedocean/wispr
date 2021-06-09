@@ -103,10 +103,10 @@ int com_read_msg (int port, char *msg, int timeout)
   int len = 0;
 
   // clear message buffers
-  memset(tmp, 0, COM_MAX_MESSAGE_SIZE);  
+  memset(tmp, 0, COM_MAX_MESSAGE_SIZE);
   len = strlen(msg);
   if(len > COM_MAX_MESSAGE_SIZE) len = COM_MAX_MESSAGE_SIZE;
-  memset(msg, 0, len);  
+  memset(msg, 0, len);
   
   // read the message from the port
   enum status_code stat;
