@@ -71,7 +71,7 @@ int pmel_control (wispr_config_t *config, uint16_t timeout)
 		printf("pmel control message received: %s, %d bytes\r\n", buf, len);
 		//com_write_msg(BOARD_COM_PORT, "ACK");
 	} else {
-		com_write_msg(BOARD_COM_PORT, "NAK");	
+		com_write_msg(BOARD_COM_PORT, "NAK");
 		return(COM_NO_MSG);
 	}
 
@@ -88,8 +88,12 @@ int pmel_control (wispr_config_t *config, uint16_t timeout)
 
 	// Sleep command
 	if (type == PMEL_SLP) { 
-		sscanf (&buf[4], "%lu", &sec);
-		if( (len > 3) && (sec > 0) && (sec <= PMEL_MAX_SLEEP) ) {
+		if( len > 3 ) {
+			sscanf (&buf[4], "%lu", &sec);		
+		} else {
+			sec = PMEL_MAX_SLEEP;
+		}
+		if( (sec > 0) && (sec <= PMEL_MAX_SLEEP) ) {
 			config->sleep_time = sec;
 			config->prev_state = config->state;
 			config->state = WISPR_SLEEP_BACKUP;
@@ -112,10 +116,12 @@ int pmel_control (wispr_config_t *config, uint16_t timeout)
 	
 	// Pause command
 	if ( type == PMEL_PAU ) {
-		sscanf (&buf[4], "%lu", &sec);
-		// if no pause time given, default to max
-		if(len == 3) { // no args
-		   sec = PMEL_MAX_PAUSE;
+		if( len > 3 ) { 
+			// scan args 
+			sscanf (&buf[4], "%lu", &sec);
+		} else {
+			// if no args, default to max
+			sec = PMEL_MAX_PAUSE;
 		}
 		if( (sec > 0) && (sec <= PMEL_MAX_PAUSE) ) {
 			config->pause_time = sec;
@@ -165,7 +171,11 @@ int pmel_control (wispr_config_t *config, uint16_t timeout)
 	
 	// set time
 	if ( type == PMEL_TME ) {
-		sscanf (&buf[4], "%lu", &sec);
+		if( len > 3 ) { // scan args
+			sscanf (&buf[4], "%lu", &sec);
+		} else { // no args, invalid input
+			sec = 0;
+		}
 		epoch_to_rtc_time(&dt, sec);
 		// If time is valid initialize internal and external RTC times
 		if( rtc_valid_datetime(&dt) == RTC_STATUS_OK ) {
@@ -190,7 +200,11 @@ int pmel_control (wispr_config_t *config, uint16_t timeout)
 	// set gain
 	if ( type == PMEL_NGN ) {
 		uint8_t new_gain = 0;
-		sscanf (&buf[4], "%d", &new_gain);
+		if( len > 3 ) { // scan args
+			sscanf (&buf[4], "%d", &new_gain);
+		} else { // no args, use default
+			new_gain = PMEL_GAIN;
+		}
 		if( (new_gain < 4 ) && ( new_gain >= 0 ) ) {
 			config->adc.gain = new_gain;
 			printf("PMEL GAIN: %d\r\n", config->adc.gain);
@@ -205,14 +219,21 @@ int pmel_control (wispr_config_t *config, uint16_t timeout)
 		}
 	}
 
-	// report SD card memory usage
+	// request spectrum
 	if ( type == PMEL_PSD ) {
 		uint16_t fft_size; // fft size used for spectrum
 		//uint16_t fft_overlap; // fft overlap used for spectrum
 		uint16_t duration;  // number of time steps (adc buffer reads) to average
 		uint32_t freq; // nyquist frequency in Hz
-		sscanf (&buf[4], "%u,%u,%lu", &fft_size, &duration);
-		//sscanf (&buf[4], "%u,%u,%lu", &fft_size, &duration, &freq);
+
+		// scan input arguments
+ 		if( len > 3 ) {
+			sscanf (&buf[4], "%u,%u", &fft_size, &duration);
+		} else { // no args, use default
+			fft_size = PMEL_FFT_SIZE;
+			duration = PMEL_PSD_DURATION;
+		}
+
 		// check for valid args
 		if( (fft_size != 64) && (fft_size != 128) && (fft_size != 512) && (fft_size != 1024) && (fft_size != 2048) ) {
 			printf("PMEL PSD: invalid fft size %d, using %d\r\n", fft_size, PMEL_FFT_SIZE);
@@ -222,6 +243,7 @@ int pmel_control (wispr_config_t *config, uint16_t timeout)
 			fft_size = PMEL_PSD_DURATION;
 			printf("PMEL PSD: invalid duration - using default\r\n");
 		}
+		
 		//if( (freq < 100) || (freq >= PMEL_MAX_SAMPLING_RATE/2) ) {
 		//	printf("PMEL PSD: invalid nyquist freq - using default\r\n");
 		//}
@@ -241,7 +263,12 @@ int pmel_control (wispr_config_t *config, uint16_t timeout)
 	// set timeout
 	if ( type == PMEL_TOU ) {
 		uint16_t new_timeout = 0;
-		sscanf (&buf[4], "%d", &new_timeout);
+		// scan input arguments
+		if( len > 3 ) {
+			sscanf (&buf[4], "%d", &new_timeout);
+		} else { // no args, use default
+			new_timeout = PMEL_ACK_TIMEOUT_MSEC;
+		}
 		if( new_timeout >= 0  ) {
 			pmel_ack_timeout = new_timeout;
 			printf("PMEL ACK TIMEOUT: %d\r\n", pmel_ack_timeout);
@@ -256,13 +283,24 @@ int pmel_control (wispr_config_t *config, uint16_t timeout)
 	if ( type == PMEL_ADC ) {
 		uint32_t new_fs = 0;
 		uint8_t new_df = 0;
-		sscanf (&buf[4], "%d,%d", &new_fs, &new_df);
+		// scan input arguments
+		if( len > 3 ) {
+			sscanf (&buf[4], "%d,%d", &new_fs, &new_df);
+		} else { // no args, use default
+			new_fs = PMEL_SAMPLING_RATE;
+			new_df = PMEL_ADC_DECIMATION;
+		}
 		if( (len > 3) && (new_fs > 0) && (new_fs <= PMEL_MAX_SAMPLING_RATE) && ((new_df == 4)||(new_df == 8)||(new_df == 16)||(new_df == 32)) ) {
+			// set new adc params
 			config->adc.sampling_rate = new_fs;
 			config->adc.decimation = new_df;
-			// need to stop and start adc to enable new fs
-			printf("PMEL SET FS: %d, %d\r\n", new_fs, new_df);
+			// redefine file size in blocks with new sampling rate			
+			float adc_buffer_duration = (float)config->adc.samples_per_buffer / (float)config->adc.sampling_rate; // seconds
+			config->file_size = (uint32_t)(config->secs_per_file / adc_buffer_duration) * ADC_BLOCKS_PER_BUFFER;
+			// NOTE - you need to stop and start adc to enable new settings
+			printf("PMEL SET ADC: %d, %d\r\n", new_fs, new_df);
 			com_write_msg(BOARD_COM_PORT, "ACK");
+
 		} else {
 			status = COM_INVALID_ARG;
 			com_write_msg(BOARD_COM_PORT, "NAK");
@@ -360,6 +398,51 @@ int pmel_request_gain(wispr_config_t *config, uint16_t timeout)
 	return(type);
 }
 
+/*
+int pmel_set_psd_mode(wispr_config_t *config, char *msg)
+{
+	int status = 0;
+	uint16_t fft_size; // fft size used for spectrum
+	//uint16_t fft_overlap; // fft overlap used for spectrum
+	uint16_t duration;  // number of time steps (adc buffer reads) to average
+	uint32_t freq; // nyquist frequency in Hz
+
+	size_t len = strlen(msg);
+	
+	// scan input arguments
+	if( len > 3 ) {
+		sscanf (&buf[4], "%u,%u", &fft_size, &duration);
+	} else { // no args, use default
+		fft_size = PMEL_FFT_SIZE;
+		duration = PMEL_PSD_DURATION;
+	}
+
+	// check for valid args
+	if( (fft_size != 64) && (fft_size != 128) && (fft_size != 512) && (fft_size != 1024) && (fft_size != 2048) ) {
+		printf("PMEL PSD: invalid fft size %d, using %d\r\n", fft_size, PMEL_FFT_SIZE);
+		fft_size = PMEL_FFT_SIZE;
+	}
+	if( (duration < 1) || (duration >= PMEL_MAX_PSD_DARATION) ) {
+		fft_size = PMEL_PSD_DURATION;
+		printf("PMEL PSD: invalid duration - using default\r\n");
+	}
+		
+	//if( (freq < 100) || (freq >= PMEL_MAX_SAMPLING_RATE/2) ) {
+	//	printf("PMEL PSD: invalid nyquist freq - using default\r\n");
+	//}
+	float adc_buffer_duration = (float)config->adc.samples_per_buffer / (float)config->adc.sampling_rate; // seconds
+	//config->psd.nyquist = freq;
+	config->psd.size = fft_size;
+	config->psd.overlap = 0;
+	config->psd.nbins = fft_size / 2 + 1;
+	config->psd.count = 0; // reset the processing counter
+	config->psd.navg = (uint16_t)(duration / adc_buffer_duration); // determine number of buffers to average for psd estimate
+	// set PSD mode flag
+	config->mode |= WISPR_PSD;
+
+	return(status);
+}
+*/
 
 int pmel_transmit_spectrum(wispr_config_t *config, float32_t *psd_average, uint16_t nbins, uint8_t *buffer, pmel_control_t *pmel)
 {

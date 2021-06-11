@@ -17,6 +17,8 @@
 #define PMEL_MAX_SAMPLING_RATE (200000)
 
 // default values
+#define PMEL_SAMPLING_RATE 50000
+#define PMEL_ADC_DECIMATION 8
 #define PMEL_GAIN 0
 #define PMEL_FFT_SIZE 1024
 #define PMEL_PSD_DURATION 60
