@@ -73,15 +73,24 @@ typedef struct {
 // prototypes
 extern int pmel_init(wispr_config_t *config);
 extern int pmel_control (wispr_config_t *config, uint16_t timeout);
-extern int pmel_request_gps(wispr_config_t *config, uint16_t timeout);
-extern int pmel_request_gain(wispr_config_t *config, uint16_t timeout);
 extern int pmel_msg_type (char *buf);
-extern int pmel_transmit_spectrum(wispr_config_t *config, float32_t *psd_average, uint16_t nbins, uint8_t *buffer, pmel_control_t *pmel);
-extern int pmel_send_sdb(wispr_config_t *config, float32_t *psd_average, uint16_t nbins);
 
 extern int pmel_wait_for_ack (wispr_config_t *config);
 extern int pmel_send_wait_for_ack(wispr_config_t *config, char *msg);
 
+extern int pmel_request_gps(wispr_config_t *config, uint16_t timeout);
+extern int pmel_request_gain(wispr_config_t *config, uint16_t timeout);
+extern int pmel_request_spectrum(wispr_config_t *config, char *msg);
+
+extern int pmel_set_sleep(wispr_config_t *config, char *buf);
+extern int pmel_set_pause(wispr_config_t *config, char *buf);
+extern int pmel_set_gain(wispr_config_t *config, char *buf);
+extern int pmel_set_time(wispr_config_t *config, char *buf);
+extern int pmel_set_timeout(wispr_config_t *config, char *buf);
+extern int pmel_set_adc(wispr_config_t *config, char *buf);
+
+extern int pmel_send_spectrum(wispr_config_t *config, float32_t *psd_average, uint16_t nbins, uint8_t *buffer, pmel_control_t *pmel);
+extern int pmel_send_sdb(wispr_config_t *config, float32_t *psd_average, uint16_t nbins);
 extern int pmel_send_sd_usage(wispr_config_t *config);
 extern int pmel_send_status(wispr_config_t *config);
 extern int pmel_send_power_usage(wispr_config_t *config);

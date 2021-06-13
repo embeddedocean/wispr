@@ -504,7 +504,7 @@ void process_spectrum(wispr_config_t *config, uint8_t *buffer, uint16_t nsamps)
 		ltc2512_pause();
 		
 		// send the spectrum
-		pmel_transmit_spectrum(config, psd_average, nbins, buffer, &pmel);
+		pmel_send_spectrum(config, psd_average, nbins, buffer, &pmel);
 		
 		// trigger the adc start to with the pps so it starts at a know time
 		start_sec = pps_timer_sync( ltc2512_trigger );
