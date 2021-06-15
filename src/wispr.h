@@ -38,7 +38,7 @@
 #define WISPR_DATA_HEADER_SIZE (32)
 
 // Fixed values used to define static buffers
-#define ADC_SAMPLE_SIZE (2)
+#define ADC_SAMPLE_SIZE (3)
 #define ADC_BLOCKS_PER_BUFFER (32)
 #define ADC_BUFFER_SIZE (ADC_BLOCKS_PER_BUFFER * WISPR_SD_CARD_BLOCK_SIZE)
 

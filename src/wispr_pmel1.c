@@ -155,6 +155,10 @@ int main (void)
 		printf("SD Cards failed to initialize: error %d\n\r", res);
 		return(0);
 	}
+
+	// Force the fixed variables here to print config properly
+	wispr.adc.sample_size = ADC_SAMPLE_SIZE; // fixed
+	wispr.adc.buffer_size = ADC_BLOCKS_PER_BUFFER * WISPR_SD_CARD_BLOCK_SIZE; // fixed
 	
 	// read the configuration from the active sd card 
 	printf("\r\nWriting to ");
@@ -175,11 +179,7 @@ int main (void)
 	sd_card_fwrite_config(config_filename, &wispr);
 
 	// Define/redefine the variables that control the window and interval timing.
-	// Some are fixed and some are variables
-	wispr.adc.sample_size = ADC_SAMPLE_SIZE; // fixed
-	wispr.adc.buffer_size = ADC_BLOCKS_PER_BUFFER * WISPR_SD_CARD_BLOCK_SIZE; // fixed
 	wispr.adc.samples_per_buffer = wispr.adc.buffer_size / wispr.adc.sample_size;
-
 	uint16_t adc_samples_per_buffer = wispr.adc.samples_per_buffer;
 	float adc_buffer_duration = (float)wispr.adc.samples_per_buffer / (float)wispr.adc.sampling_rate; // seconds
 	uint16_t blocks_per_file = wispr.file_size;

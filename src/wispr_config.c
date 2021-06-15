@@ -205,15 +205,16 @@ void wispr_config_print(wispr_config_t *config)
 	fprintf(stdout, "- mode              %d ", config->mode);
 	switch(config->mode) {
 		case WISPR_DAQ:
-		fprintf(stdout, "[DAQ]\r\n");
+		fprintf(stdout, "[DAQ]");
 		break;
 		case WISPR_PSD:
-		fprintf(stdout, "[PSD]\r\n");
+		fprintf(stdout, "[PSD]");
 		break;
 		case (WISPR_DAQ|WISPR_PSD):
-		fprintf(stdout, "[DAQ+PSD]\r\n");
+		fprintf(stdout, "[DAQ+PSD]");
 		break;
 	}
+	fprintf(stdout, "\r\n");
 	fprintf(stdout, "- sample size:      %d bytes\r\n", (int)config->adc.sample_size);
 	//fprintf(stdout, "- buffer_size:     %d bytes\r\n", (int)config->adc.buffer_size);
 	//fprintf(stdout, "- samples:        %d per buffer\r\n", (int)config->adc.samples_per_buffer);
