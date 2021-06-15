@@ -130,6 +130,7 @@ uint32_t ltc2512_init(wispr_adc_t *adc, wispr_data_header_t *hdr)
 	ioport_set_pin_level(PIN_PREAMP_SHDN, 1);
 
 	// select decimation factor using gpio
+	// NOTE - the datasheet description of SEL0 ans SEL1 is wrong 
 	if( df == LTC2512_DF4 ) {
 		ioport_set_pin_level(PIN_ADC_SEL0, 0);
 		ioport_set_pin_level(PIN_ADC_SEL1, 0);

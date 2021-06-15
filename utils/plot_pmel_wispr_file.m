@@ -11,7 +11,7 @@ name = fullfile(dpath,file);
 fp = fopen( name, 'r', 'ieee-le' );
 
 % read and eval the ascii header lines (32 max)
-for n = 1:32
+for n = 1:14
     str = fgets(fp, 64); % read 64 chars max in each line
     % read ascii lines until a null is found, so header buffer must be null terminated
     if( str(1) == 0 )
@@ -63,9 +63,12 @@ while( go )
         % read a data buffer
 
         raw = fread(fp, samples_per_buffer, fmt ); % data block
-        if( isempty(raw) )
+        if( length(raw) ~= samples_per_buffer )
             break;
         end
+        
+        npad = buffer_size - (samples_per_buffer * sample_size);
+        junk = fread(fp, npad, 'char');
 
         % add raw data buffer as a column
         data(:,n) = double(raw)*q;
