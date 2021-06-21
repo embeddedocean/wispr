@@ -83,9 +83,20 @@ uint32_t ltc2512_init(wispr_adc_t *adc, wispr_data_header_t *hdr)
 	ltc_samples_per_buffer = adc->samples_per_buffer;
 	ltc_adc_sample_size = adc->sample_size;
 	ltc_down_sampling_factor = df;
+
+	// redefine because sample size can change
+	adc->buffer_size = ADC_BLOCKS_PER_BUFFER * WISPR_SD_CARD_BLOCK_SIZE; // fixed
+	adc->samples_per_buffer = adc->buffer_size / (uint16_t)adc->sample_size;
 	
+	printf("\r\nInitializing ADC:\n\r");
+	printf(" Sampling rate: %d Hz\n\r", fs);
+	printf(" Samples size: %d bytes\n\r", ltc_adc_sample_size);
+	printf(" Samples per buffer: %d \n\r", ltc_samples_per_buffer);
+	printf(" Decimation factor: %d\n\r", ltc_down_sampling_factor);
+	printf(" Gain: %d\n\r", gain);
+
 	if( (ltc_samples_per_buffer < 1) || (ltc_samples_per_buffer > LTC2512_MAX_SAMPLES) ) {
-		printf("ltc2512_init: invalid number of samples per buffer\n\r");
+		printf("ltc2512_init: invalid number of samples per buffer, %d\n\r", ltc_samples_per_buffer);
 		return(-1);
 	}
 
@@ -182,7 +193,7 @@ uint32_t ltc2512_init(wispr_adc_t *adc, wispr_data_header_t *hdr)
 	SSC->SSC_CMR = SSC_CMR_DIV(rsck_div);
 	
 	/* Receiver clock mode configuration. */
-	// It's really easy to loose the first received bit of the data word, which really messes up the sign of the word
+	// It's really easy to loose the first received bit of the data word, which is the sign bit
 	// So test any changes to these rx clock and frame registers
 	rx_clk_option.ul_cks = SSC_RCMR_CKS_MCK;  // select divided clock source
 	rx_clk_option.ul_cko = SSC_RCMR_CKO_TRANSFER; // Receive Clock only during data transfers, RK pin is an output

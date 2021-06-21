@@ -38,19 +38,22 @@
 #define WISPR_DATA_HEADER_SIZE (32)
 
 // Fixed values used to define static buffers
-#define ADC_SAMPLE_SIZE (3)
+//#define ADC_SAMPLE_SIZE (3)
 #define ADC_BLOCKS_PER_BUFFER (32)
 #define ADC_BUFFER_SIZE (ADC_BLOCKS_PER_BUFFER * WISPR_SD_CARD_BLOCK_SIZE)
 
 // if the header is NOT included in adc buffer use this
-#define ADC_MAX_SAMPLES_PER_BUFFER (ADC_BUFFER_SIZE / ADC_SAMPLE_SIZE)
+#define ADC_MAX_SAMPLES_PER_BUFFER (ADC_BUFFER_SIZE / ADC_MIN_SAMPLE_SIZE)
+
+#define ADC_MAX_SAMPLE_SIZE (3)
+#define ADC_MIN_SAMPLE_SIZE (2)
 
 // if the header is included in adc buffer use this
 //#define ADC_SAMPLES_PER_BUFFER ((ADC_BUFFER_SIZE - WISPR_DATA_HEADER_SIZE) / ADC_SAMPLE_SIZE)
 
 // adc default values
 #define ADC_DEFAULT_SAMPLING_RATE (50000)
-#define ADC_DEFAULT_SAMPLE_SIZE (ADC_SAMPLE_SIZE)
+#define ADC_DEFAULT_SAMPLE_SIZE (2)
 #define ADC_DEFAULT_AWAKE 60
 #define ADC_DEFAULT_SLEEP 0
 #define ADC_DEFAULT_GAIN 0

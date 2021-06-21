@@ -67,6 +67,10 @@ while( go )
             break;
         end
         
+        % Read padding between buffers.
+        % There can be extra bytes between buffers because data is written to the sd card 
+        % in 512 byte blocks. If an adc data words is 3 bytes and since 3 is not an even
+        % multiple of 512, then there will be padding at the end of the buffer.
         npad = buffer_size - (samples_per_buffer * sample_size);
         junk = fread(fp, npad, 'char');
 

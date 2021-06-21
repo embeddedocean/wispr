@@ -194,7 +194,7 @@ int pmel_control (wispr_config_t *config, uint16_t timeout)
 	if ( type == PMEL_ADC ) {
 		status = pmel_set_adc(config, buf);
 		if( status == COM_VALID_MSG ) {
-			printf("PMEL SET ADC: %d, %d\r\n", config->adc.sampling_rate, config->adc.decimation);
+			printf("PMEL SET ADC: %d, %d, %d\r\n", config->adc.sampling_rate, config->adc.decimation, config->adc.sample_size);
 			com_write_msg(BOARD_COM_PORT, "ACK");
 		} else {
 			com_write_msg(BOARD_COM_PORT, "NAK");
@@ -461,22 +461,35 @@ int pmel_set_timeout(wispr_config_t *config, char *buf)
 int pmel_set_adc(wispr_config_t *config, char *buf)
 {
 	int status = COM_VALID_MSG;
-
-	int new_fs = PMEL_SAMPLING_RATE;
-	int new_df = PMEL_ADC_DECIMATION;
-
-	// scan input arguments
-	if( strlen(buf) > 3 ) {
-		sscanf (&buf[4], "%d,%d", &new_fs, &new_df);
-	}
 	
+	int args[3], new_fs, new_df, new_ss;
+	args[0] = config->adc.sampling_rate;
+	args[1] = config->adc.decimation;
+	args[2] = config->adc.sample_size;
+
+	// return if no command arguments
+	if( strlen(buf) < 4 ) return(status);
+
+	// parse with comma separation only
+	char * pch = strtok (&buf[4],",");
+	int nargs = 0;
+	while (pch != NULL) {
+		if(strlen(pch) > 0) sscanf (pch, "%d", &args[nargs]);
+		//printf ("arg %d: %d \r\n",nargs, args[nargs]);
+		nargs++;
+		pch = strtok (NULL, ",");
+	}
+
+	new_fs = args[0];
+	new_df = args[1];
+	new_ss = args[2];
+	//if(nargs >= 3) new_ss = args[2];
+		
 	// set new adc sampling rate
-	if( (new_fs > 0) && (new_fs <= PMEL_MAX_SAMPLING_RATE) ) {
+	if( (new_fs >= PMEL_MIN_SAMPLING_RATE) && (new_fs <= PMEL_MAX_SAMPLING_RATE) ) {
 		config->adc.sampling_rate = (uint32_t)new_fs;
-		// redefine file size in blocks with new sampling rate
-		float adc_buffer_duration = (float)config->adc.samples_per_buffer / (float)config->adc.sampling_rate; // seconds
-		config->file_size = (uint32_t)(config->secs_per_file / adc_buffer_duration) * ADC_BLOCKS_PER_BUFFER;
 	} else {
+		printf("SET ADC: Invalid sampling rate, %d\r\n", new_fs);
 		return(COM_INVALID_ARG);
 	}
 	
@@ -484,9 +497,23 @@ int pmel_set_adc(wispr_config_t *config, char *buf)
 	if ( (new_df == 4) || (new_df == 8) || (new_df == 16) || (new_df == 32) ) {
 		config->adc.decimation = (uint8_t)new_df;
 	} else {
+		printf("SET ADC: Invalid decimation, %d\r\n", new_df);
 		return(COM_INVALID_ARG);
 	}
-	
+		
+	// set new adc decimation
+	if ( (new_ss >= ADC_MIN_SAMPLE_SIZE) && (new_ss <= ADC_MAX_SAMPLE_SIZE) ) {
+		config->adc.sample_size = (uint8_t)new_ss;
+	} else {
+		printf("SET ADC: Invalid sample size, %d\r\n", new_ss);
+		return(COM_INVALID_ARG);
+	}
+
+	// redefine file size in blocks with new sampling params
+	config->adc.samples_per_buffer = config->adc.buffer_size / config->adc.sample_size;
+	float adc_buffer_duration = (float)config->adc.samples_per_buffer / (float)config->adc.sampling_rate; // seconds
+	config->file_size = (uint32_t)(config->secs_per_file / adc_buffer_duration) * ADC_BLOCKS_PER_BUFFER;
+
 	return(status);
 }
 

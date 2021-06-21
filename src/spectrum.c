@@ -71,9 +71,9 @@ void spectrum_update_header(wispr_data_header_t *psd, wispr_data_header_t *adc)
 	psd->version[0] = adc->version[0];
 	psd->version[1] = adc->version[1];
 	psd->type = WISPR_PSD;
-	psd->sample_size = PSD_SAMPLE_SIZE;
+	psd->sample_size = adc->sample_size;
 	psd->samples_per_buffer = num_freq_bins;
-	psd->buffer_size = num_freq_bins * PSD_SAMPLE_SIZE; // number of bytes in psd buffer
+	psd->buffer_size = num_freq_bins * adc->sample_size; // number of bytes in psd buffer
 	psd->sampling_rate = adc->sampling_rate;
 	psd->second = 0; // time gets updated with the adc data time when the spectrum is processed
 	psd->usec = 0;

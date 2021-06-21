@@ -30,7 +30,8 @@ void wispr_config_set_default(wispr_config_t *config)
 	config->acquisition_time = ADC_DEFAULT_AWAKE;
 	config->sleep_time = ADC_DEFAULT_SLEEP;
 
-	config->adc.samples_per_buffer = (uint32_t)(config->adc.buffer_size - WISPR_DATA_HEADER_SIZE) / (uint32_t)config->adc.sample_size;
+	//config->adc.samples_per_buffer = (uint32_t)(config->adc.buffer_size - WISPR_DATA_HEADER_SIZE) / (uint32_t)config->adc.sample_size;
+	config->adc.samples_per_buffer = (uint32_t)(config->adc.buffer_size) / (uint32_t)config->adc.sample_size;
 
 	config->adc.gain = ADC_DEFAULT_GAIN; // adc gain
 	config->adc.decimation = LTC2512_DF8; // adc df
@@ -68,15 +69,18 @@ void wispr_config_menu(wispr_config_t *config, int timeout)
 	u8 = console_prompt_uint8("Reset configuration to default values?", 0, timeout);
 	if( u8 == 1 ) wispr_config_set_default(config);
 	
+	// enter sample size
+	u8 = console_prompt_uint8("Enter sample size in bytes", adc->sample_size, timeout);
+	if( u8 >= ADC_MIN_SAMPLE_SIZE && u8 <= ADC_MAX_SAMPLE_SIZE ) adc->sample_size = u8;
+	
+	//adc->sample_size = ADC_SAMPLE_SIZE;
+	//printf("\r\nFixed sample size: %d bytes\r\n", adc->sample_size);
+
 	adc->buffer_size = ADC_BLOCKS_PER_BUFFER * WISPR_SD_CARD_BLOCK_SIZE;
-	adc->samples_per_buffer = adc->buffer_size / ADC_SAMPLE_SIZE;
-	//adc->samples_per_buffer = (adc->buffer_size - WISPR_DATA_HEADER_SIZE) / ADC_SAMPLE_SIZE;
-		
-	// commented out for fixed sample size
-	//u8 = console_prompt_uint8("Enter sample size in bytes", config->sample_size, timeout);
-	//if( u8 >= 2 && u8 <= 3 ) config->sample_size = u8;
-	adc->sample_size = ADC_SAMPLE_SIZE;
-	printf("\r\nFixed sample size: %d bytes\r\n", adc->sample_size);
+	adc->samples_per_buffer = adc->buffer_size / adc->sample_size;
+
+	// use if data header is part of each data buffer
+	//adc->samples_per_buffer = (adc->buffer_size - WISPR_DATA_HEADER_SIZE) / adc->sample_size;		
 
 	u32 = console_prompt_uint32("Enter sampling rate in Hz", adc->sampling_rate, timeout);
 	if( u32 > 0 && u32 <= 350000 ) adc->sampling_rate = u32;

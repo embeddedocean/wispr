@@ -157,7 +157,7 @@ int main (void)
 	}
 
 	// Force the fixed variables here to print config properly
-	wispr.adc.sample_size = ADC_SAMPLE_SIZE; // fixed
+	//wispr.adc.sample_size = ADC_SAMPLE_SIZE; // fixed
 	wispr.adc.buffer_size = ADC_BLOCKS_PER_BUFFER * WISPR_SD_CARD_BLOCK_SIZE; // fixed
 	
 	// read the configuration from the active sd card 
@@ -179,11 +179,11 @@ int main (void)
 	sd_card_fwrite_config(config_filename, &wispr);
 
 	// Define/redefine the variables that control the window and interval timing.
-	wispr.adc.samples_per_buffer = wispr.adc.buffer_size / wispr.adc.sample_size;
-	uint16_t adc_samples_per_buffer = wispr.adc.samples_per_buffer;
-	float adc_buffer_duration = (float)wispr.adc.samples_per_buffer / (float)wispr.adc.sampling_rate; // seconds
-	uint16_t blocks_per_file = wispr.file_size;
-	float file_duration = (float)blocks_per_file * adc_buffer_duration / (float)ADC_BLOCKS_PER_BUFFER; // seconds
+//	wispr.adc.samples_per_buffer = wispr.adc.buffer_size / wispr.adc.sample_size;
+//	uint16_t adc_samples_per_buffer = wispr.adc.samples_per_buffer;
+//	float adc_buffer_duration = (float)wispr.adc.samples_per_buffer / (float)wispr.adc.sampling_rate; // seconds
+//	uint16_t blocks_per_file = wispr.file_size;
+//	float file_duration = (float)blocks_per_file * adc_buffer_duration / (float)ADC_BLOCKS_PER_BUFFER; // seconds
 
 	// since the adc buffer duration is defined by a fixed number of blocks
 	// the actual sampling window may be different than the requested
@@ -258,7 +258,7 @@ int main (void)
 			uint16_t nsamps = ltc2512_read_dma(&adc_header, adc_buffer);
 		
 			// if a new buffer is available
-			if( nsamps == adc_samples_per_buffer ) {
+			if( nsamps == wispr.adc.samples_per_buffer ) {
 			
 				// reset the wdt every time a buffer is read
 				wdt_restart(WDT);
@@ -327,7 +327,8 @@ uint32_t start_data_logging(wispr_config_t *config)
 	ltc2512_init(&config->adc, &adc_header);
 
 	//printf("\n\rStart data acquisition for %.3f seconds (%d buffers)\n\r", actual_sampling_time, wispr.buffers_per_window);
-	printf("\n\rStart data acquisition: fs = %d, df = %d\n\r", config->adc.sampling_rate, config->adc.decimation);
+	//printf("\r\nStart data acquisition: fs = %d, df = %d\n\r", config->adc.sampling_rate, config->adc.decimation);
+	printf("\r\nStart data acquisition\n\r\n\r");
 	
 	// start adc - this starts the receiver and conversion clock, but doesn't trigger the adc
 	ltc2512_start();
@@ -403,7 +404,7 @@ uint32_t trigger_adc_with_new_file(wispr_config_t *config, fat_file_t *ff)
 
 void stop_data_logging(wispr_config_t *config)
 {
-	printf("\n\rStop data acquisition\n\r");
+	printf("\n\rStop data acquisition\n\r\n\r");
 
 	// shutdown the adc
 	//ltc2512_stop();
