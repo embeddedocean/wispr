@@ -372,7 +372,7 @@ int pmel_request_spectrum(wispr_config_t *config, char *buf)
 	//config->psd.nyquist = freq;
 	config->psd.size = (uint16_t)fft_size;
 	config->psd.overlap = 0;
-	config->psd.nbins = (uint16_t)fft_size / 2 + 1;
+	config->psd.nbins = (uint16_t)(fft_size / 2 + 1); // note that we will drop DC component when sending spectrum
 	config->psd.count = 0; // reset the processing counter
 	config->psd.navg = (uint16_t)( (float)duration / adc_buffer_duration ); // determine number of buffers to average for psd estimate
 	// set PSD mode flag
@@ -534,16 +534,16 @@ int pmel_send_spectrum(wispr_config_t *config, float32_t *psd_average, uint16_t 
 	nwrt += sprintf(&buf[nwrt], ",%.2f", pmel->free);
 	nwrt += sprintf(&buf[nwrt], ",%u.%u", pmel->version[0], pmel->version[1]);
 	nwrt += sprintf(&buf[nwrt], ",%lu", config->adc.sampling_rate);
-	nwrt += sprintf(&buf[nwrt], ",%u", config->psd.nbins);
+	nwrt += sprintf(&buf[nwrt], ",%u", config->psd.nbins - 1);  // drop first freq bin (DC)
 	nwrt += sprintf(&buf[nwrt], ",%u", config->adc.gain);
 
-	// scale = 2 * log10( (ADC_VREF / 2147483647.0 / (float32_t)config->psd.size) );
-	float32_t scale = 2.0 * (log10f(ADC_VREF) - log10f(2147483647.0) - log10f((float32_t)config->psd.size));
+	// scaling is now done in the spectrum function
+	//float32_t bandwidth = (float32_t)(config->adc.sampling_rate) / (float32_t)(config->psd.size);
+	//float32_t scale = 2.0 * ( log10f(ADC_VREF) - log10f(2147483647.0) - log10f((float32_t)config->psd.size) ) - log10f(bandwidth);
 
 	// overwrite the psd buffer with scaled db values
-	for(int n = 0; n < nbins; n++) {
-		psd_average[n] = 10.0 * (log10f(psd_average[n]) + scale);
-		//nwrt += sprintf(&buffer[nwrt], ",%d.%d", (int)psd_average[n], ((int)(100.0*psd_average[n]) - 100*(int)psd_average[n]) );
+	for(int n = 1; n < nbins; n++) {
+		psd_average[n] = 10.0 * log10f(psd_average[n]);
 		nwrt += sprintf( &buf[nwrt], ",%.1f", psd_average[n] );
 	}
 

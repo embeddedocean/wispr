@@ -176,10 +176,9 @@ int spectrum_init_f32(uint16_t *nbins, uint16_t nfft, uint16_t overlap, uint8_t 
 	arm_power_f32(fft_window, fft_size, &fft_window_power);
 	
 	// window scaling factor
-	//fft_window_scaling = ADC_SCALING / max_value;
 	fft_window_scaling = 1.0f;
-	if(wintype == HAMMING_WINDOW) fft_window_scaling = 2.0f;
-	else if(wintype == HANN_WINDOW) fft_window_scaling = 2.0f;
+	if(wintype == HAMMING_WINDOW) fft_window_scaling = 1.5871f;
+	else if(wintype == HANN_WINDOW) fft_window_scaling = 1.6228f;
 	
 	// apply the scaling factor to the window
 	for(n = 0; n < fft_size; n++) {
@@ -221,6 +220,7 @@ int spectrum_f32(wispr_data_header_t *psd, float32_t *psd_data, wispr_data_heade
 	float32_t *output = (float32_t *)psd_data;
 	
 	uint8_t sample_size = adc->sample_size;
+	uint32_t sampling_rate = adc->sampling_rate;
 	
 	if(nsamps > adc->samples_per_buffer) {
 		nsamps = adc->samples_per_buffer;
@@ -242,15 +242,15 @@ int spectrum_f32(wispr_data_header_t *psd, float32_t *psd_data, wispr_data_heade
 	int iend;  // end index of segment
 	
 	// fft input scaling to prevent overflow or underflow
-	//float32_t adc_scaling;
+	float32_t adc_scaling = 1.0;
 	uint8_t fft_shift_bits = 0;
 	if( sample_size == 3) { // 24 bits per sample
-		//adc_scaling = ADC_SCALING / 8388607.0; // 2^23 - 1
-		fft_shift_bits = 0;
+		adc_scaling = ADC_SCALING / 8388607.0; // 2^23 - 1
+		fft_shift_bits = 8;
 	}
 	else if( sample_size == 2 ) { // 16 bits per sample
-		//adc_scaling = ADC_SCALING / 32767.0; // 2^15 - 1
-		fft_shift_bits = 0;
+		adc_scaling = ADC_SCALING / 32767.0; // 2^15 - 1
+		fft_shift_bits = 16;
 	}
 		
 	// clear output vector
@@ -337,14 +337,38 @@ int spectrum_f32(wispr_data_header_t *psd, float32_t *psd_data, wispr_data_heade
 		
 	}
 	
+	// Because the signal is real-valued, you only need power estimates for the positive frequencies.
+	// To conserve the total power, multiply all frequencies by a factor of 2.
+	// however, zero frequency (DC) and the Nyquist frequency do not occur twice.
+
+	// Hz per bin
+	float32_t bandwidth = (float32_t)(sampling_rate) / (float32_t)(nfft);
+
+	// fft_scaling removes the bit shifting 
+	float32_t fft_scaling = 1.0f / (float32_t)(1 << fft_shift_bits);
+
+	// psd scaling applies the fft and adc scalings and
+	float32_t psd_scaling = (fft_scaling * adc_scaling) / (float32_t)nfft;
+	float32_t norm = 2.0 * psd_scaling * psd_scaling / ((float32_t)navg * bandwidth);
+
+	// simplified version of the above normalization and scalings
+	//float32_t scaling = adc_scaling / (float32_t)(1 << fft_shift_bits);
+	//float32_t norm = 2.0 * scaling * scaling / ((float32_t)navg * bandwidth);
+
+	// Normalize the output	and remove DC component
+	output[0] = output[0] * norm / 2.0;
+	for(n = 1; n < nbins; n++) output[n] *= norm;
+
+	
+	// old version
 	// normalization and remove the fft scaling 
 	// Note that no adc scaling is applied because the numbers get too small.
 	// So apply the adc scaling later.
-	float32_t fft_scaling = 1.0f / (float32_t)(1 >> fft_shift_bits);
-	float32_t norm = 2.0f * (fft_scaling * fft_scaling) / (float32_t)navg;
+	//float32_t fft_scaling = 1.0f / (float32_t)(1 >> fft_shift_bits);
+	//float32_t norm = 2.0f * (fft_scaling * fft_scaling * adc_scaling * adc_scaling) / (float32_t)navg;
 
 	// remove window scaling
-	norm *= 1.0f / (fft_window_scaling * fft_window_scaling);
+	//norm *= 1.0f / (fft_window_scaling * fft_window_scaling);
 
 	// remove window power??
 	//norm *= 1.0f / fft_window_power;
@@ -353,8 +377,8 @@ int spectrum_f32(wispr_data_header_t *psd, float32_t *psd_data, wispr_data_heade
 	// Because the signal is real-valued, you only need power estimates for the positive frequencies. 
 	// To conserve the total power, multiply all frequencies by a factor of 2. 
 	// however, zero frequency (DC) and the Nyquist frequency do not occur twice.
-	output[0] *= (norm / 2.0f);
-	for(n = 1; n < nbins; n++) output[n] *= norm;
+	//output[0] *= (norm / 2.0f);
+	//for(n = 1; n < nbins; n++) output[n] *= norm;
 
 	return((int)navg);
 }
@@ -406,12 +430,12 @@ int spectrum_init_q31(uint16_t *nbins, uint16_t nfft, uint16_t overlap, uint8_t 
 	// calc the window power to use when scaling the fft output
 	arm_power_f32(fft_window, fft_size, &fft_window_power);
 	
-	// window scaling factor
+	// window energy correction factor
 	fft_window_scaling = 1.0f;
-	if(wintype == HAMMING_WINDOW) fft_window_scaling = 2.0f;
-	else if(wintype == HANN_WINDOW) fft_window_scaling = 2.0f;
+	if(wintype == HAMMING_WINDOW) fft_window_scaling = 1.5871f;
+	else if(wintype == HANN_WINDOW) fft_window_scaling = 1.6228f;
 	
-	// apply the scaling factor to the window
+	// apply the energy scaling factor to the window
 	for(int n = 0; n < fft_size; n++) {
 		fft_window[n] *= fft_window_scaling;
 	}
@@ -446,6 +470,7 @@ int spectrum_q31(wispr_data_header_t *psd, float32_t *psd_data, wispr_data_heade
 	float32_t *output = psd_data;
 
 	uint8_t sample_size = adc->sample_size;
+	uint32_t sampling_rate = adc->sampling_rate;
 	
 	if(nsamps > adc->samples_per_buffer) {
 		nsamps = adc->samples_per_buffer;
@@ -465,15 +490,15 @@ int spectrum_q31(wispr_data_header_t *psd, float32_t *psd_data, wispr_data_heade
 	int iend;  // end index of segment
 
 	// fft input scaling to prevent overflow or underflow
-	//float32_t adc_scaling;
+	float32_t adc_scaling;
 	uint8_t fft_shift_bits = 0;
 	if( sample_size == 3) { // 24 bits per sample
-		//adc_scaling = ADC_SCALING / 8388607.0; // 2^23 - 1
-		fft_shift_bits = 0;
+		adc_scaling = ADC_SCALING / 8388607.0; // 2^23 - 1
+		fft_shift_bits = 8;
 	}
 	else if( sample_size == 2 ) { // 16 bits per sample
-		//adc_scaling = ADC_SCALING / 32767.0; // 2^15 - 1
-		fft_shift_bits = 0;
+		adc_scaling = ADC_SCALING / 32767.0; // 2^15 - 1
+		fft_shift_bits = 16;
 	}
 		
 	// clear output vector
@@ -494,7 +519,7 @@ int spectrum_q31(wispr_data_header_t *psd, float32_t *psd_data, wispr_data_heade
 		}
 		
 		// Load the data window into the q31 fft buffer.
-		// The adc data word is left shifted to fill the msb of the fft buffer.
+		// The adc data word is left shifted to fill the msb of the 32 bit fft buffer word.
 		// This is done to prevent the fft output buffer values from getting to small
 		// amounting to a scaling that will need to be removed later.
 		// Bit shifting behavior is undefined for signed numbers and
@@ -565,20 +590,25 @@ int spectrum_q31(wispr_data_header_t *psd, float32_t *psd_data, wispr_data_heade
 
 	}
 
-	// normalization and remove the fft scaling
-	// It also needs to be scaled by nfft because the arm_rfft_q31 removes this
-	// Note that no adc scaling is applied because the numbers get too small.
-	// So apply the adc scaling later.
-	float32_t fft_scaling = (float32_t)nfft / (float32_t)(1 >> fft_shift_bits);
-	float32_t norm = 2.0f * (fft_scaling * fft_scaling) / (float32_t)navg;
-
-	// remove window scaling
-	norm *= 1.0f / (fft_window_scaling * fft_window_scaling);
-		
-	// Normalize the output
 	// Because the signal is real-valued, you only need power estimates for the positive frequencies.
 	// To conserve the total power, multiply all frequencies by a factor of 2.
 	// however, zero frequency (DC) and the Nyquist frequency do not occur twice.
+
+	// Hz per bin
+	float32_t bandwidth = (float32_t)(sampling_rate) / (float32_t)(nfft);
+
+	// fft_scaling removes the bit shifting and multiples by nfft because the arm_rfft_q31 removes this
+	float32_t fft_scaling = (float32_t)(nfft) / (float32_t)(1 << fft_shift_bits);
+
+	// psd scaling applies the fft and adc scalings and 
+	float32_t psd_scaling = (fft_scaling * adc_scaling) / (float32_t)nfft;
+	float32_t norm = 2.0 * psd_scaling * psd_scaling / ((float32_t)navg * bandwidth);
+
+	// simplified version of the above normalization and scalings
+	//float32_t scaling = adc_scaling / (float32_t)(1 << fft_shift_bits);
+	//float32_t norm = 2.0 * scaling * scaling / ((float32_t)navg * bandwidth);
+
+	// Normalize the output	and remove DC component
 	output[0] = output[0] * norm / 2.0;
 	for(n = 1; n < nbins; n++) output[n] *= norm;
 	
