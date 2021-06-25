@@ -189,7 +189,7 @@ int spectrum_init_f32(uint16_t *nbins, uint16_t nfft, uint16_t overlap, uint8_t 
 	
 	//printf("spectrum_init_f32:  nfft=%d, nbins=%d, overlap=%d, bps=%d, fft_window_power=%f\r\n",
 	//	fft_size, psd_num_freq_bins, fft_overlap, nbps, fft_window_power);
-	if(verbose) printf("spectrum_init_f32: fft_window_power=%f\r\n", fft_window_power);
+	//if(verbose) printf("spectrum_init_f32: fft_window_power=%f\r\n", fft_window_power);
 	
 	return(status);
 
@@ -246,11 +246,11 @@ int spectrum_f32(wispr_data_header_t *psd, float32_t *psd_data, wispr_data_heade
 	uint8_t fft_shift_bits = 0;
 	if( sample_size == 3) { // 24 bits per sample
 		adc_scaling = ADC_SCALING / 8388607.0; // 2^23 - 1
-		fft_shift_bits = 8;
+		fft_shift_bits = 0;
 	}
 	else if( sample_size == 2 ) { // 16 bits per sample
 		adc_scaling = ADC_SCALING / 32767.0; // 2^15 - 1
-		fft_shift_bits = 16;
+		fft_shift_bits = 0;
 	}
 		
 	// clear output vector
@@ -276,13 +276,14 @@ int spectrum_f32(wispr_data_header_t *psd, float32_t *psd_data, wispr_data_heade
 		// Bit shifting behavior is undefined for signed numbers and
 		// if the number is shifted more than the size of integer, so cast before shifting.
 		m = 0;
+		float32_t mean = 0.0;
 		if( sample_size == 2 ) {
 			// load the 16 bit word into a 32 bit float
 			for(n = istart; n < iend; n++, m++) {
-				int32_t v = (int32_t)(((uint32_t)input[2*n+0] << 16) | ((uint32_t)input[2*n+1] << 24));
-				buf1[m] = (float32_t)v;
-				//buf1[m] = (float32_t)(LOAD_INT16(input,n) << fft_shift_bits);
-				//buf1[m] = (float32_t)(INT16_to_INT32(input,n));
+				//int32_t v = (int32_t)(((uint32_t)input[2*n+0] << 16) | ((uint32_t)input[2*n+1] << 24));
+				//buf1[m] = (float32_t)v;
+				buf1[m] = (float32_t)(LOAD_INT16(input,n) << fft_shift_bits);
+				mean += buf1[m];
 			}
 		} else if ( sample_size == 3 ) {
 			// load the 24 bit word into a 32 bit float
@@ -290,11 +291,15 @@ int spectrum_f32(wispr_data_header_t *psd, float32_t *psd_data, wispr_data_heade
 				//int32_t v = (int32_t)(((uint32_t)input[3*n+0] << 8) | ((uint32_t)input[3*n+1] << 16) | ((uint32_t)input[3*n+2] << 24));
 				//buf1[m] = (float32_t)v;
 				buf1[m] = (float32_t)(LOAD_INT24(input,n) << fft_shift_bits);
+				mean += buf1[m];
 			}
 		} else {
 			printf("spectrum_f32: unsupported sample size\r\n");
 			return(0);
 		}
+
+		// remove mean
+		for(m = 0; m < nfft; m++) buf1[m] = buf1[m] - mean;
 
 		// apply the window to the input buffer
 		// could skip if rect window is used
@@ -324,6 +329,7 @@ int spectrum_f32(wispr_data_header_t *psd, float32_t *psd_data, wispr_data_heade
 
 		// calc magnitude of the complex fft output
 		buf1[1] = 0; // dc
+		buf1[nfft/2+1] = 0; // nyquist
 		arm_cmplx_mag_squared_f32(buf1, buf2, (uint32_t)nbins);
 		
 		// accumulate for mean
@@ -344,12 +350,13 @@ int spectrum_f32(wispr_data_header_t *psd, float32_t *psd_data, wispr_data_heade
 	// Hz per bin
 	float32_t bandwidth = (float32_t)(sampling_rate) / (float32_t)(nfft);
 
+	float32_t scaling = adc_scaling / (float32_t)(nfft);
+
 	// fft_scaling removes the bit shifting 
-	float32_t fft_scaling = 1.0f / (float32_t)(1 << fft_shift_bits);
+	scaling /= (float32_t)(1 << fft_shift_bits);
 
 	// psd scaling applies the fft and adc scalings and
-	float32_t psd_scaling = (fft_scaling * adc_scaling) / (float32_t)nfft;
-	float32_t norm = 2.0 * psd_scaling * psd_scaling / ((float32_t)navg * bandwidth);
+	float32_t norm = 2.0 * scaling * scaling / ((float32_t)navg * bandwidth);
 
 	// simplified version of the above normalization and scalings
 	//float32_t scaling = adc_scaling / (float32_t)(1 << fft_shift_bits);
@@ -358,7 +365,6 @@ int spectrum_f32(wispr_data_header_t *psd, float32_t *psd_data, wispr_data_heade
 	// Normalize the output	and remove DC component
 	output[0] = output[0] * norm / 2.0;
 	for(n = 1; n < nbins; n++) output[n] *= norm;
-
 	
 	// old version
 	// normalization and remove the fft scaling 

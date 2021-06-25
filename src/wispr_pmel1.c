@@ -473,14 +473,15 @@ void process_spectrum(wispr_config_t *config, uint8_t *buffer, uint16_t nsamps)
 	
 		// start the psd average
 		if( count == 0 ) {
-			spectrum_init_q31(&psd->nbins, psd->size, psd->overlap, psd->window_type);
+			//spectrum_init_q31(&psd->nbins, psd->size, psd->overlap, psd->window_type);
+			spectrum_init_f32(&psd->nbins, psd->size, psd->overlap, psd->window_type);
 			for(n = 0; n < nbins; n++) psd_average[n] = 0.0;
 			psd->second = adc_header.second;  // start time
 		}
 		
 		// call spectrum function
-		spectrum_q31(&psd_header, psd_buffer, &adc_header, buffer, nsamps);
-		//spectrum_f32(&psd_header, psd_buffer, &adc_header, adc_buffer, adc_nsamps);
+		//spectrum_q31(&psd_header, psd_buffer, &adc_header, buffer, nsamps);
+		spectrum_f32(&psd_header, psd_buffer, &adc_header, buffer, nsamps);
 		
 		// accumulate psd average
 		for (n = 0; n < nbins; n++) {

@@ -372,9 +372,11 @@ int pmel_request_spectrum(wispr_config_t *config, char *buf)
 	//config->psd.nyquist = freq;
 	config->psd.size = (uint16_t)fft_size;
 	config->psd.overlap = 0;
-	config->psd.nbins = (uint16_t)(fft_size / 2 + 1); // note that we will drop DC component when sending spectrum
+	config->psd.nbins = (uint16_t)(fft_size / 2 + 1); 
 	config->psd.count = 0; // reset the processing counter
 	config->psd.navg = (uint16_t)( (float)duration / adc_buffer_duration ); // determine number of buffers to average for psd estimate
+	config->psd.window_type = HAMMING_WINDOW;
+
 	// set PSD mode flag
 	config->mode |= WISPR_PSD;
 	
@@ -534,7 +536,7 @@ int pmel_send_spectrum(wispr_config_t *config, float32_t *psd_average, uint16_t 
 	nwrt += sprintf(&buf[nwrt], ",%.2f", pmel->free);
 	nwrt += sprintf(&buf[nwrt], ",%u.%u", pmel->version[0], pmel->version[1]);
 	nwrt += sprintf(&buf[nwrt], ",%lu", config->adc.sampling_rate);
-	nwrt += sprintf(&buf[nwrt], ",%u", config->psd.nbins - 1);  // drop first freq bin (DC)
+	nwrt += sprintf(&buf[nwrt], ",%u", config->psd.nbins);
 	nwrt += sprintf(&buf[nwrt], ",%u", config->adc.gain);
 
 	// scaling is now done in the spectrum function
@@ -542,7 +544,7 @@ int pmel_send_spectrum(wispr_config_t *config, float32_t *psd_average, uint16_t 
 	//float32_t scale = 2.0 * ( log10f(ADC_VREF) - log10f(2147483647.0) - log10f((float32_t)config->psd.size) ) - log10f(bandwidth);
 
 	// overwrite the psd buffer with scaled db values
-	for(int n = 1; n < nbins; n++) {
+	for(int n = 0; n < nbins; n++) {
 		psd_average[n] = 10.0 * log10f(psd_average[n]);
 		nwrt += sprintf( &buf[nwrt], ",%.1f", psd_average[n] );
 	}
@@ -745,7 +747,7 @@ int pmel_file_header(char *buf, wispr_config_t *config, wispr_data_header_t *hdr
 	nwrt += sprintf(&buf[nwrt], "volts = %.2f;\r\n", pmel->volts );
 	nwrt += sprintf(&buf[nwrt], "blocks_free = %.2f;\r\n", pmel->free);
 	nwrt += sprintf(&buf[nwrt], "version = %d.%d;\r\n", pmel->version[0], pmel->version[1]);
-	nwrt += sprintf(&buf[nwrt], "number_buffers = %d;\r\n", config->file_size);
+	nwrt += sprintf(&buf[nwrt], "file_size = %d;\r\n", config->file_size);
 	nwrt += sprintf(&buf[nwrt], "buffer_size = %d;\r\n", (int)config->adc.buffer_size);
 	nwrt += sprintf(&buf[nwrt], "samples_per_buffer = %d;\r\n", config->adc.samples_per_buffer);
 	nwrt += sprintf(&buf[nwrt], "sample_size = %d;\r\n", (int)config->adc.sample_size);
