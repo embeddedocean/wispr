@@ -38,7 +38,7 @@ while( go )
 
     adc_vref = 5.0/2;
     max_adc_value = 2^(nbps*8-1)-1;
-    adc_scaling = adc_vref / max_adc_value;  
+    adc_scaling = adc_vref / max_adc_value;
     scale = (adc_scaling / nfft)^2;
     
     if(hdr.wintype == 1) 

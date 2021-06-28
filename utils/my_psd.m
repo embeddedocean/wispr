@@ -4,6 +4,7 @@ function [Spec, freq] = my_psd(x,fs,win,noverlap)
 %    http://www.mathworks.com/help/signal/ug/psd-estimate-using-fft.html
 %
 % cjones
+% Energy us adjusted for the frequency bin size- H. Matsumoto 6/21/2021
 
 % Make sure inputs are column vectors
 x = x(:);		
@@ -11,6 +12,8 @@ win = win(:);
 
 n = length(x);		  % Number of data points
 nfft = length(win);   % length of window
+bandwidth = fs / nfft;
+
 if n < nfft           % zero-pad x if it has length less than the window length
     x((n+1):nfft)=0;  
     n=nfft;
@@ -30,7 +33,6 @@ for i=1:navg
     Spec = Spec + Xx;
 end
 
-
 % Because the signal is real-valued, you only need power estimates for the positive or negative frequencies. 
 % Select first half
 select = (1:nfft/2+1)';
@@ -43,7 +45,7 @@ Spec = 2*Spec(select);
 % normalization
 winpow = norm(win)^2;
 %Spec = Spec / (navg * nfft *nfft * winpow);
-Spec = Spec / (navg * nfft *nfft);
+Spec = Spec / (navg * nfft *nfft * bandwidth);
 
 %plot(freq_vector,10*log10(abs(P))), grid on
 %xlabel('Frequency'), 

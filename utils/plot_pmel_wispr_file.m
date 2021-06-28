@@ -1,25 +1,54 @@
 %
 % matlab script to plot wispr data
 %
+% A data file consists of an ascii file header followed by binary data
+% buffers. The ascii header is formatted as matlab expressions. 
+% The binary data words are formatted as signed 16 or 24 bit integers.
+%
+% The data file format is:
+% - 512 byte ascii header.
+% - adc buffer 1
+% - adc buffer 2
+% ...
+% - adc buffer N
+% where N is the number of adc buffers per file
+%
+% The number of adc buffers is defined as 
+% number_buffers = file_size*512 / buffer_size;
+%
+% The total data file size is always a multiple of 512 bytes blocks. 
+% The variable 'file_size' is the number of 512 blocks in the file.
+%
+% Each adc buffer is of length 'buffer_size' bytes.
+% The adc buffer is always a multiple of 512 bytes blocks (32 blocks in most cases). 
+% Each adc buffer contains a fixed number of sample (samples_per_buffer).
+% Each sample is of fixed size in bytes (sample_size).
+% The sample size can be 2 or 3.
+% If 3 byte samples are used, there will be extra bytes of padded at the end of each adc buffer.
+% The number of bytes of padding is defined as:
+% padding_per_buffer = buffer_size - (samples_per_buffer * sample_size);
+%
+%Spectral energy is corrected for the type of window function used for time
+%series. H.M. 6/21/2021
 %
 
 clear all;
 
-[file, dpath, filterindex] = uigetfile('./*.dat', 'Pick a data file');
+[file, dpath, filterindex] = uigetfile('G:/*.dat', 'Pick a data file');
 name = fullfile(dpath,file);
 
 fp = fopen( name, 'r', 'ieee-le' );
 
-% read and eval the ascii header lines (32 max)
+% read and eval the ascii header lines
 for n = 1:14
     str = fgets(fp, 64); % read 64 chars max in each line
     % read ascii lines until a null is found, so header buffer must be null terminated
     if( str(1) == 0 )
         break;
-    end;
+    end
     eval(str);
     fprintf('%s', str);
-end;
+end
 
 % seek to the start of data
 % header is always 512 bytes
@@ -36,9 +65,14 @@ elseif(sample_size == 4)
     fmt = 'int32';
 end
 
-% read file
+% The number of adc buffers in the file
+number_buffers = file_size*512 / buffer_size;
 
-N = 8; % number of buffer to concatenate
+% The number of bytes of padding after each adc buffer, if any
+padding_per_buffer = buffer_size - (samples_per_buffer * sample_size);
+
+% number of buffer to concatenate and plot
+num_bufs_to_display = 8; 
 
 count = 0;
 go = 1;
@@ -47,9 +81,7 @@ prev_secs = 0;
 hack = 1;
 
 fft_size = 1024;
-nbins = fft_size / 2;
-
-%samples_per_buffer = 5461;
+nbins = fft_size / 2 + 1;
 
 while( go )
 
@@ -58,21 +90,16 @@ while( go )
     time = [];
     freq = [];
 
-    for n = 1:N
+    for n = 1:num_bufs_to_display
 
         % read a data buffer
-
         raw = fread(fp, samples_per_buffer, fmt ); % data block
         if( length(raw) ~= samples_per_buffer )
             break;
         end
         
-        % Read padding between buffers.
-        % There can be extra bytes between buffers because data is written to the sd card 
-        % in 512 byte blocks. If an adc data words is 3 bytes and since 3 is not an even
-        % multiple of 512, then there will be padding at the end of the buffer.
-        npad = buffer_size - (samples_per_buffer * sample_size);
-        junk = fread(fp, npad, 'char');
+        % read padding, if any
+        junk = fread(fp, padding_per_buffer, 'char');
 
         % add raw data buffer as a column
         data(:,n) = double(raw)*q;
@@ -80,32 +107,33 @@ while( go )
         time(:,n) = t0 + (1:length(raw)) * dt;
         t0 = time(end,n);
 
-
         duration = samples_per_buffer * dt;
 
         count = count + 1;
 
     end
 
-    %t = (1:length(data)) / hdr.sampling_rate;
-
-    % plot buffers to make sure data is not lost between buffers
-
-    figure(1); clf;
+    % plot data buffers 
+    figure(1); %clf;
     plot(time, data,'.-');
     ylabel('Volts');
     xlabel('Seconds');
     grid on;
     axis([min(min(time)) max(max(time)) -5.1 5.1]);
 
-    window = rectwin(fft_size);
-    %window = hamming(nfft);
+    % Calc spectrum of data
+    %window = rectwin(fft_size);
+    window = hamming(fft_size)*1.59; %multiply energy correction
+    %window = hann(fft_size)*1.63;
     overlap = 0;
     fs = sampling_rate;
     [Spec, f] = my_psd(data(:),fs,window,overlap);
-
-    figure(2); clf;
-    plot(f/1000, 10*log10(Spec),'.-');
+       
+    % plot spectrum
+    figure(2); clf;  
+    hold on;
+    plot(f, 10*log10(Spec),'.-'); %normalize the power spec    
+    grid(gca,'minor');
     grid on;
     xlabel('Frequency [kHz]'),
     ylabel('Power Spectrum Magnitude (dB)');
@@ -115,7 +143,7 @@ while( go )
     sig_var = var(data(:));
     title(['Matlab spectrum, Total Energy ' num2str(total_energy) ', Variance ' num2str(sig_var)]);
 
-    if( count >= number_buffers )
+    if(count >= number_buffers) 
         go = 0;
         break;
     end
