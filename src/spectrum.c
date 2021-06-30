@@ -196,10 +196,8 @@ int spectrum_init_f32(uint16_t *nbins, uint16_t nfft, uint16_t overlap, uint8_t 
 }
 
 //
-// Calculate the nonparametric power spectral density (PSD) estimates equivalent to the periodogram
+// Calculate the power spectral density (PSD) in units of V^2/hz 
 // using a floating point (float32) real fft.
-// To obtain the psd in units of dB/hz, multiple the output by 1/samping_rate
-//  dBV_per_hz = 10*log10(psd/Fs/Nfft) 
 // For reference see:
 //  https://arm-software.github.io/CMSIS_5/DSP/html/group__RealFFT.html
 //  https://www.mathworks.com/help/signal/ug/power-spectral-density-estimates-using-fft.html
@@ -343,49 +341,17 @@ int spectrum_f32(wispr_data_header_t *psd, float32_t *psd_data, wispr_data_heade
 		
 	}
 	
-	// Because the signal is real-valued, you only need power estimates for the positive frequencies.
-	// To conserve the total power, multiply all frequencies by a factor of 2.
-	// however, zero frequency (DC) and the Nyquist frequency do not occur twice.
+	// scale the result to converts to volts
+	// the extra nfft is because arm_rfft_q31 internally downscales the input (see CMSIS V4.0 doc)
+	float32_t scaling = adc_scaling / (float32_t)(1 << fft_shift_bits);
+	
+	// normalize for power spectral density with units V^2/Hz
+	float32_t norm = 2.0 * scaling * scaling / ( (float32_t)(navg * nfft) * (float32_t)sampling_rate );
 
-	// Hz per bin
-	float32_t bandwidth = (float32_t)(sampling_rate) / (float32_t)(nfft);
-
-	float32_t scaling = adc_scaling / (float32_t)(nfft);
-
-	// fft_scaling removes the bit shifting 
-	scaling /= (float32_t)(1 << fft_shift_bits);
-
-	// psd scaling applies the fft and adc scalings and
-	float32_t norm = 2.0 * scaling * scaling / ((float32_t)navg * bandwidth);
-
-	// simplified version of the above normalization and scalings
-	//float32_t scaling = adc_scaling / (float32_t)(1 << fft_shift_bits);
-	//float32_t norm = 2.0 * scaling * scaling / ((float32_t)navg * bandwidth);
-
-	// Normalize the output	and remove DC component
+	// Normalize the output
 	output[0] = output[0] * norm / 2.0;
 	for(n = 1; n < nbins; n++) output[n] *= norm;
 	
-	// old version
-	// normalization and remove the fft scaling 
-	// Note that no adc scaling is applied because the numbers get too small.
-	// So apply the adc scaling later.
-	//float32_t fft_scaling = 1.0f / (float32_t)(1 >> fft_shift_bits);
-	//float32_t norm = 2.0f * (fft_scaling * fft_scaling * adc_scaling * adc_scaling) / (float32_t)navg;
-
-	// remove window scaling
-	//norm *= 1.0f / (fft_window_scaling * fft_window_scaling);
-
-	// remove window power??
-	//norm *= 1.0f / fft_window_power;
-	
-	// Normalize the output 
-	// Because the signal is real-valued, you only need power estimates for the positive frequencies. 
-	// To conserve the total power, multiply all frequencies by a factor of 2. 
-	// however, zero frequency (DC) and the Nyquist frequency do not occur twice.
-	//output[0] *= (norm / 2.0f);
-	//for(n = 1; n < nbins; n++) output[n] *= norm;
-
 	return((int)navg);
 }
 
@@ -453,12 +419,11 @@ int spectrum_init_q31(uint16_t *nbins, uint16_t nfft, uint16_t overlap, uint8_t 
 }
 
 //
-// Calculate the spectrum for the input signal using a fixed point (q31) real fft.
+// Calculate the spectral density for the input signal using a fixed point (q31) real fft.
 // Data type is Q format numbers.
 //
 // see https://arm-software.github.io/CMSIS_5/DSP/html/group__RealFFT.html
 //
-
 int spectrum_q31(wispr_data_header_t *psd, float32_t *psd_data, wispr_data_header_t *adc, uint8_t *adc_data, uint16_t nsamps)
 {
 	uint16_t k, m, n;
@@ -596,23 +561,12 @@ int spectrum_q31(wispr_data_header_t *psd, float32_t *psd_data, wispr_data_heade
 
 	}
 
-	// Because the signal is real-valued, you only need power estimates for the positive frequencies.
-	// To conserve the total power, multiply all frequencies by a factor of 2.
-	// however, zero frequency (DC) and the Nyquist frequency do not occur twice.
-
-	// Hz per bin
-	float32_t bandwidth = (float32_t)(sampling_rate) / (float32_t)(nfft);
-
-	// fft_scaling removes the bit shifting and multiples by nfft because the arm_rfft_q31 removes this
-	float32_t fft_scaling = (float32_t)(nfft) / (float32_t)(1 << fft_shift_bits);
-
-	// psd scaling applies the fft and adc scalings and 
-	float32_t psd_scaling = (fft_scaling * adc_scaling) / (float32_t)nfft;
-	float32_t norm = 2.0 * psd_scaling * psd_scaling / ((float32_t)navg * bandwidth);
-
-	// simplified version of the above normalization and scalings
-	//float32_t scaling = adc_scaling / (float32_t)(1 << fft_shift_bits);
-	//float32_t norm = 2.0 * scaling * scaling / ((float32_t)navg * bandwidth);
+	// scale the result to converts to volts
+	// the extra nfft is because arm_rfft_q31 internally downscales the input (see CMSIS V4.0 doc)
+	float32_t scaling = adc_scaling * (float32_t)(nfft) / (float32_t)(1 << fft_shift_bits);
+	
+	// normalize for power spectral density with units V^2/Hz
+	float32_t norm = 2.0 * scaling * scaling / ( (float32_t)(navg * nfft) * (float32_t)sampling_rate );
 
 	// Normalize the output	and remove DC component
 	output[0] = output[0] * norm / 2.0;
