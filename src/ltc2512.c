@@ -691,7 +691,7 @@ static inline uint8_t ltc2512_copy_dma_int16(uint8_t *ibuf, uint8_t *obuf, uint1
 }
 
 //
-// be careful with timing here because the dma buffer gets overwritten.
+// be careful with timing here because the dma buffer (ltc_adc_buffer) is volatile.
 //
 uint16_t ltc2512_read_dma(wispr_data_header_t *hdr, uint8_t *data)
 {

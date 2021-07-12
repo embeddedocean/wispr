@@ -523,18 +523,18 @@ int pmel_set_adc(wispr_config_t *config, char *buf)
 // Send Commands
 //
 
-int pmel_send_spectrum(wispr_config_t *config, float32_t *psd_average, uint16_t nbins, uint8_t *buffer, pmel_control_t *pmel)
+int pmel_send_spectrum(wispr_config_t *config, float32_t *psd_average, uint16_t nbins, uint8_t *buffer)
 {
 	int status = 0;
 	char *buf = (char *)buffer; // just to avoid warnings
 
 	uint16_t nwrt = 0;
 	nwrt += sprintf(&buf[nwrt], "%s", pmel_time_string(config->psd.second));
-	nwrt += sprintf(&buf[nwrt], ",%s", pmel->instrument_id);
-	nwrt += sprintf(&buf[nwrt], ",%s", pmel->location_id);
-	nwrt += sprintf(&buf[nwrt], ",%.2f", pmel->volts ); //
-	nwrt += sprintf(&buf[nwrt], ",%.2f", pmel->free);
-	nwrt += sprintf(&buf[nwrt], ",%u.%u", pmel->version[0], pmel->version[1]);
+	nwrt += sprintf(&buf[nwrt], ",%s", config->instrument_id);
+	nwrt += sprintf(&buf[nwrt], ",%s", config->location_id);
+	nwrt += sprintf(&buf[nwrt], ",%.2f", config->volts ); //
+	nwrt += sprintf(&buf[nwrt], ",%.2f", config->free);
+	nwrt += sprintf(&buf[nwrt], ",%u.%u", config->version[0], config->version[1]);
 	nwrt += sprintf(&buf[nwrt], ",%lu", config->adc.sampling_rate);
 	nwrt += sprintf(&buf[nwrt], ",%u", config->psd.nbins);
 	nwrt += sprintf(&buf[nwrt], ",%u", config->adc.gain);
@@ -737,16 +737,16 @@ void pmel_filename(char *name, char *prefix, char *suffix, rtc_time_t *dt)
 // Header is a series of matlab formatted lines that can be read with fgets
 // Terminated header with a null
 //
-int pmel_file_header(char *buf, wispr_config_t *config, wispr_data_header_t *hdr, pmel_control_t *pmel)
+int pmel_file_header(char *buf, wispr_config_t *config, wispr_data_header_t *hdr)
 {
 	int nwrt = 0;
 	nwrt += sprintf(&buf[nwrt], "%% WISPR %d.%d\r\n", config->version[1], config->version[0]);
 	nwrt += sprintf(&buf[nwrt], "time = '%s';\r\n", pmel_time_string(hdr->second));
-	nwrt += sprintf(&buf[nwrt], "intrument_id = '%s';\r\n", pmel->instrument_id);
-	nwrt += sprintf(&buf[nwrt], "location_id = '%s';\r\n", pmel->location_id);
-	nwrt += sprintf(&buf[nwrt], "volts = %.2f;\r\n", pmel->volts );
-	nwrt += sprintf(&buf[nwrt], "blocks_free = %.2f;\r\n", pmel->free);
-	nwrt += sprintf(&buf[nwrt], "version = %d.%d;\r\n", pmel->version[0], pmel->version[1]);
+	nwrt += sprintf(&buf[nwrt], "instrument_id = '%s';\r\n", config->instrument_id);
+	nwrt += sprintf(&buf[nwrt], "location_id = '%s';\r\n", config->location_id);
+	nwrt += sprintf(&buf[nwrt], "volts = %.2f;\r\n", config->volts );
+	nwrt += sprintf(&buf[nwrt], "blocks_free = %.2f;\r\n", config->free);
+	nwrt += sprintf(&buf[nwrt], "version = %d.%d;\r\n", config->version[0], config->version[1]);
 	nwrt += sprintf(&buf[nwrt], "file_size = %d;\r\n", config->file_size);
 	nwrt += sprintf(&buf[nwrt], "buffer_size = %d;\r\n", (int)config->adc.buffer_size);
 	nwrt += sprintf(&buf[nwrt], "samples_per_buffer = %d;\r\n", config->adc.samples_per_buffer);
@@ -761,17 +761,17 @@ int pmel_file_header(char *buf, wispr_config_t *config, wispr_data_header_t *hdr
 //
 // Update the WISPR config structure with the current PMEL configuration
 //
-int pmel_update_config (wispr_config_t *pmel, wispr_config_t *wispr)
-{	 
-	wispr->state = pmel->state;
-	wispr->mode = pmel->mode;
-	wispr->epoch = pmel->epoch;
-	wispr->adc.sampling_rate = pmel->adc.sampling_rate;
-	wispr->adc.decimation = pmel->adc.decimation;
-	wispr->psd.size = pmel->psd.size;
-	wispr->acquisition_time = pmel->acquisition_time;
-	// ...
-	return(0);
-}
+//int pmel_update_config (wispr_config_t *pmel, wispr_config_t *wispr)
+//{	 
+//	wispr->state = pmel->state;
+//	wispr->mode = pmel->mode;
+//	wispr->epoch = pmel->epoch;
+//	wispr->adc.sampling_rate = pmel->adc.sampling_rate;
+//	wispr->adc.decimation = pmel->adc.decimation;
+//	wispr->psd.size = pmel->psd.size;
+//	wispr->acquisition_time = pmel->acquisition_time;
+//	// ...
+//	return(0);
+//}
 
 

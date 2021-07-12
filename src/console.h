@@ -14,6 +14,7 @@ int console_gets(char *str);
 int read_console_input(void);
 int console_prompt_int(const char *str, int value, int timeout);
 float console_prompt_f32(const char *prompt, float default_value, int timeout);
+int console_prompt_str(char *out, int nbytes, const char *prompt, char *default_value, int timeout);
 
 int console_input(char *str, int size, int timeout);
 uint32_t console_prompt_uint32(const char *str, uint32_t value, int timeout);

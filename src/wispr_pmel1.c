@@ -80,7 +80,6 @@ void enter_deep_sleep(wispr_config_t *config);
 fat_file_t dat_file;
 
 wispr_config_t wispr; // current wispr configuration
-pmel_control_t pmel;  // current pmel parameters
 
 char config_filename[] = "wispr1.txt";
 
@@ -96,12 +95,7 @@ int main (void)
 	// initialize global variables
 	wispr.active_sd_card = 0; // no active sd card number yet
 	dat_file.state = SD_FILE_CLOSED;
-	
-	strcpy(pmel.location_id, "PGEN04");
-	strcpy(pmel.instrument_id, "PACW01");
-	pmel.version[0] = 1;
-	pmel.version[1] = 0;
-	
+		
 	// initialize the board specific functions (clocks, gpio, console, wdt, ...)
 	// returns the reason the board was last reset (user, sleep, watchdog, ...)
 	int reset_type = board_init();
@@ -133,7 +127,8 @@ int main (void)
 	}
 		
 	// initialize the uart com communications port
-	status = com_init(BOARD_COM_PORT, BOARD_COM_BAUDRATE);
+	//status = com_init(BOARD_COM_PORT, BOARD_COM_BAUDRATE);
+	status = pmel_init(&wispr);
 
 	// start the pps timer and synchronize the rtc with the pps input
 	if ( pps_timer_init() != RTC_STATUS_OK ) {
@@ -206,15 +201,15 @@ int main (void)
 	ina260_init(INA260_CONFIG_MODE_CONTINUOUS|INA260_CONFIG_AVG_1024|INA260_CONFIG_CT_1100us, INA260_ALARM_CONVERSION_READY, 0);
 	float32_t volts; // Volts
 	float32_t amps;  // mAmps
-	ina260_read(&amps, &pmel.volts, 1);
-	//printf("Supply Voltage: %.2f V\r\n", pmel.volts);	
+	ina260_read(&amps, &volts, 1);
+	//printf("Supply Voltage: %.2f V\r\n", pmel.volts);
 
 	// set initial state and mode
 	wispr.state = WISPR_IDLE; // idle state
 	wispr.mode = 0; // start with no daq or psd
 
 	uint16_t pause_count = 0;
-	uint16_t pause_msec = 1000; // loop delay in msecs 
+	uint16_t pause_msec = 1000; // loop delay in msecs
 
 	uint16_t idle_count = 0;
 	uint16_t idle_delay_msec = 1000; // loop delay in msecs
@@ -375,10 +370,10 @@ uint32_t trigger_adc_with_new_file(wispr_config_t *config, fat_file_t *ff)
 	sd_card_set_file_size(ff, config->file_size);
 
 	// get the number of free blocks on sd card
-	sd_card_get_free(config->active_sd_card, &pmel.free);
+	sd_card_get_free(config->active_sd_card, &config->free);
 
 	// read battery voltage
-	ina260_read(&pmel.amps, &pmel.volts, 0);
+	ina260_read(&config->amps, &config->volts, 0);
 	
 	// trigger the adc start to with the pps
 	start_sec = pps_timer_sync( ltc2512_trigger );
@@ -390,7 +385,7 @@ uint32_t trigger_adc_with_new_file(wispr_config_t *config, fat_file_t *ff)
 	adc_header.usec = 0; // this is zero because the start trigger was synced to the pps edge
 	char hdr_buf[512];
 	memset(hdr_buf, 0, 512); // zero out the header buffer
-	pmel_file_header(hdr_buf, config, &adc_header, &pmel); // build the ascii buffer with the header info
+	pmel_file_header(hdr_buf, config, &adc_header); // build the ascii buffer with the header info
 	
 	// write the header buffer to the first block of the new ile
 	if( sd_card_fwrite(ff, (uint8_t *)hdr_buf, 1) != FR_OK ) {
@@ -461,6 +456,8 @@ void handle_data_buffer(wispr_config_t *config, uint8_t *buffer, uint16_t nsamps
 // Calculate the spectrum of the data buffer and add it to the running psd estimate
 // When the specified number of buffers have been processed, transmit the spectrum in pmel format
 //
+#define FIR_FILTER_SIZE 4
+
 void process_spectrum(wispr_config_t *config, uint8_t *buffer, uint16_t nsamps)
 {
 	wispr_psd_t *psd = &config->psd;
@@ -478,6 +475,16 @@ void process_spectrum(wispr_config_t *config, uint8_t *buffer, uint16_t nsamps)
 			for(n = 0; n < nbins; n++) psd_average[n] = 0.0;
 			psd->second = adc_header.second;  // start time
 		}
+		
+//		// https://arm-software.github.io/CMSIS_5/DSP/html/group__FIR__decimate.html
+//		arm_fir_decimate_instance_q31 firfilt;
+//		uint16_t filt_size = FIR_FILTER_SIZE;
+//		uint8_t M = 10;
+//		q31_t filt_coeffs[FIR_FILTER_SIZE];
+//		q31_t &filt_state;
+//		arm_fir_decimate_init_q31 (&firfilt, filt_size, M, &filt_coeffs, &filt_state, nsamps);
+//		
+//		arm_fir_decimate_fast_q31 (&firfilt, const q31_t *pSrc, q31_t *pDst, nsamps)
 		
 		// call spectrum function
 		spectrum_q31(&psd_header, psd_buffer, &adc_header, buffer, nsamps);
@@ -505,7 +512,7 @@ void process_spectrum(wispr_config_t *config, uint8_t *buffer, uint16_t nsamps)
 		ltc2512_pause();
 		
 		// send the spectrum
-		pmel_send_spectrum(config, psd_average, nbins, buffer, &pmel);
+		pmel_send_spectrum(config, psd_average, nbins, buffer);
 		
 		// trigger the adc start to with the pps so it starts at a know time
 		start_sec = pps_timer_sync( ltc2512_trigger );

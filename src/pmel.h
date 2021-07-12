@@ -10,6 +10,7 @@
 #include "gps.h"
 #include "spectrum.h"
 
+
 // max values
 #define PMEL_MAX_SLEEP (60*60*24)
 #define PMEL_MAX_PAUSE (60*60)
@@ -59,7 +60,7 @@
 //
 // Application specific control structure
 //
-typedef struct {
+/*typedef struct {
 	char instrument_id[8];
 	char location_id[8];
 	uint8_t version[2];  // software version
@@ -70,7 +71,7 @@ typedef struct {
 	float32_t amps; //  
 	float32_t free; // percentage of free space on active sd card
 } pmel_control_t;
-
+*/
 
 // prototypes
 extern int pmel_init(wispr_config_t *config);
@@ -91,7 +92,7 @@ extern int pmel_set_time(wispr_config_t *config, char *buf);
 extern int pmel_set_timeout(wispr_config_t *config, char *buf);
 extern int pmel_set_adc(wispr_config_t *config, char *buf);
 
-extern int pmel_send_spectrum(wispr_config_t *config, float32_t *psd_average, uint16_t nbins, uint8_t *buffer, pmel_control_t *pmel);
+extern int pmel_send_spectrum(wispr_config_t *config, float32_t *psd_average, uint16_t nbins, uint8_t *buffer);
 extern int pmel_send_sdb(wispr_config_t *config, float32_t *psd_average, uint16_t nbins);
 extern int pmel_send_sd_usage(wispr_config_t *config);
 extern int pmel_send_status(wispr_config_t *config);
@@ -100,7 +101,7 @@ extern int pmel_send_time(wispr_config_t *config);
 
 extern char *pmel_time_string(uint32_t epoch);
 extern void pmel_filename(char *name, char *prefix, char *suffix, rtc_time_t *dt);
-extern int pmel_file_header(char *buf, wispr_config_t *cfg, wispr_data_header_t *hdr, pmel_control_t *pmel);
+extern int pmel_file_header(char *buf, wispr_config_t *cfg, wispr_data_header_t *hdr);
 extern int pmel_update_config (wispr_config_t *pmel, wispr_config_t *wispr);
 
 

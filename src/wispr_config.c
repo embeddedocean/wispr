@@ -19,7 +19,10 @@ void wispr_config_set_default(wispr_config_t *config)
 {
 	// set config mod time
 	rtc_get_epoch(&config->epoch);
-	
+
+	strcpy(config->instrument_id, INSTUMENT_ID);
+	strcpy(config->location_id, LOCATION_ID);
+
 	config->version[1] = WISPR_VERSION;
 	config->version[0] = WISPR_SUBVERSION;
 	
@@ -69,6 +72,12 @@ void wispr_config_menu(wispr_config_t *config, int timeout)
 	u8 = console_prompt_uint8("Reset configuration to default values?", 0, timeout);
 	if( u8 == 1 ) wispr_config_set_default(config);
 	
+	char id[8];
+	console_prompt_str(id, 8, "Enter Instrument ID", config->instrument_id, timeout);
+	strcpy(config->instrument_id, id);
+	console_prompt_str(id, 8, "Enter Location ID", config->location_id, timeout);
+	strcpy(config->location_id, id);
+
 	// enter sample size
 	u8 = console_prompt_uint8("Enter sample size in bytes", adc->sample_size, timeout);
 	if( u8 >= ADC_MIN_SAMPLE_SIZE && u8 <= ADC_MAX_SAMPLE_SIZE ) adc->sample_size = u8;
@@ -204,8 +213,8 @@ void wispr_config_print(wispr_config_t *config)
 
 	fprintf(stdout, "\r\n");
 	fprintf(stdout, "WISPR %d.%d configuration\r\n", config->version[1], config->version[0]);
-	//fprintf(stdout, "- epoch         %s\r\n", epoch_time_string(config->epoch));
-	//fprintf(stdout, "- mode           \r\n");
+	fprintf(stdout, "- instrument id:    %s\r\n", config->instrument_id);
+	fprintf(stdout, "- location id:      %s\r\n", config->location_id);
 	fprintf(stdout, "- mode              %d ", config->mode);
 	switch(config->mode) {
 		case WISPR_DAQ:

@@ -617,6 +617,15 @@ FRESULT sd_card_fread_config(char *filename, wispr_config_t *hdr)
 	str[8] = ' ';
 	new.epoch = time_string_to_epoch(str);
 
+	char id[9];
+	f_gets(buf, len, &file);
+	sscanf(buf, "instrument_id: %s", id);
+	strcpy(new.instrument_id, id);
+
+	f_gets(buf, len, &file);
+	sscanf(buf, "location_id: %s", id);
+	strcpy(new.location_id, id);
+
 	// scan file line by line
 	while( 1 ) {		
 		if( f_gets(buf, len, &file) == 0) break;
@@ -674,8 +683,8 @@ FRESULT sd_card_fwrite_config(char *filename, wispr_config_t *cfg)
 
 	nwrt += f_printf(&file, "WISPR %d.%d configuration\r\n", cfg->version[1], cfg->version[0]);
 	nwrt += f_printf(&file, "time: %s\r\n", epoch_time_string(cfg->epoch));
-	//nwrt += f_printf(&file, "epoch time: %lu\r\n", cfg->epoch);
-	//nwrt += f_printf(&file, "state: %02x\r\n", cfg->state);
+	nwrt += f_printf(&file, "instrument_id: %s\r\n", cfg->instrument_id);
+	nwrt += f_printf(&file, "location_id: %s\r\n", cfg->location_id);
 	nwrt += f_printf(&file, "mode: %02x\r\n", cfg->mode);
 	nwrt += f_printf(&file, "samples_per_buffer: %d\r\n", cfg->adc.samples_per_buffer);
 	nwrt += f_printf(&file, "sample_size: %d\r\n", (int)cfg->adc.sample_size);

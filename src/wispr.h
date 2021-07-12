@@ -16,6 +16,9 @@
 
 #include "board_v2.1.h"
 
+#define INSTUMENT_ID "PACW"
+#define LOCATION_ID "PGEN"
+
 #define WISPR_VERSION 2
 #define WISPR_SUBVERSION 1
 
@@ -191,6 +194,8 @@ typedef struct {
 typedef struct {
 	char     name[6];
 	uint8_t  version[2];
+	char instrument_id[8];
+	char location_id[8];
 	uint8_t  mode;
 	uint8_t  state;
 	uint8_t  prev_state;
@@ -203,6 +208,9 @@ typedef struct {
 	uint16_t files; // number of files opened
 	uint16_t resets; // number of resets
 	uint8_t active_sd_card; // last card written to
+	float32_t volts; // battery voltage
+	float32_t amps; //
+	float32_t free; // percentage of free space on active sd card
 	wispr_adc_t adc;
 	wispr_psd_t psd;
 	gps_t gps;

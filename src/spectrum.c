@@ -346,7 +346,7 @@ int spectrum_f32(wispr_data_header_t *psd, float32_t *psd_data, wispr_data_heade
 	float32_t scaling = adc_scaling / (float32_t)(1 << fft_shift_bits);
 	
 	// normalize for power spectral density with units V^2/Hz
-	float32_t norm = 2.0 * scaling * scaling / ( (float32_t)(navg * nfft) * (float32_t)sampling_rate );
+	float32_t norm = 2.0 * scaling * scaling / ( (float32_t)navg * (float32_t)nfft * (float32_t)sampling_rate );
 
 	// Normalize the output
 	output[0] = output[0] * norm / 2.0;

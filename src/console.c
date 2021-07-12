@@ -105,6 +105,17 @@ int console_input(char *str, int size, int timeout)
 	return(n);
 }
 
+int console_prompt_str(char *out, int nbytes, const char *prompt, char *default_value, int timeout)
+{
+	char in[32];
+	fprintf(stdout, "\r\n%s [%s]: ", prompt, default_value);
+	int n = console_input(in, nbytes, timeout);
+	if(n > 0) strcpy(out, in);
+	else strcpy(out, default_value);
+	fprintf(stdout, "\r\n");
+	return(strlen(out));
+}
+
 int console_prompt_int(const char *prompt, int default_value, int timeout)
 {
 	char str[32];
